@@ -1,0 +1,10 @@
+# todo
+
+* deps - flags, etc
+* zig
+  * xdg_cache
+  * build-lib
+* cc
+* track build script imports to hash those too
+* implement repos
+* documentation

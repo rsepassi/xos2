@@ -3,6 +3,7 @@ var libglob = Fn.new { |b, args|
   var lib = zig.buildLib(b, "glob", {
     "c_srcs": [b.src("glob.c")],
   })
-  b.install("lib", lib)
-  b.install("include", b.src("glob.h"))
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b, "glob"))
+  b.installHeader(b.src("glob.h"))
 }

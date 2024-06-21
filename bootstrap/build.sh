@@ -6,7 +6,8 @@ srcdir=$PWD/src
 bootstrapdir=$PWD/bootstrap
 depsdir=$PWD/deps
 outdir=$bootstrapdir/build
-scriptsdir=$outdir/scripts
+supportdir=$outdir/support
+scriptsdir=$supportdir/scripts
 target=${TARGET:-"aarch64-macos"}
 target_os=$(echo $target | cut -d'-' -f2)
 opt=ReleaseSmall
@@ -19,9 +20,7 @@ cd $tmp
 
 rm -rf $outdir
 mkdir $outdir
-
-rm -rf $scriptsdir
-mkdir $scriptsdir
+mkdir -p $scriptsdir
 
 # Main launcher
 zig build-exe -target $target -O $opt --name xos $srcdir/main.zig
@@ -38,7 +37,7 @@ BUILD_OUT=$PWD/libuv/xos \
   $bootstrapdir/build_uv.sh
 
 mkdir -p wren/xos
-tar xf $depsdir/wren/wren-0.4.0.tar.gz -C wren --strip-components=1
+cp -r $depsdir/wren/* wren/
 TARGET=$target \
 TARGET_OS=$target_os \
 OPT=$opt \
@@ -82,7 +81,7 @@ OPT=$opt \
 SRCDIR=$PWD/wrencli \
 BUILD_OUT=$PWD/wrencli/xos \
   $bootstrapdir/build_wrencli.sh
-mv wrencli/xos/bin/wren $outdir
+mv wrencli/xos/bin/wren $supportdir
 
 # Scripts
 scripts="
@@ -98,12 +97,11 @@ ln -s $srcdir/wren_modules $scriptsdir
 bbtools="
 tar
 wget
-cp
 "
 bb=$(which busybox)
 for tool in $bbtools
 do
-  ln -s $bb $outdir/$tool
+  ln -s $bb $supportdir/$tool
 done
 
 
@@ -112,7 +110,7 @@ src_files=$(find $srcdir -type f | sort)
 deps_files=$(find $depsdir -type f | sort)
 zig version > zigversion
 xos_id=$(echo $src_files $deps_files zigversion | cat | sha256sum | cut -d' ' -f1)
-printf $xos_id > $outdir/xos_id
+printf $xos_id > $supportdir/xos_id
 
 rm -rf $tmp
 echo "xos=$outdir/xos"

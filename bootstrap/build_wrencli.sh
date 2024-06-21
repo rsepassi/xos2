@@ -9,12 +9,11 @@ root=$PWD
 src=$SRCDIR
 cd $src
 
-zig build-exe -O ReleaseSafe wren_to_c_string.c -lc
+wren_to_c_string="$root/wren/xos/bin/wren_to_c_string"
 
 wren_modules="
 glob
 io
-meta
 os
 repl
 scheduler
@@ -22,7 +21,7 @@ timer
 "
 for m in $wren_modules
 do
-  < module/${m}.wren ./wren_to_c_string ${m} > module/${m}.wren.inc
+  < module/${m}.wren $wren_to_c_string ${m} > module/${m}.wren.inc
 done
 
 cflags="

@@ -1,4 +1,5 @@
-import "scheduler" for Scheduler
+import "scheduler" for Scheduler, Executor
+import "os" for Path
 
 class Directory {
   // TODO: Copied from File. Figure out good way to share this.
@@ -8,7 +9,7 @@ class Directory {
 
   static ensure(path) {
     if (Directory.exists(path)) return path
-    create(path)
+    mkdirs(path)
     return path
   }
 
@@ -49,6 +50,26 @@ class Directory {
     return Scheduler.await_ { list_(path, Fiber.current) }
   }
 
+  static copy(src_dir, dst_dir) {
+    import "glob" for Glob
+    if (Directory.exists(dst_dir)) {
+      dst_dir = ensure("%(dst_dir)/%(Path.basename(src_dir))")
+    }
+    var prefix_strip = src_dir.count + 1
+    var files = Glob.globFiles("%(src_dir)/**/*")
+    var copies = []
+    for (src_path in files) {
+      var src_rel = src_path[prefix_strip..-1]
+      var dst_path = "%(dst_dir)/%(src_rel)"
+      copies.add(Executor.async {
+        ensure(Path.dirname(dst_path))
+        File.copy(src_path, dst_path)
+      })
+    }
+
+    Executor.await(copies)
+  }
+
   foreign static create_(path, fiber)
   foreign static mkdirs_(path, fiber)
   foreign static delete_(path, fiber)
@@ -80,6 +101,22 @@ foreign class File {
     ensureString_(src)
     ensureString_(dst)
     Scheduler.await_ { rename_(src, dst, Fiber.current) }
+  }
+
+  static symlink(src, dst) {
+    ensureString_(src)
+    ensureString_(dst)
+    Scheduler.await_ { symlink_(src, dst, Fiber.current) }
+  }
+
+  static copy(src, dst) {
+    if (Path.isSymlink(src)) {
+      return File.symlink(Path.readLink(src), dst)
+    }
+
+    ensureString_(src)
+    ensureString_(dst)
+    Scheduler.await_ { copy_(src, dst, Fiber.current) }
   }
 
   static exists(path) {
@@ -126,13 +163,6 @@ foreign class File {
 
   static write(path, bytes) {
     return File.create(path) {|file| file.writeBytes(bytes) }
-  }
-
-  // TODO: This works for directories too, so putting it on File is kind of
-  // lame. Consider reorganizing these classes some.
-  static realPath(path) {
-    ensureString_(path)
-    return Scheduler.await_ { realPath_(path, Fiber.current) }
   }
 
   static size(path) {
@@ -197,10 +227,12 @@ foreign class File {
 
   foreign static delete_(path, fiber)
   foreign static open_(path, flags, fiber)
-  foreign static realPath_(path, fiber)
   foreign static sizePath_(path, fiber)
   foreign static rename_(src, dst, fiber)
+  foreign static symlink_(src, dst, fiber)
+  foreign static copy_(src, dst, fiber)
 
+  foreign fd
   foreign close_(fiber)
   foreign readBytes_(count, offset, fiber)
   foreign size_(fiber)

@@ -5,7 +5,7 @@
 #include "wren.h"
 
 // Executes the Wren script at [path] in a new VM.
-WrenInterpretResult runFile(const char* path);
+WrenInterpretResult runFile(const char* path, bool cleanup);
 
 // Runs the Wren interactive REPL.
 WrenInterpretResult runRepl();

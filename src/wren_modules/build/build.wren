@@ -5,6 +5,7 @@ import "hash" for Sha256
 import "kv" for KV
 import "random" for Random
 import "glob" for Glob
+import "timer" for Stopwatch
 
 import "build/label" for Label
 import "build/config" for Config
@@ -33,7 +34,13 @@ class Build {
     return paths.map { |x| src(x) }.toList
   }
   srcGlob(pattern) {
-    return srcs(Glob.glob("%(label.srcdir)/%(pattern)"))
+    var prefix_strip = label.srcdir.count + 1
+    return srcs(Glob.glob("%(label.srcdir)/%(pattern)").map { |x| x[prefix_strip..-1] })
+  }
+  srcDir(path) {
+    var out = path.isEmpty ? label.srcdir : "%(label.srcdir)/%(path)"
+    _deps["directories"][path] = 1
+    return out
   }
 
   // Network dependencies
@@ -64,6 +71,7 @@ class Build {
   }
   deptool(label, label_args, build_args) {
     build_args["target"] = Target.host
+    build_args["opt"] = 2
     return dep(label, label_args, build_args)
   }
   dep(label) {
@@ -90,19 +98,58 @@ class Build {
   }
 
   // Move src_path into the build's output directory
-  install(dir, src_path) {
-    var name = Path.basename(src_path)
+  installExe(srcs) {
+    install("bin", srcs)
+  }
+  installLib(srcs) {
+    install("lib", srcs)
+  }
+  installLibConfig(src) {
+    install("lib/pkgconfig", src)
+  }
+  installHeader(srcs) {
+    install("include", srcs)
+  }
+  installArtifact(srcs) {
+    install("share", srcs)
+  }
+  installDir(dst_dir, src_dir) {
+    var name = Path.basename(src_dir)
+    dst_dir = dst_dir.isEmpty ? "%(name)" : "%(dst_dir)/%(name)"
+    var prefix_strip = src_dir.count + 1
+    for (f in Glob.globFiles("%(src_dir)/**/*")) {
+      var frel = f[prefix_strip..-1]
+      var parts = Path.split(frel)
+      var fdst_dir = parts[0] ? "%(dst_dir)/%(parts[0])" : dst_dir
+      install(fdst_dir, f)
+    }
+  }
+  install(dir, srcs) {
+    if (!(srcs is List)) srcs = [srcs]
     var dst_dir = Directory.ensure(dir ? "%(installDir)/%(dir)" : installDir)
-    var dst_path = "%(dst_dir)/%(name)"
-    src_path = Path.abspath(src_path)
-    Log.debug("installing %(dst_path)")
-    File.rename(src_path, dst_path)
+    for (src_path in srcs) {
+      var name = Path.basename(src_path)
+      var dst_path = "%(dst_dir)/%(name)"
+      Log.debug("installing %(src_path) to %(dir)")
+
+      var mv = !Path.isAbs(src_path) || src_path.startsWith(workDir)
+      if (mv) {
+        File.rename(src_path, dst_path)
+      } else {
+        File.copy(src_path, dst_path)
+      }
+    }
+  }
+
+  // Convenience
+  glob(pattern) {
+    return Glob.glob(pattern)
   }
 
   // Internal use
   // ==========================================================================
   construct new_(args) {
-    args["label_args"].sort()
+    args["label_args"].sort(ByteCompare)
 
     _parent = args["parent"]
     _args = args["build_args"]
@@ -111,10 +158,17 @@ class Build {
     _cache = args["cache"] || (_parent && _parent.cache_) || BuildCache.new()
     _deps = {
       "files": {},
+      "directories": {},
       "fetches": {},
       "labels": {},
     }
 
+    // xos cache key
+    // * xos id
+    // * label
+    // * label arguments
+    // * label build script
+    // * build arguments
     _key = (Fn.new {
       var xos_id = Config.get("xos_id")
       var label_str = "%(_label)"
@@ -145,15 +199,14 @@ class Build {
   }
 
   build_() {
-    Log.debug("%(this)")
-
+    var timer = Stopwatch.new()
     var builder = _label.getBuilder()
     var need_build = needBuild_
     if (!need_build["need"]) {
-      Log.info("not building %(_label), cached")
+      Log.info("%(_label) cached (%(timer.read())ms)")
       return builder.wrap(this)
     }
-    Log.info("building %(_label), reason=%(need_build["reason"])")
+    Log.info("%(this) building, reason=%(need_build["reason"])")
 
     _cache_entry.clear()
     _cache_entry.init()
@@ -166,11 +219,15 @@ class Build {
     for (f in _deps["files"].keys) {
       _deps["files"][f] = Sha256.hashHex(File.read("%(label.srcdir)/%(f)"))
     }
+    for (f in _deps["directories"].keys) {
+      _deps["directories"][f] = HashDir.call(f.isEmpty ? label.srcdir : "%(label.srcdir)/%(f)")
+    }
 
     _cache_entry.recordDeps(_deps)
     _cache_entry.done()
     _needBuild = {"need": false}
 
+    Log.info("%(_label) built in (%(timer.read())ms)")
     return out
   }
 
@@ -200,6 +257,23 @@ class Build {
           break
         }
         if (Sha256.hashHex(File.read(path)) != f.value) {
+          need_build = true
+          need_build_reason = "%(f.key) contents changed"
+          break
+        }
+      }
+    }
+
+    // Directory deps
+    if (!need_build) {
+      for (f in deps["directories"]) {
+        var path = f.key.isEmpty ? label.srcdir : "%(label.srcdir)/%(f.key)"
+        if (!Directory.exists(path)) {
+          need_build = true
+          need_build_reason = "%(f.key) no longer exists"
+          break
+        }
+        if (HashDir.call(path) != f.value) {
           need_build = true
           need_build_reason = "%(f.key) contents changed"
           break
@@ -254,12 +328,12 @@ class Build {
   }
 }
 
-var byteCompare = Fn.new { |a, b|
+var ByteCompare = Fn.new { |a, b|
   // a < b by bytes
   a = a.bytes
   b = b.bytes
   var len = a.count.min(b.count)
-  for (i in 0..len) {
+  for (i in 0...len) {
     if (a[i] < b[i]) return true
     if (a[i] > b[i]) return false
   }
@@ -269,9 +343,15 @@ var byteCompare = Fn.new { |a, b|
 
 var HashStringifyMap = Fn.new { |x|
   var items = []
-  for (k in x.keys.toList.sort(byteCompare)) {
+  for (k in x.keys.toList.sort(ByteCompare)) {
     items.add(k)
     items.add(x[k])
   }
   return "%(items)"
+}
+
+var HashDir = Fn.new { |x|
+  var dir_files = Glob.globFiles("%(x)/**/*").sort(ByteCompare)
+  var hashes = dir_files.map { |x| Sha256.hashHex(File.read(x)) }
+  return Sha256.hashHex(hashes.join("\n"))
 }

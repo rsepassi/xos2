@@ -76,19 +76,19 @@ xos build [<build-flags>...] <label> [-- <label-arg>...]
   }
 
   // Build
-  Log.debug("Build %(label) %(label_args) %(build_flags)")
   var b = Build.new_({
     "build_args": build_flags,
     "label": label,
     "label_args": label_args,
   })
+  Log.debug("%(b)")
   b.build_()
 
   // Install
   var out_dir = "%(Config.get("repo_root"))/xos-out"
-  Log.debug("installing output in %(out_dir)")
+  Log.debug("installing %(b) output in %(out_dir)")
   Directory.deleteTree(out_dir)
-  Process.spawn(["cp", "-r", b.installDir, out_dir])
+  Directory.copy(b.installDir, out_dir)
 
   return true
 }

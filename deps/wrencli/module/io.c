@@ -7,6 +7,7 @@
 #include "stat.h"
 #include "vm.h"
 #include "wren.h"
+#include "util.h"
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -154,7 +155,10 @@ void directoryList(WrenVM* vm)
   uv_fs_t* request = createRequest(fiber);
   
   int error = uv_fs_scandir(getLoop(), request, path, 0, directoryListCallback);
-  if (error != 0 ) schedulerResumeError(fiber, uv_strerror(error));
+  if (error != 0) {
+    freeRequest(request);
+    abortFiber(vm, "error: %s", uv_strerror(error));
+  }
 }
 
 void fileDirectoryCallback(uv_fs_t* request) {
@@ -251,7 +255,7 @@ void directoryDeleteTree(WrenVM* vm)
     free(path_copy);
     free(data);
     free(request);
-    schedulerResumeError(fiber, uv_strerror(error));
+    abortFiber(vm, "error: %s", uv_strerror(error));
   }
 }
 
@@ -291,7 +295,7 @@ void directoryMkdirs(WrenVM* vm)
     free(path_copy);
     free(data);
     free(request);
-    schedulerResumeError(fiber, uv_strerror(error));
+    abortFiber(vm, "error: %s", uv_strerror(error));
   }
 }
 
@@ -316,7 +320,13 @@ void fileFinalize(void* data)
   uv_fs_req_cleanup(&request);
 }
 
-static void fileDeleteCallback(uv_fs_t* request)
+void fileFd(WrenVM* vm) {
+  int fd = *(int*)wrenGetSlotForeign(vm, 0);
+  wrenEnsureSlots(vm, 1);
+  wrenSetSlotDouble(vm, 0, fd);
+}
+
+static void genericFileCallback(uv_fs_t* request)
 {
   if (handleRequestError(request)) return;
   schedulerResume(freeRequest(request), false);
@@ -328,14 +338,39 @@ void fileDelete(WrenVM* vm)
   WrenHandle* fiber = wrenGetSlotHandle(vm, 2);
   uv_fs_t* request = createRequest(fiber);
   
-  int error = uv_fs_unlink(getLoop(), request, path, fileDeleteCallback);
-  if (error != 0 ) schedulerResumeError(fiber, uv_strerror(error));
+  int error = uv_fs_unlink(getLoop(), request, path, genericFileCallback);
+  if (error != 0 ) {
+    freeRequest(request);
+    abortFiber(vm, "error: %s", uv_strerror(error));
+  }
 }
 
-static void fileRenameCallback(uv_fs_t* request)
+void fileSymlink(WrenVM* vm)
 {
-  if (handleRequestError(request)) return;
-  schedulerResume(freeRequest(request), false);
+  const char* src = wrenGetSlotString(vm, 1);
+  const char* dst = wrenGetSlotString(vm, 2);
+  WrenHandle* fiber = wrenGetSlotHandle(vm, 3);
+  uv_fs_t* request = createRequest(fiber);
+
+  int error = uv_fs_symlink(getLoop(), request, src, dst, 0, genericFileCallback);
+  if (error != 0 ) {
+    freeRequest(request);
+    abortFiber(vm, "error: %s", uv_strerror(error));
+  }
+}
+
+void fileCopy(WrenVM* vm)
+{
+  const char* src = wrenGetSlotString(vm, 1);
+  const char* dst = wrenGetSlotString(vm, 2);
+  WrenHandle* fiber = wrenGetSlotHandle(vm, 3);
+  uv_fs_t* request = createRequest(fiber);
+
+  int error = uv_fs_copyfile(getLoop(), request, src, dst, UV_FS_COPYFILE_FICLONE, genericFileCallback);
+  if (error != 0 ) {
+    freeRequest(request);
+    abortFiber(vm, "error: %s", uv_strerror(error));
+  }
 }
 
 void fileRename(WrenVM* vm)
@@ -345,8 +380,11 @@ void fileRename(WrenVM* vm)
   WrenHandle* fiber = wrenGetSlotHandle(vm, 3);
   uv_fs_t* request = createRequest(fiber);
   
-  int error = uv_fs_rename(getLoop(), request, src, dst, fileRenameCallback);
-  if (error != 0 ) schedulerResumeError(fiber, uv_strerror(error));
+  int error = uv_fs_rename(getLoop(), request, src, dst, genericFileCallback);
+  if (error != 0 ) {
+    freeRequest(request);
+    abortFiber(vm, "error: %s", uv_strerror(error));
+  }
 }
 
 static void fileOpenCallback(uv_fs_t* request)
@@ -492,6 +530,13 @@ void fileRealPath(WrenVM* vm)
   const char* path = wrenGetSlotString(vm, 1);
   uv_fs_t* request = createRequest(wrenGetSlotHandle(vm, 2));
   uv_fs_realpath(getLoop(), request, path, realPathCallback);
+}
+
+void fileReadLink(WrenVM* vm)
+{
+  const char* path = wrenGetSlotString(vm, 1);
+  uv_fs_t* request = createRequest(wrenGetSlotHandle(vm, 2));
+  uv_fs_readlink(getLoop(), request, path, realPathCallback);
 }
 
 // Called by libuv when the stat call completes.

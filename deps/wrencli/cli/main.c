@@ -32,12 +32,13 @@ int main(int argc, const char* argv[])
   }
   else
   {
-    result = runFile(argv[1]);
+    result = runFile(argv[1], false);
   }
 
   // Exit with an error code if the script failed.
   if (result == WREN_RESULT_COMPILE_ERROR) return 65; // EX_DATAERR.
   if (result == WREN_RESULT_RUNTIME_ERROR) return 70; // EX_SOFTWARE.
 
-  return getExitCode();
+  int code = getExitCode();
+  return code;
 }

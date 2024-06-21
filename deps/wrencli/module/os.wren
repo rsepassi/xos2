@@ -1,3 +1,5 @@
+import "scheduler" for Scheduler
+
 class Platform {
   foreign static homePath
   foreign static isPosix
@@ -5,8 +7,6 @@ class Platform {
 
   static isWindows { name == "Windows" }
 }
-
-import "scheduler" for Scheduler
 
 class Process {
   // TODO: This will need to be smarter when wren supports CLI options.
@@ -31,6 +31,7 @@ class Process {
   static spawn(args, env, stdio) {
     var env_flat = null
     if (env != null) {
+      if (!(env is Map)) Fiber.abort("env must be a Map, got %(env)")
       env_flat = List.filled(env.count, 0)
       var i = 0
       for (el in env) {
@@ -116,4 +117,19 @@ class Path {
   static dirname(p) {
     return split(p)[0]
   }
+
+  static realPath(path) {
+    return Scheduler.await_ { realPath_(path, Fiber.current) }
+  }
+
+  static isSymlink(path) {
+    return realPath(path) != path
+  }
+
+  static readLink(path) {
+    return Scheduler.await_ { readLink_(path, Fiber.current) }
+  }
+
+  foreign static realPath_(path, fiber)
+  foreign static readLink_(path, fiber)
 }

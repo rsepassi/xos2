@@ -296,12 +296,10 @@ static void freeVM()
   
   wrenFreeVM(vm);
 
-  uv_tty_reset_mode();
-  
   if (wrenModulesDirectory != NULL) pathFree(wrenModulesDirectory);
 }
 
-WrenInterpretResult runFile(const char* path)
+WrenInterpretResult runFile(const char* path, bool cleanup)
 {
   char* source = readFile(path);
   if (source == NULL)
@@ -348,11 +346,12 @@ WrenInterpretResult runFile(const char* path)
     uv_run(loop, UV_RUN_DEFAULT);
   }
 
-  freeVM();
-
-  free(source);
-  free(rootDirectory);
-  pathFree(module);
+  if (cleanup) {
+    freeVM();
+    free(source);
+    free(rootDirectory);
+    pathFree(module);
+  }
 
   return result;
 }

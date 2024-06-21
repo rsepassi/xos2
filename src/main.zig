@@ -20,9 +20,13 @@ pub fn main() !void {
     const cwd_path = try cwd.realpathAlloc(alloc, ".");
     const binpath = try std.fs.selfExeDirPathAlloc(alloc);
     log.debug("binpath={s}", .{binpath});
+
     const bindir = try cwd.openDir(binpath, .{});
-    const wren_path = try bindir.realpathAlloc(alloc, "wren");
-    const script_path = try bindir.realpathAlloc(alloc, "scripts/main.wren");
+    const supportdir = try bindir.openDir("support", .{});
+    const supportpath = try supportdir.realpathAlloc(alloc, ".");
+
+    const wren_path = try supportdir.realpathAlloc(alloc, "wren");
+    const script_path = try supportdir.realpathAlloc(alloc, "scripts/main.wren");
 
     // Command-line:
     // wren main.wren <args>
@@ -40,8 +44,8 @@ pub fn main() !void {
     try exec_env.put("XOS_REPO_ROOT", try getRepoRoot(alloc, cwd_path));
     try exec_env.put("XOS_SYSTEM_PATH", env.get("XOS_SYSTEM_PATH") orelse env.get("PATH") orelse "");
     try exec_env.put("XOS_HOST", getHostTriple());
-    try exec_env.put("XOS_ID", env.get("XOS_ID") orelse try bindir.readFileAlloc(alloc, "xos_id", 1024));
-    try exec_env.put("PATH", binpath);
+    try exec_env.put("XOS_ID", env.get("XOS_ID") orelse try supportdir.readFileAlloc(alloc, "xos_id", 1024));
+    try exec_env.put("PATH", supportpath);
     try exec_env.put("LOG", env.get("LOG") orelse "");
     try exec_env.put("LOG_SCOPES", env.get("LOG_SCOPES") orelse "");
     try exec_env.put("NO_CACHE", env.get("NO_CACHE") orelse "");

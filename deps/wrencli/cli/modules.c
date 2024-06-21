@@ -7,7 +7,6 @@
 
 #include "glob.wren.inc"
 #include "io.wren.inc"
-#include "meta.wren.inc"
 #include "os.wren.inc"
 #include "repl.wren.inc"
 #include "scheduler.wren.inc"
@@ -21,6 +20,8 @@ extern void directoryMkdirs(WrenVM* vm);
 extern void fileAllocate(WrenVM* vm);
 extern void fileFinalize(void* data);
 extern void fileDelete(WrenVM* vm);
+extern void fileSymlink(WrenVM* vm);
+extern void fileCopy(WrenVM* vm);
 extern void fileRename(WrenVM* vm);
 extern void fileOpen(WrenVM* vm);
 extern void fileSizePath(WrenVM* vm);
@@ -28,9 +29,11 @@ extern void fileClose(WrenVM* vm);
 extern void fileDescriptor(WrenVM* vm);
 extern void fileReadBytes(WrenVM* vm);
 extern void fileRealPath(WrenVM* vm);
+extern void fileReadLink(WrenVM* vm);
 extern void fileSize(WrenVM* vm);
 extern void fileStat(WrenVM* vm);
 extern void fileWriteBytes(WrenVM* vm);
+extern void fileFd(WrenVM* vm);
 extern void platformHomePath(WrenVM* vm);
 extern void platformIsPosix(WrenVM* vm);
 extern void platformName(WrenVM* vm);
@@ -80,11 +83,6 @@ extern WrenForeignMethodFn wrenHashBindForeignMethod(WrenVM* vm,
                                                 bool isStatic,
                                                 const char* signature);
 
-extern char* wrenMetaSource(void);
-extern WrenForeignMethodFn wrenMetaBindForeignMethod(WrenVM* vm,
-                                                const char* className,
-                                                bool isStatic,
-                                                const char* signature);
 extern char* wrenRandomSource(void);
 extern WrenForeignMethodFn wrenRandomBindForeignMethod(WrenVM* vm,
                                                 const char* className,
@@ -117,7 +115,7 @@ extern WrenForeignMethodFn wrenUclBindForeignMethod(WrenVM* vm,
 // If you add a new method to the longest class below, make sure to bump this.
 // Note that it also includes an extra slot for the sentinel value indicating
 // the end of the list.
-#define MAX_METHODS_PER_CLASS 14
+#define MAX_METHODS_PER_CLASS 16
 
 // The maximum number of foreign classes a single built-in module defines.
 //
@@ -195,9 +193,11 @@ static ModuleRegistry modules[] =
       FINALIZE(fileFinalize)
       STATIC_METHOD("delete_(_,_)", fileDelete)
       STATIC_METHOD("rename_(_,_,_)", fileRename)
+      STATIC_METHOD("symlink_(_,_,_)", fileSymlink)
+      STATIC_METHOD("copy_(_,_,_)", fileCopy)
       STATIC_METHOD("open_(_,_,_)", fileOpen)
-      STATIC_METHOD("realPath_(_,_)", fileRealPath)
       STATIC_METHOD("sizePath_(_,_)", fileSizePath)
+      METHOD("fd", fileFd)
       METHOD("close_(_)", fileClose)
       METHOD("descriptor", fileDescriptor)
       METHOD("readBytes_(_,_,_)", fileReadBytes)
@@ -249,6 +249,10 @@ static ModuleRegistry modules[] =
       STATIC_METHOD("env(_)", processEnvName)
       STATIC_METHOD("chdir(_)", processChdir)
       STATIC_METHOD("spawn_(_,_,_,_,_,_)", processSpawn)
+    END_CLASS
+    CLASS(Path)
+      STATIC_METHOD("realPath_(_,_)", fileRealPath)
+      STATIC_METHOD("readLink_(_,_)", fileReadLink)
     END_CLASS
   END_MODULE
   MODULE(repl)
@@ -372,10 +376,6 @@ WrenLoadModuleResult loadBuiltInModule(const char* name)
     // Extensions
     char* src = NULL;
     do {
-      if (strcmp(name, "meta") == 0) {
-        src = wrenMetaSource();
-        break;
-      }
       if (strcmp(name, "random") == 0) {
         src = wrenRandomSource();
         break;
@@ -430,9 +430,6 @@ WrenForeignMethodFn bindBuiltInForeignMethod(
   // TODO: Assert instead of return NULL?
   ModuleRegistry* module = findModule(moduleName);
   if (module == NULL) {
-    if (strcmp(moduleName, "meta") == 0) {
-      return wrenMetaBindForeignMethod(vm, className, isStatic, signature);
-    }
     if (strcmp(moduleName, "random") == 0) {
       return wrenRandomBindForeignMethod(vm, className, isStatic, signature);
     }

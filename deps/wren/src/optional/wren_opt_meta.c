@@ -1,9 +1,9 @@
 #include <string.h>
+#include <stdio.h>
 
 #include "wren_vm.h"
-#include "util.h"
 
-#include "meta.wren.inc"
+#include "wren_opt_meta.wren.inc"
 
 void metaCompile(WrenVM* vm)
 {
@@ -63,6 +63,27 @@ void metaGetModuleVariables(WrenVM* vm)
   }
 }
 
+static void abortFiber(WrenVM* vm, char* fmt, ...) {
+
+  va_list args;
+  va_start(args, fmt);
+  ssize_t bufsz = vsnprintf(NULL, 0, fmt, args);
+  va_end(args);
+
+  char* errstr = (char*)malloc(bufsz + 1);
+
+  va_list args2;
+  va_start(args2, fmt);
+  vsnprintf(errstr, bufsz + 1, fmt, args2);
+  va_end(args2);
+
+  wrenEnsureSlots(vm, 1);
+  wrenSetSlotString(vm, 0, errstr);
+  wrenAbortFiber(vm, 0);
+
+  free(errstr);
+}
+
 void metaGetModuleVariable(WrenVM* vm)
 {
   const char* module = wrenGetSlotString(vm, 1);
@@ -79,7 +100,7 @@ void metaGetModuleVariable(WrenVM* vm)
 
 const char* wrenMetaSource()
 {
-  return metaModuleSource;
+  return wren_opt_metaModuleSource;
 }
 
 WrenForeignMethodFn wrenMetaBindForeignMethod(WrenVM* vm,

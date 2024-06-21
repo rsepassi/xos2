@@ -7,17 +7,23 @@ set -e
 src=$SRCDIR
 cd $src
 
+zig build-exe -O ReleaseSafe wren_to_c_string.c -lc
+< src/optional/wren_opt_meta.wren ./wren_to_c_string wren_opt_meta > src/optional/wren_opt_meta.wren.inc
+
 zig build-lib -target $TARGET -O $OPT \
   --name wren \
-  -DWREN_OPT_META=0 \
+  -DWREN_OPT_META=1 \
   -DWREN_OPT_RANDOM=0 \
   src/vm/*.c \
+  src/optional/*.c \
   -I src/include \
+  -I src/optional \
   -I src/vm \
   -lc
 
 # install
 cd $BUILD_OUT
-mkdir lib include
+mkdir lib include bin
 cp $src/src/include/wren.h include
 cp $src/libwren.a lib
+cp $src/wren_to_c_string bin

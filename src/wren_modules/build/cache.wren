@@ -62,7 +62,7 @@ class BuildCacheEntry {
   }
 
   done() {
-    File.write("%(_dir)/ok", "")
+    File.create("%(_dir)/ok")
     Directory.deleteTree(workdir)
   }
 

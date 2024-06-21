@@ -69,7 +69,7 @@ var GlobFilter_ = Fn.new { |matches, config|
     if (t == GlobType.File) return File.exists(m)
     if (t == GlobType.Directory) return Directory.exists(m)
     Fiber.abort("unreachable")
-  }
+  }.toList
 }
 
 class Glob {
@@ -77,6 +77,10 @@ class Glob {
 
   static glob(pattern) {
     return globEx(pattern, {"type": GlobType.All})
+  }
+
+  static globFiles(pattern) {
+    return globEx(pattern, {"type": GlobType.File})
   }
 
   static globEx(pattern, config) {

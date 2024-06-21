@@ -3,6 +3,7 @@
 #include "wren.h"
 #include "vm.h"
 #include "scheduler.h"
+#include "util.h"
 
 #if __APPLE__
   #include "TargetConditionals.h"
@@ -259,8 +260,8 @@ void processSpawn(WrenVM* vm) {
   if (has_env) free(env);
 
   if (rc != 0) {
-    schedulerResumeError(fiber, uv_strerror(rc));
     free(state);
+    abortFiber(vm, "error: process spawn failed: %s", uv_strerror(rc));
     return;
   }
 }

@@ -1,15 +1,14 @@
 # todo
 
 * xos_id
-* zig global cache (xdg_cache_dir)
 * track build function imports as dynamic deps
 * implement external repos - repo name mapped to url
 * NO_CACHE should still allow for within-single-execution caching
 * curl + bsdtar to replace wget + tar
 * documentation
 * Fibers in dependency and file loops
-* detailed timings
 * detailed review of caching policy
 * cache checks in memory to avoid duplicate file access
 * tests
 * UCL configuration parser
+* Tracking license, version url

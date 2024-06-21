@@ -5,6 +5,7 @@ var launcher = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig", [])
   var exe = zig.buildExe(b, "xos", {
     "root": b.src("main.zig"),
+    "libc": true,
   })
   b.install("bin", exe)
 }

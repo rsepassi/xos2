@@ -1,5 +1,8 @@
 import "os" for Process
 import "io" for Directory
+import "log" for Logger
+
+var Log = Logger.get("zig")
 
 // Build target
 class zig {
@@ -23,7 +26,8 @@ class zig {
   static call(b, args) {
     var archive_path = b.fetch(getUrl_(b.target), urlHashes_[b.target.os][b.target.arch])
     Directory.create("zig")
-    Process.spawn(["tar", "xf", archive_path, "--strip-components=1", "-C", "zig"], null)
+    Log.debug("unpacking %(archive_path)")
+    Process.spawn(["tar", "xf", archive_path, "--strip-components=1", "-C", "zig"], null, [null, 1, 2])
     b.install("", "zig")
   }
 

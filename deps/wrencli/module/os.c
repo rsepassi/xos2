@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "os.h"
 #include "uv.h"
 #include "wren.h"
@@ -180,16 +182,22 @@ void processChdir(WrenVM* vm) {
 typedef struct {
   uv_process_t handle;
   WrenHandle* fiber;
+  char** args;
 } ProcessState;
 
 void processExitCb(uv_process_t* handle, int64_t exit_status, int term_signal) {
   ProcessState* state = handle->data;
   WrenHandle* fiber = state->fiber;
-  free(state);
   if (exit_status == 0) {
+    free(state->args);
+    free(state);
     schedulerResume(fiber, false);
   } else {
-    schedulerResumeError(fiber, "process failed");
+    char* errstr = createStr("process failed: code=%d arg0=%s", exit_status, state->args[0]);
+    free(state->args);
+    free(state);
+    schedulerResumeError(fiber, errstr);
+    free(errstr);
   }
 }
 
@@ -253,15 +261,16 @@ void processSpawn(WrenVM* vm) {
   ProcessState* state = (ProcessState*)malloc(sizeof(ProcessState));
   state->fiber = fiber;
   state->handle.data = state;
+  state->args = args;
 
   int rc = uv_spawn(getLoop(), &state->handle, &options);
 
-  free(args);
   if (has_env) free(env);
 
   if (rc != 0) {
+    free(state->args);
     free(state);
-    abortFiber(vm, "error: process spawn failed: %s", uv_strerror(rc));
+    abortFiber(vm, "error: process spawn failed: code=%d %s", rc, uv_strerror(rc));
     return;
   }
 }

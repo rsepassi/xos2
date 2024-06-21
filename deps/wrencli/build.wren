@@ -10,6 +10,7 @@ var xos = Fn.new { |b, args|
       b.dep("//deps/ucl"),
       b.dep("//deps/lmdb"),
     ],
+    "libc": true,
   })
   b.installLib(lib)
 }

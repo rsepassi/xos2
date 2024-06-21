@@ -19,7 +19,6 @@ class BuildCache {
     return BuildCacheEntry.new(this, key)
   }
 
-
 	setContent(src_path) {
     if (!File.exists(src_path)) Fiber.abort("no file exists at %(src_path)")
     var hash = Sha256.hashFileHex(src_path)
@@ -36,6 +35,11 @@ class BuildCache {
 
   contentPathForHash_(hash) {
     var d = Directory.ensure("%(dir)/content/%(hash[0...2])")
+		return "%(d)/%(hash)"
+  }
+
+  toolCacheDir(hash) {
+    var d = Directory.ensure("%(dir)/tools/%(hash[0...2])")
 		return "%(d)/%(hash)"
   }
 }

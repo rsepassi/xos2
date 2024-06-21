@@ -35,26 +35,29 @@ class StopwatchTreeNode {
   childTime { _children.reduce(0) { |sum, x| sum + x.value.time } }
   selfTime { _time - childTime }
 
-  toString(indent) {
+  toString(indent, name) {
     var prefix = " " * indent
+
+    var out = "Time total= %(timeFmt_(time))ms self= %(timeFmt_(selfTime))ms children= %(timeFmt_(childTime))ms %(name)"
+
     var children = [""]
     for (el in _children) {
       var name = el.key
-      var child = el.value.toString(indent + 4)
-      children.add("%(prefix)%(child) %(name)")
+      var child = el.value.toString(indent + 4, name)
+      children.add("%(prefix)%(child)")
     }
     children = children.join("\n")
 
-    return "Time total=%(timeFmt_(time))ms self=%(timeFmt_(selfTime))ms children=%(timeFmt_(childTime))ms%(children)"
+    return out + children
   }
 
   toString {
-    return toString(0)
+    return toString(0, "root")
   }
 
   timeFmt_(t) {
     var s = "%(t)"
-    var rem = " " * (5 - s.count)
+    var rem = " " * (6 - s.count)
     return s + rem
   }
 }

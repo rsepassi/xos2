@@ -47,19 +47,20 @@ class Build {
   fetch(url, hash) {
     var path = _cache.getContent(hash)
     if (path == null) {
-      Log.debug("%(_label) fetching %(url)")
-
-      var tmp_dst = _cache_entry.mktmp()
-      Process.spawn(["wget", url, "-O", tmp_dst], null)
-      var computed_hash = _cache.setContent(tmp_dst)
-      if (hash != computed_hash) {
-        Fiber.abort("unexpected hash for %(url).\nexpected %(hash)\nfetched  %(computed_hash)")
+      StopwatchTree.time(url) {
+        var tmp_dst = _cache_entry.mktmp()
+        Log.debug("%(_label) fetching %(url) to %(tmp_dst)")
+        Process.spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst], null)
+        var computed_hash = _cache.setContent(tmp_dst)
+        if (hash != computed_hash) {
+          Fiber.abort("unexpected hash for %(url).\nexpected %(hash)\nfetched  %(computed_hash)")
+        }
       }
     } else {
       Log.debug("%(_label) fetching %(url), cached")
     }
     _deps["fetches"][url] = hash
-    return path
+    return _cache.getContent(hash)
   }
 
   // Label dependencies
@@ -146,6 +147,9 @@ class Build {
     return Glob.glob(pattern)
   }
 
+  // Tool-managed cache directory
+  toolCacheDir { _cache.toolCacheDir(_key) }
+
   // Internal use
   // ==========================================================================
   construct new_(args) {
@@ -198,10 +202,7 @@ class Build {
     return bargs
   }
 
-  build_() {
-    return StopwatchTree.time("%(_label)") { build__() }
-  }
-
+  build_() { StopwatchTree.time("%(_label)") { build__() } }
   build__() {
     var builder = _label.getBuilder()
     var need_build = needBuild_

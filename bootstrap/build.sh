@@ -1,6 +1,35 @@
 #!/usr/bin/env sh
 
-set -e
+set -ex
+
+case $(uname -m) in
+  x86_64)
+    arch=x86_64
+    ;;
+  arm64)
+    arch=aarch64
+    ;;
+  *)
+    >&2 echo "unsupported arch"
+    exit 1
+    ;;
+esac
+case $(uname -o) in
+  Linux)
+    os=linux
+    abi=musl
+    ;;
+  Darwin)
+    os=macos
+    abi=none
+    ;;
+  *)
+    >&2 echo "unsupported os"
+    exit 1
+    ;;
+esac
+
+target=${TARGET:-"$arch-$os-$abi"}
 
 srcdir=$PWD/src
 bootstrapdir=$PWD/bootstrap
@@ -8,7 +37,6 @@ depsdir=$PWD/deps
 outdir=$bootstrapdir/build
 supportdir=$outdir/support
 scriptsdir=$supportdir/scripts
-target=${TARGET:-"aarch64-macos"}
 target_os=$(echo $target | cut -d'-' -f2)
 opt=ReleaseSmall
 
@@ -23,10 +51,18 @@ mkdir $outdir
 mkdir -p $scriptsdir
 
 # Main launcher
-zig build-exe -target $target -O $opt --name xos $srcdir/main.zig
+zig build-exe -target $target -O $opt --name xos $srcdir/main.zig -lc
 mv xos $outdir
 
 # Deps
+mkdir -p busybox/xos
+tar xf $bootstrapdir/busybox.tar.gz -C busybox --strip-components=1
+TARGET=$target \
+SRCDIR=$PWD/busybox \
+BUILD_OUT=$PWD/busybox/xos \
+  $bootstrapdir/fetch_busybox.sh
+mv busybox/xos/bin/busybox $supportdir
+
 mkdir -p libuv/xos
 tar xf $depsdir/libuv/libuv-1.48.0.tar.gz -C libuv --strip-components=1
 TARGET=$target \
@@ -98,10 +134,9 @@ bbtools="
 tar
 wget
 "
-bb=$(which busybox)
 for tool in $bbtools
 do
-  ln -s $bb $supportdir/$tool
+  ln -s busybox $supportdir/$tool
 done
 
 

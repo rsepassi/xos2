@@ -1,6 +1,9 @@
 import "os" for Process
 import "io" for File
 import "json" for JSON
+import "log" for Logger
+
+var Log = Logger.get("zig")
 
 // Install wrapper
 class Zig {
@@ -58,6 +61,8 @@ class Zig {
 
     var env = Process.env()
     env["HOME"] = b.workDir
+    env["XDG_CACHE_HOME"] = b.toolCacheDir
+    Log.debug(args)
     Process.spawn(args, env, [null, 1, 2])
     return "%(Process.cwd)/%(Zig.libName(b.target, name))"
   }
@@ -74,6 +79,8 @@ class Zig {
 
     var env = Process.env()
     env["HOME"] = b.workDir
+    env["XDG_CACHE_HOME"] = b.toolCacheDir
+    Log.debug(args)
     Process.spawn(args, env, [null, 1, 2])
     return "%(Process.cwd)/%(Zig.exeName(b.target, name))"
   }

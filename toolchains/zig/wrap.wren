@@ -65,11 +65,8 @@ class Zig {
       "-Dtarget=%(b.target)",
       "-Doptimize=%(getOpt(b.opt_mode))",
     ]
-    if (opts["args"]) {
-      args.addAll(opts["args"])
-    } else {
-      args.addAll(defaults)
-    }
+    if (!opts["nostdopts"]) args.addAll(defaults)
+    if (opts["args"]) args.addAll(opts["args"])
 
     exec_(b, args)
     return "zig-out"
@@ -155,9 +152,9 @@ var FillArgs_ = Fn.new { |args, opts, srcs, include_libs|
   args.addAll(srcs)
   if (include_libs) args.addAll(dep_libs)
 
-  if (opts["libc"]) {
-    args.add("-lc")
-  }
+  if (opts["libc++"]) args.add("-lc++")
+  if (opts["libc"]) args.add("-lc")
+
 }
 
 class CDep {

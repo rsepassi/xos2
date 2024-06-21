@@ -11,4 +11,5 @@
 * cache checks in memory to avoid duplicate file access
 * tests
 * UCL configuration parser
-* Tracking license, version url
+* Tracking license, version url, documentation
+* Cloud cache

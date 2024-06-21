@@ -1,0 +1,55 @@
+Below command produces lib/curl_config.h for mac. Small tweaks produce it for
+linux and windows.
+
+sdk=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+sysroot=$sdk
+ldflags="-L$sdk/usr/lib -F$sdk/System/Library/Frameworks -framework CoreFoundation -framework CoreServices -framework SystemConfiguration -framework CFNetwork"
+CC="zig cc -std=c89 -nostdinc -nostdlib --target=aarch64-macos -lc" \
+LD="zig cc -std=c89 -nostdinc -nostdlib --target=aarch64-macos" \
+CFLAGS="$cflags" \
+CPPFLAGS="$cppflags" \
+LDFLAGS="-static -s $ldflags" \
+LIBS="-lobjc -lc" \
+./configure \
+  --prefix=$PWD/build \
+  --host=aarch64-darwin \
+  --build=aarch64-darwin \
+  --disable-rt \
+  --disable-ech \
+  --disable-dependency-tracking \
+  --disable-shared \
+  --enable-static \
+  --enable-http \
+  --disable-ftp \
+  --disable-ldap \
+  --disable-ldaps \
+  --disable-rtsp \
+  --disable-proxy \
+  --disable-tftp \
+  --disable-pop3 \
+  --disable-imap \
+  --disable-smb \
+  --disable-gopher \
+  --disable-mqtt \
+  --disable-libgcc \
+  --enable-ipv6 \
+  --disable-threaded-resolver \
+  --disable-sspi \
+  --disable-aws \
+  --disable-tls-srp \
+  --enable-cookies \
+  --disable-socketpair \
+  --disable-alt-svc \
+  --disable-manual \
+  --without-ssl \
+  --without-hyper \
+  --without-zlib \
+  --without-brotli \
+  --without-zstd \
+  --without-ca-bundle \
+  --without-libpsl \
+  --without-libgsasl \
+  --without-libssh2 \
+  --without-libidn2 \
+  --without-nghttp2 \
+  --with-sysroot="$sysroot"

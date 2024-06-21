@@ -95,6 +95,7 @@ class Build {
   installLibConfig(src) { install("lib/pkgconfig", src) }
   installHeader(srcs) { install("include", srcs) }
   installArtifact(srcs) { install("share", srcs) }
+  installDir(src_dir) { installDir("", src_dir) }
   installDir(dst_dir, src_dir) {
     var name = Path.basename(src_dir)
     dst_dir = dst_dir.isEmpty ? "%(name)" : "%(dst_dir)/%(name)"

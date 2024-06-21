@@ -73,34 +73,6 @@ void ioShutdown()
   }
 }
 
-// If [request] failed with an error, sends the runtime error to the VM and
-// frees the request.
-//
-// Returns true if an error was reported.
-static bool handleRequestError(uv_fs_t* request)
-{
-  if (request->result >= 0) return false;
-
-  FileRequestData* data = (FileRequestData*)request->data;
-  WrenHandle* fiber = (WrenHandle*)data->fiber;
-
-  int error = (int)request->result;
-  const char* errstr_uv = uv_strerror(error);
-  const char* path_uv = request->path;
-
-  ssize_t bufsz = snprintf(NULL, 0, "%s: %s", errstr_uv, path_uv);
-  char* errstr = (char*)malloc(bufsz + 1);
-  snprintf(errstr, bufsz + 1, "%s: %s", errstr_uv, path_uv);
-
-  free(data);
-  uv_fs_req_cleanup(request);
-  free(request);
-
-  schedulerResumeError(fiber, errstr);
-  free(errstr);
-  return true;
-}
-
 // Allocates a new request that resumes [fiber] when it completes.
 uv_fs_t* createRequest(WrenHandle* fiber)
 {
@@ -126,6 +98,40 @@ WrenHandle* freeRequest(uv_fs_t* request)
   free(request);
   
   return fiber;
+}
+
+// If [request] failed with an error, sends the runtime error to the VM and
+// frees the request.
+//
+// Returns true if an error was reported.
+static bool handleRequestError(uv_fs_t* request)
+{
+  if (request->result >= 0) return false;
+
+  FileRequestData* data = (FileRequestData*)request->data;
+  WrenHandle* fiber = (WrenHandle*)data->fiber;
+
+  int error = (int)request->result;
+  const char* errstr_uv = uv_strerror(error);
+  const char* path_uv = request->path;
+
+  char* errstr;
+  if (error == UV_ENOENT) {
+    const char* fmt = "%s: either destination directory does not exist or file %s does not exist";
+    ssize_t bufsz = snprintf(NULL, 0, fmt, errstr_uv, path_uv);
+    errstr = (char*)malloc(bufsz + 1);
+    snprintf(errstr, bufsz + 1, fmt, errstr_uv, path_uv);
+  } else {
+    ssize_t bufsz = snprintf(NULL, 0, "%s: %s", errstr_uv, path_uv);
+    errstr = (char*)malloc(bufsz + 1);
+    snprintf(errstr, bufsz + 1, "%s: %s", errstr_uv, path_uv);
+  }
+
+  freeRequest(request);
+
+  schedulerResumeError(fiber, errstr);
+  free(errstr);
+  return true;
 }
 
 static void directoryListCallback(uv_fs_t* request)

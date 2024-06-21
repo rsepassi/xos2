@@ -109,6 +109,7 @@ foreign class File {
     Scheduler.await_ { symlink_(src, dst, Fiber.current) }
   }
 
+  static copy(src) { copy(src, Path.basename(src)) }
   static copy(src, dst) {
     if (Path.isSymlink(src)) {
       return File.symlink(Path.readLink(src), dst)

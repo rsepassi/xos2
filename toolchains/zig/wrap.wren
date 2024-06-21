@@ -49,6 +49,32 @@ class Zig {
     return CDep.new(install_dir, libname)
   }
 
+  exec_(b, args) {
+    var env = Process.env()
+    env["HOME"] = b.workDir
+    env["XDG_CACHE_HOME"] = b.toolCacheDir
+    Log.debug(args)
+    Process.spawn(args, env, [null, 1, 2])
+  }
+
+  build(b, opts) {
+    var args = [
+      _exe, "build",
+    ]
+    var defaults = [
+      "-Dtarget=%(b.target)",
+      "-Doptimize=%(getOpt(b.opt_mode))",
+    ]
+    if (opts["args"]) {
+      args.addAll(opts["args"])
+    } else {
+      args.addAll(defaults)
+    }
+
+    exec_(b, args)
+    return "zig-out"
+  }
+
   buildLib(b, name, opts) {
     var srcs = GetSrcs_.call(opts)
     var args = [
@@ -59,11 +85,7 @@ class Zig {
     ]
     FillArgs_.call(args, opts, srcs, false)
 
-    var env = Process.env()
-    env["HOME"] = b.workDir
-    env["XDG_CACHE_HOME"] = b.toolCacheDir
-    Log.debug(args)
-    Process.spawn(args, env, [null, 1, 2])
+    exec_(b, args)
     return "%(Process.cwd)/%(Zig.libName(b.target, name))"
   }
 
@@ -77,11 +99,7 @@ class Zig {
     ]
     FillArgs_.call(args, opts, srcs, true)
 
-    var env = Process.env()
-    env["HOME"] = b.workDir
-    env["XDG_CACHE_HOME"] = b.toolCacheDir
-    Log.debug(args)
-    Process.spawn(args, env, [null, 1, 2])
+    exec_(b, args)
     return "%(Process.cwd)/%(Zig.exeName(b.target, name))"
   }
 

@@ -23,6 +23,7 @@ class Build {
   label { _label }
   workDir { _cache_entry.workdir }
   installDir { _cache_entry.outdir }
+  toolCacheDir { _cache.toolCacheDir(_key) }
 
   // File dependencies
   src(path) {
@@ -30,9 +31,7 @@ class Build {
     _deps["files"][path] = 1
     return out
   }
-  srcs(paths) {
-    return paths.map { |x| src(x) }.toList
-  }
+  srcs(paths) { paths.map { |x| src(x) }.toList }
   srcGlob(pattern) {
     var prefix_strip = label.srcdir.count + 1
     return srcs(Glob.glob("%(label.srcdir)/%(pattern)").map { |x| x[prefix_strip..-1] })
@@ -64,23 +63,15 @@ class Build {
   }
 
   // Label dependencies
-  deptool(label) {
-    return deptool(label, [])
-  }
-  deptool(label, label_args) {
-    return deptool(label, label_args, argsCopy_)
-  }
+  deptool(label) { deptool(label, []) }
+  deptool(label, label_args) { deptool(label, label_args, argsCopy_) }
   deptool(label, label_args, build_args) {
     build_args["target"] = Target.host
     build_args["opt"] = 2
     return dep(label, label_args, build_args)
   }
-  dep(label) {
-    return dep(label, [])
-  }
-  dep(label, label_args) {
-    return dep(label, label_args, argsCopy_)
-  }
+  dep(label) { dep(label, []) }
+  dep(label, label_args) { dep(label, label_args, argsCopy_) }
   dep(label, label_args, build_args) {
     label = Build.Label.parse(label, this.label.srcdir)
     Log.debug("%(_label) depends on %(label)")
@@ -99,21 +90,11 @@ class Build {
   }
 
   // Move src_path into the build's output directory
-  installExe(srcs) {
-    install("bin", srcs)
-  }
-  installLib(srcs) {
-    install("lib", srcs)
-  }
-  installLibConfig(src) {
-    install("lib/pkgconfig", src)
-  }
-  installHeader(srcs) {
-    install("include", srcs)
-  }
-  installArtifact(srcs) {
-    install("share", srcs)
-  }
+  installExe(srcs) { install("bin", srcs) }
+  installLib(srcs) { install("lib", srcs) }
+  installLibConfig(src) { install("lib/pkgconfig", src) }
+  installHeader(srcs) { install("include", srcs) }
+  installArtifact(srcs) { install("share", srcs) }
   installDir(dst_dir, src_dir) {
     var name = Path.basename(src_dir)
     dst_dir = dst_dir.isEmpty ? "%(name)" : "%(dst_dir)/%(name)"
@@ -143,12 +124,15 @@ class Build {
   }
 
   // Convenience
-  glob(pattern) {
-    return Glob.glob(pattern)
+  glob(pattern) { Glob.glob(pattern) }
+  untar(archive) { untar(archive, {}) }
+  untar(archive, opts) {
+    var tmpdir = _cache_entry.mktmpdir()
+    Log.debug("unpacking %(archive)")
+    var strip = opts["strip"] || 1
+    Process.spawn(["tar", "xf", archive, "--strip-components=%(strip)", "-C", tmpdir], null)
+    return tmpdir
   }
-
-  // Tool-managed cache directory
-  toolCacheDir { _cache.toolCacheDir(_key) }
 
   // Internal use
   // ==========================================================================

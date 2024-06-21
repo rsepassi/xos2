@@ -1,5 +1,6 @@
 # todo
 
+* xos_id
 * zig global cache (xdg_cache_dir)
 * track build function imports as dynamic deps
 * implement external repos - repo name mapped to url
@@ -8,5 +9,7 @@
 * documentation
 * Fibers in dependency and file loops
 * detailed timings
-* better error message when destination dir is missing (io/uv reports src)
 * detailed review of caching policy
+* cache checks in memory to avoid duplicate file access
+* tests
+* UCL configuration parser

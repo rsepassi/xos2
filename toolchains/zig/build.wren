@@ -24,7 +24,7 @@ class zig {
     var archive_path = b.fetch(getUrl_(b.target), urlHashes_[b.target.os][b.target.arch])
     Directory.create("zig")
     Process.spawn(["tar", "xf", archive_path, "--strip-components=1", "-C", "zig"], null)
-    b.install(null, "zig")
+    b.install("", "zig")
   }
 
   static wrap(b) {

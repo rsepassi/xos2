@@ -83,7 +83,7 @@ class Zig {
       "Cflags": ["-I{{root}}/include"],
       "Libs": ["{{root}}/lib/%(Zig.libName(b.target, libname))"],
     }
-    var fname = "%(libname).pc"
+    var fname = "%(libname).pc.json"
     File.write(fname, JSON.stringify(pkgconfig))
     return fname
   }
@@ -137,7 +137,7 @@ var FillArgs_ = Fn.new { |args, opts, srcs, include_libs|
 
 class CDep {
   construct new(install_dir, libname) {
-    var config = JSON.parse(File.read(install_dir.libConfig("%(libname).pc")))
+    var config = JSON.parse(File.read(install_dir.libConfig("%(libname).pc.json")))
     var cflags = config["Cflags"] || []
     var libs = config["Libs"] || []
 

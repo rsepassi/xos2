@@ -6,6 +6,7 @@ import "log" for Logger
 import "timer" for Stopwatch
 import "flagparse" for FlagParser
 import "glob" for Glob
+import "timer" for StopwatchTree
 
 import "build" for Build
 import "build/config" for Config
@@ -89,7 +90,6 @@ xos build [<build-flags>...] <label> [-- <label-arg>...]
   Log.debug("installing %(b) output in %(out_dir)")
   Directory.deleteTree(out_dir)
   Directory.copy(b.installDir, out_dir)
-
   return true
 }
 
@@ -171,32 +171,36 @@ var initConfig = Fn.new {
 }
 
 var main = Fn.new { |args|
-  Log.debug("xos main")
-  var time = Stopwatch.new()
+  StopwatchTree.time("root") {
+    Log.debug("xos main")
+    var time = Stopwatch.new()
 
-  initConfig.call()
-  Log.debug("xos id %(Config.get("xos_id"))")
+    initConfig.call()
+    Log.debug("xos id %(Config.get("xos_id"))")
 
-  var cmd = "help"
-  var cmd_args = []
+    var cmd = "help"
+    var cmd_args = []
 
-  if (args.count >= 1) {
-    cmd = args[0]
-    if (CMDS.containsKey(cmd)) {
-      cmd_args = args.count > 1 ? args[1..-1] : []
-    } else {
-      System.print("error: uncrecognized command %(cmd)")
-      cmd = "help"
+    if (args.count >= 1) {
+      cmd = args[0]
+      if (CMDS.containsKey(cmd)) {
+        cmd_args = args.count > 1 ? args[1..-1] : []
+      } else {
+        System.print("error: uncrecognized command %(cmd)")
+        cmd = "help"
+      }
+    }
+
+    Log.debug("command=%(cmd) args=%(cmd_args)")
+    var ok = CMDS[cmd].call(cmd_args)
+    Log.info("done time=%(time.read())ms")
+
+    if (!ok) {
+      Log.debug("error: command=%(cmd) args=%(cmd_args) failed")
+      Process.exit(1)
     }
   }
-
-  Log.debug("command=%(cmd) args=%(cmd_args)")
-  var ok = CMDS[cmd].call(cmd_args)
-  Log.info("done time=%(time.read())ms")
-  if (!ok) {
-    Log.debug("error: command=%(cmd) args=%(cmd_args) failed")
-    Process.exit(1)
-  }
+  Log.debug("timings: %(StopwatchTree.timerTree)")
   Process.exit(0)
 }
 

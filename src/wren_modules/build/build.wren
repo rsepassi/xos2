@@ -5,7 +5,7 @@ import "hash" for Sha256
 import "kv" for KV
 import "random" for Random
 import "glob" for Glob
-import "timer" for Stopwatch
+import "timer" for StopwatchTree
 
 import "build/label" for Label
 import "build/config" for Config
@@ -130,7 +130,7 @@ class Build {
     for (src_path in srcs) {
       var name = Path.basename(src_path)
       var dst_path = "%(dst_dir)/%(name)"
-      Log.debug("installing %(src_path) to %(dir)")
+      Log.debug("installing %(name) to %(dir.isEmpty ? "/" : dir)")
 
       var mv = !Path.isAbs(src_path) || src_path.startsWith(workDir)
       if (mv) {
@@ -174,7 +174,7 @@ class Build {
       var label_str = "%(_label)"
       var label_args_str = "%(_label_args)"
       var build_args_str = HashStringifyMap.call(_args)
-      var build_script_hash = Sha256.hashHex(File.read(_label.modulePath))
+      var build_script_hash = Sha256.hashFileHex(_label.modulePath)
       var key_inputs = "%(xos_id) %(label_str) %(label_args_str) %(build_args_str) %(build_script_hash)"
       var key = Sha256.hashHex(key_inputs)
       return key
@@ -199,11 +199,14 @@ class Build {
   }
 
   build_() {
-    var timer = Stopwatch.new()
+    return StopwatchTree.time("%(_label)") { build__() }
+  }
+
+  build__() {
     var builder = _label.getBuilder()
     var need_build = needBuild_
     if (!need_build["need"]) {
-      Log.info("%(_label) cached (%(timer.read())ms)")
+      Log.info("%(_label) cached")
       return builder.wrap(this)
     }
     Log.info("%(this) building, reason=%(need_build["reason"])")
@@ -217,7 +220,7 @@ class Build {
     Process.chdir(cwd)
 
     for (f in _deps["files"].keys) {
-      _deps["files"][f] = Sha256.hashHex(File.read("%(label.srcdir)/%(f)"))
+      _deps["files"][f] = Sha256.hashFileHex("%(label.srcdir)/%(f)")
     }
     for (f in _deps["directories"].keys) {
       _deps["directories"][f] = HashDir.call(f.isEmpty ? label.srcdir : "%(label.srcdir)/%(f)")
@@ -227,7 +230,7 @@ class Build {
     _cache_entry.done()
     _needBuild = {"need": false}
 
-    Log.info("%(_label) built in (%(timer.read())ms)")
+    Log.info("%(_label) built")
     return out
   }
 
@@ -251,12 +254,13 @@ class Build {
     if (!need_build) {
       for (f in deps["files"]) {
         var path = "%(label.srcdir)/%(f.key)"
+        Log.debug("checking %(path)")
         if (!File.exists(path)) {
           need_build = true
           need_build_reason = "%(f.key) no longer exists"
           break
         }
-        if (Sha256.hashHex(File.read(path)) != f.value) {
+        if (Sha256.hashFileHex(path) != f.value) {
           need_build = true
           need_build_reason = "%(f.key) contents changed"
           break
@@ -268,6 +272,7 @@ class Build {
     if (!need_build) {
       for (f in deps["directories"]) {
         var path = f.key.isEmpty ? label.srcdir : "%(label.srcdir)/%(f.key)"
+        Log.debug("checking %(path)")
         if (!Directory.exists(path)) {
           need_build = true
           need_build_reason = "%(f.key) no longer exists"
@@ -284,6 +289,7 @@ class Build {
     // Network deps
     if (!need_build) {
       for (f in deps["fetches"]) {
+        Log.debug("checking %(f.key)")
         if (_cache.getContent(f.value) == null) {
           need_build = true
           need_build_reason = "%(f.key) not in cache"
@@ -295,6 +301,7 @@ class Build {
     // Labels
     if (!need_build) {
       for (f in deps["labels"]) {
+        Log.debug("checking %(f.key)")
         var sub_label = f.key
         var sub_args = f.value
 
@@ -321,10 +328,11 @@ class Build {
       need_build_reason = "NO_CACHE set"
     }
 
-    return {
+    var out = {
       "need": need_build,
       "reason": need_build_reason,
     }
+    return out
   }
 }
 
@@ -352,6 +360,6 @@ var HashStringifyMap = Fn.new { |x|
 
 var HashDir = Fn.new { |x|
   var dir_files = Glob.globFiles("%(x)/**/*").sort(ByteCompare)
-  var hashes = dir_files.map { |x| Sha256.hashHex(File.read(x)) }
+  var hashes = dir_files.map { |x| Sha256.hashFileHex(x) }
   return Sha256.hashHex(hashes.join("\n"))
 }

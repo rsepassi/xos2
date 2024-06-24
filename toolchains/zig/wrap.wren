@@ -80,7 +80,7 @@ class Zig {
         "-O", getOpt(b.opt_mode),
         "--name", name,
     ]
-    FillArgs_.call(args, opts, srcs, false)
+    FillArgs_.call(b, args, opts, srcs, false)
 
     exec_(b, args)
     return "%(Process.cwd)/%(Zig.libName(b.target, name))"
@@ -94,7 +94,7 @@ class Zig {
         "-O", getOpt(b.opt_mode),
         "--name", name,
     ]
-    FillArgs_.call(args, opts, srcs, true)
+    FillArgs_.call(b, args, opts, srcs, true)
 
     exec_(b, args)
     return "%(Process.cwd)/%(Zig.exeName(b.target, name))"
@@ -127,14 +127,33 @@ var GetSrcs_ = Fn.new { |opts|
   return srcs
 }
 
-var FillArgs_ = Fn.new { |args, opts, srcs, include_libs|
+var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs|
+  // zig flags
   args.addAll(opts["flags"] || [])
+
+  // c flags
   if (opts["c_flags"]) {
     args.add("-cflags")
     args.addAll(opts["c_flags"])
+
+    // sdk
+    if (opts["sdk"]) {
+      if (b.target.os == "macos") {
+        var sdk = b.dep("//sdk/macos")
+        var root = sdk.sysroot
+        args.addAll([
+          "--sysroot=%(root)",
+          "-I%(root)/usr/include",
+          "-F%(root)/System/Library/Frameworks",
+          "-DTARGET_OS_OSX",
+        ])
+      }
+    }
+
     args.add("--")
   }
 
+  // dependency flags
   var dep_includes = []
   var dep_libs = []
 
@@ -152,6 +171,7 @@ var FillArgs_ = Fn.new { |args, opts, srcs, include_libs|
   args.addAll(srcs)
   if (include_libs) args.addAll(dep_libs)
 
+  // libc, libc++
   if (opts["libc++"]) args.add("-lc++")
   if (opts["libc"]) args.add("-lc")
 

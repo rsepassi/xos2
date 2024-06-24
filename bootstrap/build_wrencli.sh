@@ -49,7 +49,6 @@ zig build-lib -target $TARGET -O $OPT \
   xos/xos.zig \
   -lc
 
-sed -i 's|sys\\stat|sys/stat|' cli/stat.h
 zig build-exe -target $TARGET -O $OPT \
   --name wren \
   $cflags \

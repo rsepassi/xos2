@@ -63,8 +63,8 @@ case "$TARGET_OS" in
     ;;
 esac
 
-touch uv.c
 zig build-lib -target $TARGET -O $OPT \
+  --name uv \
   -DPACKAGE_NAME="libuv" \
   -DPACKAGE_TARNAME="libuv" \
   -DPACKAGE_VERSION="1.48.0" \
@@ -89,7 +89,7 @@ zig build-lib -target $TARGET -O $OPT \
   -I./include -I./src \
   -lc \
   -cflags -std=gnu89 -- \
-  uv.c src/*.c $files
+  src/*.c $files
 
 cd "$BUILD_OUT"
 mkdir -p lib include/uv pkgconfig zig

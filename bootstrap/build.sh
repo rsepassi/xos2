@@ -1,67 +1,115 @@
 #!/usr/bin/env sh
 
-set -ex
+set -e
 
-case $(uname -m) in
-  x86_64)
-    arch=x86_64
-    ;;
-  arm64)
-    arch=aarch64
-    ;;
-  *)
-    >&2 echo "unsupported arch"
-    exit 1
-    ;;
-esac
-case $(uname -o) in
-  Linux)
-    os=linux
-    abi=musl
-    ;;
-  Darwin)
-    os=macos
-    abi=none
-    ;;
-  *)
-    >&2 echo "unsupported os"
-    exit 1
-    ;;
-esac
+get_target() {
+  case $(uname -m) in
+    x86_64)
+      arch=x86_64
+      ;;
+    arm64)
+      arch=aarch64
+      ;;
+    *)
+      >&2 echo "unsupported arch"
+      exit 1
+      ;;
+  esac
+  case $(uname -o) in
+    Linux)
+      os=linux
+      abi=musl
+      ;;
+    Darwin)
+      os=macos
+      abi=none
+      ;;
+    *)
+      >&2 echo "unsupported os"
+      exit 1
+      ;;
+  esac
+  echo $arch-$os-$abi
+}
 
-target=${TARGET:-"$arch-$os-$abi"}
-
-srcdir=$PWD/src
-bootstrapdir=$PWD/bootstrap
-depsdir=$PWD/deps
-outdir=$bootstrapdir/build
-supportdir=$outdir/support
-scriptsdir=$supportdir/scripts
+target=${TARGET:-"$(get_target)"}
 target_os=$(echo $target | cut -d'-' -f2)
 opt=ReleaseSmall
 
-tmp=$(mktemp -d)
-cd $tmp
+rootdir=${XOS_BOOTSTRAP_ROOT:-$PWD}
+srcdir=$rootdir/src
+depsdir=$rootdir/deps
+bootstrapdir=$rootdir/bootstrap
+
+builddir=$bootstrapdir/build
+outdir=$builddir/out
+tmpdir=$builddir/tmp
+toolsdir=$tmpdir/tools
+supportdir=$outdir/support
+scriptsdir=$supportdir/scripts
+
+if [ "$XOS_BOOTSTRAP" != "1" ]
+then
+  rm -rf $builddir
+  mkdir -p $tmpdir
+  mkdir -p $toolsdir
+
+  cd $tmpdir
+
+  mkdir -p busybox/xos
+  tar xf $bootstrapdir/busybox.tar.gz -C busybox --strip-components=1
+  TARGET=$target \
+  SRCDIR=$PWD/busybox \
+  BUILD_OUT=$PWD/busybox/xos \
+    $bootstrapdir/fetch_busybox.sh
+
+  bb="$PWD/busybox/xos/bin/busybox"
+  tools="
+  sh
+  cut
+  rm
+  mkdir
+  tar
+  cp
+  mv
+  ln
+  find
+  sort
+  cat
+  sha256sum
+  "
+
+  for tool in $tools
+  do
+    ln -s $bb $toolsdir/$tool
+  done
+
+  if [ "$(zig version)" != "0.12.0" ]
+  then
+    >&2 echo "zig must be v0.12.0"
+    exit 1
+  fi
+
+  zig=$(which zig)
+  ln -s $zig $toolsdir/zig
+
+  export XOS_BOOTSTRAP=1
+  export XOS_BOOTSTRAP_ROOT=$rootdir
+  export PATH="$toolsdir"
+  export TARGET="$target"
+  exec $bootstrapdir/build.sh "$@"
+fi
+
 >&2 echo "bootstrapping xos for $target $opt"
->&2 echo "workdir=$tmp"
+>&2 echo "workdir=$tmpdir"
 >&2 echo "outdir=$outdir"
 
-rm -rf $outdir
-mkdir $outdir
+mkdir -p $outdir
+mkdir -p $supportdir
 mkdir -p $scriptsdir
 
-# Main launcher
-zig build-exe -target $target -O $opt --name xos $srcdir/main.zig -lc
-mv xos $outdir
-
 # Deps
-mkdir -p busybox/xos
-tar xf $bootstrapdir/busybox.tar.gz -C busybox --strip-components=1
-TARGET=$target \
-SRCDIR=$PWD/busybox \
-BUILD_OUT=$PWD/busybox/xos \
-  $bootstrapdir/fetch_busybox.sh
-mv busybox/xos/bin/busybox $supportdir
+cp busybox/xos/bin/busybox $supportdir
 
 mkdir -p libuv/xos
 tar xf $depsdir/libuv/libuv-1.48.0.tar.gz -C libuv --strip-components=1
@@ -119,6 +167,10 @@ BUILD_OUT=$PWD/wrencli/xos \
   $bootstrapdir/build_wrencli.sh
 mv wrencli/xos/bin/wren $supportdir
 
+# Main launcher
+zig build-exe -target $target -O $opt --name xos $srcdir/main.zig -lc
+mv xos $outdir
+
 # Scripts
 scripts="
 main.wren
@@ -147,6 +199,6 @@ zig version > zigversion
 xos_id=$(echo $src_files $deps_files zigversion | cat | sha256sum | cut -d' ' -f1)
 printf $xos_id > $supportdir/xos_id
 
-rm -rf $tmp
+rm -rf $tmpdir
 echo "xos=$outdir/xos"
 >&2 echo ok

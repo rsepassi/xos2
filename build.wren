@@ -4,7 +4,7 @@ import "io" for File
 var launcher = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig", [])
   var exe = zig.buildExe(b, "xos", {
-    "root": b.src("main.zig"),
+    "root": b.src("src/main.zig"),
     "libc": true,
   })
   b.install("bin", exe)
@@ -14,8 +14,8 @@ var xos = Fn.new { |b, args|
   var launcher = b.dep(":launcher")
   var wren = b.dep("//deps/wrencli")
   var bb = b.dep("//toolchains/busybox")
-  var wren_main = b.src("main.wren")
-  var wren_modules = b.srcDir("wren_modules")
+  var wren_main = b.src("src/main.wren")
+  var wren_modules = b.srcDir("src/wren_modules")
 
   b.install("", launcher.exe("xos"))
   b.install("support", wren.exe("wren"))

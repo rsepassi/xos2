@@ -47,6 +47,7 @@ extern void processEnv(WrenVM* vm);
 extern void processEnvName(WrenVM* vm);
 extern void processChdir(WrenVM* vm);
 extern void processSpawn(WrenVM* vm);
+extern void osDebug(WrenVM* vm);
 extern void statPath(WrenVM* vm);
 extern void statBlockCount(WrenVM* vm);
 extern void statBlockSize(WrenVM* vm);
@@ -253,6 +254,16 @@ static ModuleRegistry modules[] =
     CLASS(Path)
       STATIC_METHOD("realPath_(_,_)", fileRealPath)
       STATIC_METHOD("readLink_(_,_)", fileReadLink)
+    END_CLASS
+    CLASS(Debug)
+      STATIC_METHOD("debug(_)", osDebug)
+      STATIC_METHOD("debug(_,_)", osDebug)
+      STATIC_METHOD("debug(_,_,_)", osDebug)
+      STATIC_METHOD("debug(_,_,_,_)", osDebug)
+      STATIC_METHOD("debug(_,_,_,_,_)", osDebug)
+      STATIC_METHOD("debug(_,_,_,_,_,_)", osDebug)
+      STATIC_METHOD("debug(_,_,_,_,_,_,_)", osDebug)
+      STATIC_METHOD("debug(_,_,_,_,_,_,_,_)", osDebug)
     END_CLASS
   END_MODULE
   MODULE(repl)

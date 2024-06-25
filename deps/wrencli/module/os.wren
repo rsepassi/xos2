@@ -133,3 +133,14 @@ class Path {
   foreign static realPath_(path, fiber)
   foreign static readLink_(path, fiber)
 }
+
+class Debug {
+  foreign static debug(x)
+  foreign static debug(x1, x2)
+  foreign static debug(x1, x2, x3)
+  foreign static debug(x1, x2, x3, x4)
+  foreign static debug(x1, x2, x3, x4, x5)
+  foreign static debug(x1, x2, x3, x4, x5, x6)
+  foreign static debug(x1, x2, x3, x4, x5, x6, x7)
+  foreign static debug(x1, x2, x3, x4, x5, x6, x7, x8)
+}

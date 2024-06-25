@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-set -e
+set -ex
 
 get_target() {
   case $(uname -m) in
@@ -73,10 +73,7 @@ then
   cp
   mv
   ln
-  find
-  sort
-  cat
-  sha256sum
+  date
   "
 
   for tool in $tools
@@ -191,13 +188,34 @@ do
   ln -s busybox $supportdir/$tool
 done
 
+# Identify a bootstrap build by timestamp
+date > $supportdir/xos_id
+echo "" > $supportdir/bootstrap
 
-# Identifying the xos build by its sources + zig version
-src_files=$(find $srcdir -type f | sort)
-deps_files=$(find $depsdir -type f | sort)
-zig version > zigversion
-xos_id=$(echo $src_files $deps_files zigversion | cat | sha256sum | cut -d' ' -f1)
-printf $xos_id > $supportdir/xos_id
+
+if [ "$1" = "full" ]
+then
+  cd $rootdir
+  mkdir -p .xos-cache
+  rm -rf .xos-cache/pkg
+  rm -rf .xos-cache/tools
+
+  # Build xos with bootstrap
+  LOG=0 $outdir/xos build --opt=Small :xos
+
+  # Build xos with xos built by bootstrap
+  mv xos-out $tmpdir/xos1
+  LOG=0 $tmpdir/xos1/xos build --opt=Small :xos
+
+  # Build xos with xos built by xos
+  mv xos-out $tmpdir/xos2
+  LOG=0 $tmpdir/xos2/xos build --opt=Small :xos
+
+  mv $tmpdir/xos1 $builddir/
+  mv $tmpdir/xos2 $builddir/
+  >&2 echo "xos1=$builddir/xos1"
+  >&2 echo "xos2=$builddir/xos2"
+fi
 
 rm -rf $tmpdir
 echo "xos=$outdir/xos"

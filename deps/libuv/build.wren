@@ -26,7 +26,9 @@ var libuv = Fn.new { |b, args|
   ]
   b.install("include", "include/uv.h")
   b.install("include/uv", headers)
-  b.installLibConfig(zig.libConfig(b, "uv"))
+  b.installLibConfig(zig.libConfig(b, "uv", {
+    "ldflags": os["ldflags"] || [],
+  }))
 }
 
 var Defines = [
@@ -113,6 +115,50 @@ var OS = {
     "headers": [
       "include/uv/darwin.h",
       "include/uv/unix.h",
+    ],
+  },
+  "windows": {
+    "files": [
+      "src/win/async.c",
+      "src/win/core.c",
+      "src/win/detect-wakeup.c",
+      "src/win/dl.c",
+      "src/win/error.c",
+      "src/win/fs-event.c",
+      "src/win/fs.c",
+      "src/win/getaddrinfo.c",
+      "src/win/getnameinfo.c",
+      "src/win/handle.c",
+      "src/win/loop-watcher.c",
+      "src/win/pipe.c",
+      "src/win/poll.c",
+      "src/win/process-stdio.c",
+      "src/win/process.c",
+      "src/win/signal.c",
+      "src/win/stream.c",
+      "src/win/tcp.c",
+      "src/win/thread.c",
+      "src/win/tty.c",
+      "src/win/udp.c",
+      "src/win/util.c",
+      "src/win/winapi.c",
+      "src/win/winsock.c",
+    ],
+    "flags": [
+      "-I./src/win",
+      "-DWIN32_LEAN_AND_MEAN",
+      "-D_FILE_OFFSET_BITS=64",
+    ],
+    "headers": [
+      "include/uv/win.h",
+      "include/uv/tree.h",
+    ],
+    "ldflags": [
+      "-lws2_32",
+      "-luserenv",
+      "-lole32",
+      "-liphlpapi",
+      "-ldbghelp",
     ],
   },
 }

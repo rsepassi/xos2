@@ -6,7 +6,7 @@
 // Windows doesn't define all of the Unix permission and mode flags by default,
 // so map them ourselves.
 #if defined(WIN32) || defined(WIN64)
-  #include <sys\stat.h>
+  #include <sys/stat.h>
 
   // Map to Windows permission flags.
   #ifndef S_IRUSR

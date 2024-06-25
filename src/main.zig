@@ -12,8 +12,8 @@ pub fn main() !void {
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    var args = std.process.args();
-    var env = try std.process.getEnvMap(alloc);
+    const args = try std.process.argsAlloc(alloc);
+    const env = try std.process.getEnvMap(alloc);
     const cwd = std.fs.cwd();
 
     // Identify paths
@@ -33,8 +33,8 @@ pub fn main() !void {
     var exec_args = std.ArrayList([]const u8).init(alloc);
     try exec_args.append(wren_path);
     try exec_args.append(script_path);
-    _ = args.next(); // skip $0
-    while (args.next()) |arg| {
+    for (args, 0..) |arg, i| {
+        if (i == 0) continue;
         try exec_args.append(arg);
     }
 
@@ -49,7 +49,18 @@ pub fn main() !void {
     try exec_env.put("LOG", env.get("LOG") orelse "");
     try exec_env.put("LOG_SCOPES", env.get("LOG_SCOPES") orelse "");
     try exec_env.put("NO_CACHE", env.get("NO_CACHE") orelse "");
-    std.process.execve(std.heap.c_allocator, exec_args.items, &exec_env) catch @panic("bad exec");
+
+    var child = std.process.Child.init(exec_args.items, alloc);
+    child.env_map = &exec_env;
+    try child.spawn();
+    switch (try child.wait()) {
+        .Exited => |code| {
+            std.process.exit(code);
+        },
+        else => {
+            std.process.exit(1);
+        },
+    }
 }
 
 fn getRepoRoot(alloc: std.mem.Allocator, path: []const u8) ![]const u8 {

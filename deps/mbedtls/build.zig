@@ -89,6 +89,7 @@ pub fn build(b: *std.Build) void {
     cert_write.linkLibrary(libcrypto);
     cert_write.linkLibrary(libx509);
     cert_write.linkLibrary(libtest);
+    if (target.result.os.tag == .windows) cert_write.linkSystemLibrary("ws2_32");
     cert_write.linkLibC();
 
     b.installArtifact(libcrypto);

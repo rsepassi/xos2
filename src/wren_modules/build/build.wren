@@ -4,6 +4,7 @@ import "log" for Logger
 import "hash" for Sha256
 import "glob" for Glob
 import "timer" for StopwatchTree
+import "scheduler" for Executor
 
 import "build/label" for Label
 import "build/config" for Config
@@ -20,9 +21,9 @@ class Build {
   opt_mode { _args["opt"] }
   label { _label }
   key { _key }
-  workDir { _cache_entry.workdir }
-  installDir { _cache_entry.outdir }
-  toolCacheDir { _cache.toolCacheDir(_key) }
+  workDir { _cache_entry.workDir }
+  installDir { _cache_entry.outDir }
+  toolCacheDir { _cache_entry.toolCacheDir }
 
   // File dependencies
   src(path) {
@@ -103,28 +104,35 @@ class Build {
     var name = Path.basename(src_dir)
     dst_dir = dst_dir.isEmpty ? "%(name)" : "%(dst_dir)/%(name)"
     var prefix_strip = src_dir.count + 1
+
+    var promises = []
     for (f in Glob.globFiles("%(src_dir)/**/*")) {
       var frel = f[prefix_strip..-1]
       var parts = Path.split(frel)
       var fdst_dir = parts[0] ? "%(dst_dir)/%(parts[0])" : dst_dir
-      install(fdst_dir, f)
+      promises.add(Executor.async { install(fdst_dir, f) })
     }
+    Executor.await(promises)
   }
   install(dir, srcs) {
     if (!(srcs is List)) srcs = [srcs]
     var dst_dir = Directory.ensure(dir ? "%(installDir)/%(dir)" : installDir)
+    var promises = []
     for (src_path in srcs) {
-      var name = Path.basename(src_path)
-      var dst_path = "%(dst_dir)/%(name)"
-      Log.debug("installing %(name) to %(dir.isEmpty ? "/" : dir)")
+      promises.add(Executor.async {
+        var name = Path.basename(src_path)
+        var dst_path = "%(dst_dir)/%(name)"
+        Log.debug("installing %(name) to %(dir.isEmpty ? "/" : dir)")
 
-      var mv = !Path.isAbs(src_path) || src_path.startsWith(workDir)
-      if (mv) {
-        File.rename(src_path, dst_path)
-      } else {
-        File.copy(src_path, dst_path)
-      }
+        var mv = !Path.isAbs(src_path) || src_path.startsWith(workDir)
+        if (mv) {
+          File.rename(src_path, dst_path)
+        } else {
+          File.copy(src_path, dst_path)
+        }
+      })
     }
+    Executor.await(promises)
   }
 
   // Convenience
@@ -166,7 +174,7 @@ class Build {
       var label_str = "%(_label)"
       var label_args_str = "%(_label_args)"
       var build_args_str = HashStringifyMap_.call(_args)
-      var build_script_hash = Sha256.hashFileHex(_label.modulePath)
+      var build_script_hash = _cache.fileHasher.hash(_label.modulePath)
       var key_inputs = "%(xos_id) %(label_str) %(label_args_str) %(build_args_str) %(build_script_hash)"
       var key = Sha256.hashHex(key_inputs)
       return key
@@ -204,15 +212,15 @@ class Build {
     _cache_entry.init()
 
     var cwd = Process.cwd
-    Process.chdir(_cache_entry.workdir)
+    Process.chdir(_cache_entry.workDir)
     var out = builder.build(this, _label_args)
     Process.chdir(cwd)
 
     for (f in _deps["files"].keys) {
-      _deps["files"][f] = Sha256.hashFileHex("%(label.srcdir)/%(f)")
+      _deps["files"][f] = _cache.fileHasher.hash("%(label.srcdir)/%(f)")
     }
     for (f in _deps["directories"].keys) {
-      _deps["directories"][f] = HashDir_.call(f.isEmpty ? label.srcdir : "%(label.srcdir)/%(f)")
+      _deps["directories"][f] = HashDir_.call(f.isEmpty ? label.srcdir : "%(label.srcdir)/%(f)", _cache.fileHasher)
     }
 
     _cache_entry.recordDeps(_deps)
@@ -249,7 +257,7 @@ class Build {
           need_build_reason = "%(f.key) no longer exists"
           break
         }
-        if (Sha256.hashFileHex(path) != f.value) {
+        if (_cache.fileHasher.hash(path) != f.value) {
           need_build = true
           need_build_reason = "%(f.key) contents changed"
           break
@@ -267,7 +275,7 @@ class Build {
           need_build_reason = "%(f.key) no longer exists"
           break
         }
-        if (HashDir_.call(path) != f.value) {
+        if (HashDir_.call(path, _cache.fileHasher) != f.value) {
           need_build = true
           need_build_reason = "%(f.key) contents changed"
           break
@@ -347,8 +355,8 @@ var HashStringifyMap_ = Fn.new { |x|
   return "%(items)"
 }
 
-var HashDir_ = Fn.new { |x|
+var HashDir_ = Fn.new { |x, fhasher|
   var dir_files = Glob.globFiles("%(x)/**/*").sort(ByteCompare_)
-  var hashes = dir_files.map { |x| Sha256.hashFileHex(x) }
+  var hashes = dir_files.map { |x| fhasher.hash(x) }
   return Sha256.hashHex(hashes.join("\n"))
 }

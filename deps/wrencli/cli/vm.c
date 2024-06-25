@@ -337,6 +337,7 @@ WrenInterpretResult runFile(const char* path, bool cleanup)
   
   initVM();
 
+  uv_disable_stdio_inheritance();
   WrenInterpretResult result = wrenInterpret(vm, module->chars, source);
 
   if (afterLoadFn != NULL) afterLoadFn(vm);

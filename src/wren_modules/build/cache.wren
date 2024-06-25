@@ -48,6 +48,7 @@ class BuildCacheEntry {
     _cache = cache
     _key = key
     _dir = "%(cache.dir)/pkg/%(key[0...2])/%(key)"
+    _tmpi = 0
   }
 
   ok { File.exists("%(_dir)/ok") }
@@ -71,11 +72,13 @@ class BuildCacheEntry {
 
   mktmp() {
     var tmpdir = Directory.ensure("%(workdir)/.xos_tmp")
-    return "%(tmpdir)/tmp%(Random.int(999999))"
+    _tmpi = _tmpi + 1
+    return "%(tmpdir)/tmp%(_tmpi)"
   }
 
   mktmpdir() {
-    return Directory.ensure("%(workdir)/.xos_tmp/tmp%(Random.int(999999))")
+    _tmpi = _tmpi + 1
+    return Directory.ensure("%(workdir)/.xos_tmp/tmp%(_tmpi)")
   }
 
   deps {

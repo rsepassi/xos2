@@ -157,6 +157,14 @@ var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs|
       }
     }
 
+    // determinism
+    args.addAll([
+      "-Wno-builtin-macro-redefined",
+      "-D__DATE__=",
+      "-D__TIME__=",
+      "-D__TIMESTAMP__=",
+    ])
+
     args.add("--")
   }
 

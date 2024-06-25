@@ -193,7 +193,7 @@ void processExitCb(uv_process_t* handle, int64_t exit_status, int term_signal) {
     free(state);
     schedulerResume(fiber, false);
   } else {
-    char* errstr = createStr("process failed: code=%d arg0=%s", exit_status, state->args[0]);
+    char* errstr = strfmt("process failed: code=%d arg0=%s", exit_status, state->args[0]);
     free(state->args);
     free(state);
     schedulerResumeError(fiber, errstr);
@@ -270,7 +270,7 @@ void processSpawn(WrenVM* vm) {
   if (rc != 0) {
     free(state->args);
     free(state);
-    abortFiber(vm, "error: process spawn failed: code=%d %s", rc, uv_strerror(rc));
+    abortFiber(vm, "process spawn failed: code=%d %s", rc, uv_strerror(rc));
     return;
   }
 }

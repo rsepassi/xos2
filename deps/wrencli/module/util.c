@@ -4,8 +4,15 @@
 
 #include "wren.h"
 
-char* createStr(char* fmt, ...) {
-  ssize_t bufsz;
+static char* vstrfmt(char* fmt, va_list args) {
+  size_t bufsz = vsnprintf(NULL, 0, fmt, args);
+  char* errstr = (char*)malloc(bufsz + 1);
+  vsnprintf(errstr, bufsz + 1, fmt, args);
+  return errstr;
+}
+
+char* strfmt(char* fmt, ...) {
+  size_t bufsz;
   {
     va_list args;
     va_start(args, fmt);
@@ -25,11 +32,10 @@ char* createStr(char* fmt, ...) {
   return errstr;
 }
 
-
 void abortFiber(WrenVM* vm, char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  char* errstr = createStr(fmt, args);
+  char* errstr = vstrfmt(fmt, args);
   va_end(args);
 
   wrenEnsureSlots(vm, 1);

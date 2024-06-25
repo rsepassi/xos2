@@ -136,14 +136,14 @@ class Build {
     var tmpdir = _cache_entry.mktmpdir()
     Log.debug("unpacking %(archive)")
     var strip = opts["strip"] || 1
-    Process.spawn(["tar", "xf", archive, "--strip-components=%(strip)", "-C", tmpdir], null)
+    Process.spawn(["tar", "-xf", archive, "--strip-components=%(strip)", "-C", tmpdir], null)
     return tmpdir
   }
 
   // Internal use
   // ==========================================================================
   construct new_(args) {
-    args["label_args"].sort(ByteCompare)
+    args["label_args"].sort(ByteCompare_)
 
     _parent = args["parent"]
     _args = args["build_args"]
@@ -167,7 +167,7 @@ class Build {
       var xos_id = Config.get("xos_id")
       var label_str = "%(_label)"
       var label_args_str = "%(_label_args)"
-      var build_args_str = HashStringifyMap.call(_args)
+      var build_args_str = HashStringifyMap_.call(_args)
       var build_script_hash = Sha256.hashFileHex(_label.modulePath)
       var key_inputs = "%(xos_id) %(label_str) %(label_args_str) %(build_args_str) %(build_script_hash)"
       var key = Sha256.hashHex(key_inputs)
@@ -214,7 +214,7 @@ class Build {
       _deps["files"][f] = Sha256.hashFileHex("%(label.srcdir)/%(f)")
     }
     for (f in _deps["directories"].keys) {
-      _deps["directories"][f] = HashDir.call(f.isEmpty ? label.srcdir : "%(label.srcdir)/%(f)")
+      _deps["directories"][f] = HashDir_.call(f.isEmpty ? label.srcdir : "%(label.srcdir)/%(f)")
     }
 
     _cache_entry.recordDeps(_deps)
@@ -269,7 +269,7 @@ class Build {
           need_build_reason = "%(f.key) no longer exists"
           break
         }
-        if (HashDir.call(path) != f.value) {
+        if (HashDir_.call(path) != f.value) {
           need_build = true
           need_build_reason = "%(f.key) contents changed"
           break
@@ -327,7 +327,7 @@ class Build {
   }
 }
 
-var ByteCompare = Fn.new { |a, b|
+var ByteCompare_ = Fn.new { |a, b|
   // a < b by bytes
   a = a.bytes
   b = b.bytes
@@ -340,17 +340,17 @@ var ByteCompare = Fn.new { |a, b|
   return false
 }
 
-var HashStringifyMap = Fn.new { |x|
+var HashStringifyMap_ = Fn.new { |x|
   var items = []
-  for (k in x.keys.toList.sort(ByteCompare)) {
+  for (k in x.keys.toList.sort(ByteCompare_)) {
     items.add(k)
     items.add(x[k])
   }
   return "%(items)"
 }
 
-var HashDir = Fn.new { |x|
-  var dir_files = Glob.globFiles("%(x)/**/*").sort(ByteCompare)
+var HashDir_ = Fn.new { |x|
+  var dir_files = Glob.globFiles("%(x)/**/*").sort(ByteCompare_)
   var hashes = dir_files.map { |x| Sha256.hashFileHex(x) }
   return Sha256.hashHex(hashes.join("\n"))
 }

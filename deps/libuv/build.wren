@@ -2,10 +2,8 @@ import "io" for Directory
 import "os" for Process
 
 var libuv = Fn.new { |b, args|
-  Directory.create("libuv")
-  var tar = b.src("libuv-1.48.0.tar.gz")
-  Process.spawn(["tar", "xf", tar, "--strip-components=1", "-C", "libuv"], null)
-  Process.chdir("libuv")
+  var src = b.untar(b.src("libuv-1.48.0.tar.gz"))
+  Process.chdir(src)
 
   var os = OS[b.target.os]
 

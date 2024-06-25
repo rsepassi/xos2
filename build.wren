@@ -13,25 +13,21 @@ var launcher = Fn.new { |b, args|
 var xos = Fn.new { |b, args|
   var launcher = b.dep(":launcher")
   var wren = b.dep("//deps/wrencli")
-  var bb = b.dep("//toolchains/busybox")
+  var curl = b.dep("//deps/curl")
+  var tar = b.dep("//deps/libarchive:bsdtar")
   var wren_main = b.src("src/main.wren")
   var wren_modules = b.srcDir("src/wren_modules")
 
+  File.copy(tar.exe("bsdtar"), "tar")
+
   b.install("", launcher.exe("xos"))
   b.install("support", wren.exe("wren"))
-  b.install("support", bb.exe("busybox"))
+  b.install("support", "tar")
+  b.install("support", curl.exe("curl"))
   b.install("support/scripts", wren_main)
   b.installDir("support/scripts", wren_modules)
 
-  var bb_links = [
-    "tar",
-    "wget",
-  ]
-  for (link in bb_links) {
-    File.symlink("busybox", "%(b.installDir)/support/%(link)")
-  }
-
   // todo: xos_id (srcs + zig version)
-  File.write("xos_id", "xos2")
+  File.write("xos_id", b.key)
   b.install("support", "xos_id")
 }

@@ -45,6 +45,8 @@ class Zig {
     return opts[opt]
   }
 
+  getOpt_(b, opts) { getOpt(opts["opt"] || b.opt_mode) }
+
   cDep(install_dir, libname) {
     return CDep.new(install_dir, libname)
   }
@@ -63,7 +65,7 @@ class Zig {
     ]
     var defaults = [
       "-Dtarget=%(b.target)",
-      "-Doptimize=%(getOpt(b.opt_mode))",
+      "-Doptimize=%(getOpt_(b, opts))",
     ]
     if (!opts["nostdopts"]) args.addAll(defaults)
     if (opts["args"]) args.addAll(opts["args"])
@@ -77,7 +79,7 @@ class Zig {
     var args = [
         _exe, "build-lib",
         "-target", "%(b.target)",
-        "-O", getOpt(b.opt_mode),
+        "-O", getOpt_(b, opts),
         "--name", name,
     ]
     FillArgs_.call(b, args, opts, srcs, false)
@@ -91,7 +93,7 @@ class Zig {
     var args = [
         _exe, "build-exe",
         "-target", "%(b.target)",
-        "-O", getOpt(b.opt_mode),
+        "-O", getOpt_(b, opts),
         "--name", name,
     ]
     FillArgs_.call(b, args, opts, srcs, true)
@@ -100,10 +102,15 @@ class Zig {
     return "%(Process.cwd)/%(Zig.exeName(b.target, name))"
   }
 
-  libConfig(b, libname) {
+  libConfig(b, libname) { libConfig(b, libname, {}) }
+  libConfig(b, libname, opts) {
+    var cflags = ["-I{{root}}/include"]
+    var ldflags = opts["ldflags"] || []
+    ldflags.add("{{root}}/lib/%(Zig.libName(b.target, libname))")
+
     var pkgconfig = {
-      "Cflags": ["-I{{root}}/include"],
-      "Libs": ["{{root}}/lib/%(Zig.libName(b.target, libname))"],
+      "Cflags": cflags,
+      "Libs": ldflags,
     }
     var fname = "%(libname).pc.json"
     File.write(fname, JSON.stringify(pkgconfig))
@@ -174,7 +181,6 @@ var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs|
   // libc, libc++
   if (opts["libc++"]) args.add("-lc++")
   if (opts["libc"]) args.add("-lc")
-
 }
 
 class CDep {

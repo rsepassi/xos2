@@ -30,7 +30,6 @@ var curl = Fn.new { |b, args|
     build_args.add("-Dsysroot=%(sdk.sysroot)")
   }
 
-
   var zig = b.deptool("//toolchains/zig")
   var out = zig.build(b, {
     "args": build_args,

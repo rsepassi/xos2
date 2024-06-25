@@ -36,7 +36,6 @@ pub fn build(b: *std.Build) void {
             lib.addIncludePath(.{ .path = b.pathJoin(&.{ b.sysroot.?, "usr/include" }) });
             lib.addFrameworkPath(.{ .path = b.pathJoin(&.{ b.sysroot.?, "System/Library/Frameworks" }) });
         },
-        .windows => {},
         else => {},
     }
     lib.linkLibC();

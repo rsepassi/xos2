@@ -21,6 +21,7 @@ class Build {
   target { _args["target"] }
   opt_mode { _args["opt"] }
   label { _label }
+  key { _key }
   workDir { _cache_entry.workdir }
   installDir { _cache_entry.outdir }
   toolCacheDir { _cache.toolCacheDir(_key) }
@@ -49,7 +50,11 @@ class Build {
       StopwatchTree.time(url) {
         var tmp_dst = _cache_entry.mktmp()
         Log.debug("%(_label) fetching %(url) to %(tmp_dst)")
-        Process.spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst], null)
+        if (Config.get("bootstrap")) {
+          Process.spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst])
+        } else {
+          Process.spawn(["curl", "-s", "-L", url, "-O", tmp_dst])
+        }
         var computed_hash = _cache.setContent(tmp_dst)
         if (hash != computed_hash) {
           Fiber.abort("unexpected hash for %(url).\nexpected %(hash)\nfetched  %(computed_hash)")

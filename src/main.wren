@@ -166,6 +166,7 @@ var initConfig = Fn.new {
     "host_target": Build.Target.parse(Process.env("XOS_HOST")),
     "xos_id": Process.env("XOS_ID"),
     "cwd": Process.cwd,
+    "bootstrap": File.exists("%(Process.env("XOS_ROOT"))/support/bootstrap"),
   }
   Config.init(config)
 }

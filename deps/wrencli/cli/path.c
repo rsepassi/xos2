@@ -199,6 +199,15 @@ void pathNormalize(Path* path)
   char* start = path->chars;
   char* end = path->chars;
 
+  // Skip over initial absolute prefix length. It will be added back later
+  // if present.
+  size_t prefixLength = absolutePrefixLength(path->chars);
+  if (prefixLength > 0)
+  {
+    start += prefixLength;
+    end += prefixLength;
+  }
+
   // Split into parts and handle "." and "..".
   int leadingDoubles = 0;
   for (;;)
@@ -258,7 +267,6 @@ void pathNormalize(Path* path)
   bool needsSeparator = false;
 
   Path* result = pathNew("");
-  size_t prefixLength = absolutePrefixLength(path->chars);
   if (prefixLength > 0)
   {
     // It's an absolute path, so preserve the absolute prefix.

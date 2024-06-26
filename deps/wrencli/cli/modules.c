@@ -241,7 +241,7 @@ static ModuleRegistry modules[] =
     END_CLASS
     CLASS(Process)
       STATIC_METHOD("allArguments", processAllArguments)
-      STATIC_METHOD("cwd", processCwd)
+      STATIC_METHOD("cwd_", processCwd)
       STATIC_METHOD("pid", processPid)
       STATIC_METHOD("ppid", processPpid)
       STATIC_METHOD("version", processVersion)

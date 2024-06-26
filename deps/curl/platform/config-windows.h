@@ -865,7 +865,7 @@
 /* #undef USE_MANUAL */
 
 /* if mbedTLS is enabled */
-#define USE_MBEDTLS 1
+/* #undef USE_MBEDTLS */
 
 /* if msh3 is in use */
 /* #undef USE_MSH3 */
@@ -913,7 +913,7 @@
 /* #undef USE_RUSTLS */
 
 /* to enable Windows native SSL/TLS support */
-/* #undef USE_SCHANNEL */
+#define USE_SCHANNEL 1
 
 /* enable Secure Transport */
 /* #undef USE_SECTRANSP */
@@ -952,7 +952,7 @@
 /* #undef USE_WIN32_SMALL_FILES */
 
 /* to enable SSPI support */
-/* #undef USE_WINDOWS_SSPI */
+#define USE_WINDOWS_SSPI 1
 
 /* if wolfSSH is in use */
 /* #undef USE_WOLFSSH */

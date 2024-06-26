@@ -7,6 +7,7 @@
 #include "scheduler.h"
 #include "stat.h"
 #include "vm.h"
+#include "log.h"
 
 // The single VM instance that the CLI uses.
 static WrenVM* vm;
@@ -166,6 +167,7 @@ static const char* resolveModule(WrenVM* vm, const char* importer,
 // module was found but could not be read.
 static WrenLoadModuleResult loadModule(WrenVM* vm, const char* module)
 {
+  DLOG("loadModule %s", module);
   WrenLoadModuleResult result = {0};
   Path* filePath;
   if (pathType(module) == PATH_TYPE_SIMPLE)
@@ -173,7 +175,11 @@ static WrenLoadModuleResult loadModule(WrenVM* vm, const char* module)
     // If there is no "wren_modules" directory, then the only logical imports
     // we can handle are built-in ones. Let the VM try to handle it.
     findModulesDirectory();
-    if (wrenModulesDirectory == NULL) return loadBuiltInModule(module);
+    if (wrenModulesDirectory == NULL) {
+      DLOG("no wrenModulesDirectory, loading built-in module");
+      return loadBuiltInModule(module);
+    }
+    DLOG("looking in wrenModulesDirectory %s", wrenModulesDirectory->chars);
     
     // TODO: Should we explicitly check for the existence of the module's base
     // directory inside "wren_modules" here?
@@ -194,7 +200,7 @@ static WrenLoadModuleResult loadModule(WrenVM* vm, const char* module)
   
   // Add a ".wren" file extension.
   pathAppendString(filePath, ".wren");
-
+  DLOG("module resolved to %s", filePath->chars);
   result.onComplete = loadModuleComplete;
   result.source = readFile(filePath->chars);
   pathFree(filePath);
@@ -204,6 +210,7 @@ static WrenLoadModuleResult loadModule(WrenVM* vm, const char* module)
   if (result.source != NULL) return result;
 
   // Otherwise, see if it's a built-in module.
+  DLOG("module not found, loading as built-in module");
   return loadBuiltInModule(module);
 }
 

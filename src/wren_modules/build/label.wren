@@ -19,9 +19,9 @@ class Label {
 
   toString { "@%(repo)//%(_path):%(_target)" }
 
-  srcdir { _path.isEmpty ? repoPath : "%(repoPath)/%(_path)" }
+  srcdir { _path.isEmpty ? repoPath : Path.join([repoPath, _path]) }
   repoPath { Label.repoPath(repo) }
-  modulePath { "%(srcdir)/build.wren" }
+  modulePath { Path.join([srcdir, "build.wren"]) }
   moduleName { "xos//%(_path)/build" }
 
   static parse(label, label_src_dir) {
@@ -113,18 +113,18 @@ class Builder {
   }
 
   wrap(b) {
+    var dir = InstallDir.new(b)
     var f = Fiber.new {
-      return _fn.wrap(b)
+      return _fn.wrap(dir)
     }
     var wrap = f.try()
     if (f.error != null) {
       if (f.error.endsWith("does not implement 'wrap(_)'.")) {
-        return InstallDir.new(b)
+        return dir
       } else {
         Fiber.abort("error: wrapping the output of %(this) failed: %(f.error)")
       }
     }
-
     return wrap
   }
 }

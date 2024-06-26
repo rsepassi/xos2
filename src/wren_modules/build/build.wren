@@ -1,4 +1,4 @@
-import "os" for Process, Path, Debug
+import "os" for Process, Path, Debug, Platform
 import "io" for Directory, File
 import "log" for Logger
 import "hash" for Sha256
@@ -12,6 +12,9 @@ import "build/cache" for BuildCache
 import "build/target" for Target
 
 var Log = Logger.get("xos")
+
+var TarExe = Platform.exeName("tar")
+var CurlExe = Platform.exeName("curl")
 
 class Build {
   static Target { Target }
@@ -27,17 +30,17 @@ class Build {
 
   // File dependencies
   src(path) {
-    var out = "%(label.srcdir)/%(path)"
+    var out = Path.join([label.srcdir, path])
     _deps["files"][path] = 1
     return out
   }
   srcs(paths) { paths.map { |x| src(x) }.toList }
   srcGlob(pattern) {
     var prefix_strip = label.srcdir.count + 1
-    return srcs(Glob.glob("%(label.srcdir)/%(pattern)").map { |x| x[prefix_strip..-1] })
+    return srcs(Glob.glob(Path.join([label.srcdir, pattern])).map { |x| x[prefix_strip..-1] })
   }
   srcDir(path) {
-    var out = path.isEmpty ? label.srcdir : "%(label.srcdir)/%(path)"
+    var out = path.isEmpty ? label.srcdir : Path.join([label.srcdir, path])
     _deps["directories"][path] = 1
     return out
   }
@@ -52,7 +55,7 @@ class Build {
         if (Config.get("bootstrap")) {
           Process.spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst])
         } else {
-          Process.spawn(["curl", "-s", "-L", url, "-O", tmp_dst])
+          Process.spawn([CurlExe, "-s", "-L", url, "-o", tmp_dst])
         }
         var computed_hash = _cache.setContent(tmp_dst)
         if (hash != computed_hash) {
@@ -96,32 +99,32 @@ class Build {
   // Move src_path into the build's output directory
   installExe(srcs) { install("bin", srcs) }
   installLib(srcs) { install("lib", srcs) }
-  installLibConfig(src) { install("lib/pkgconfig", src) }
+  installLibConfig(src) { install(Path.join(["lib", "pkgconfig"]), src) }
   installHeader(srcs) { install("include", srcs) }
   installArtifact(srcs) { install("share", srcs) }
   installDir(src_dir) { installDir("", src_dir) }
   installDir(dst_dir, src_dir) {
     var name = Path.basename(src_dir)
-    dst_dir = dst_dir.isEmpty ? "%(name)" : "%(dst_dir)/%(name)"
+    dst_dir = dst_dir.isEmpty ? "%(name)" : Path.join([dst_dir, name])
     var prefix_strip = src_dir.count + 1
 
     var promises = []
-    for (f in Glob.globFiles("%(src_dir)/**/*")) {
+    for (f in Glob.globFiles(Path.join([src_dir, "**", "*"]))) {
       var frel = f[prefix_strip..-1]
       var parts = Path.split(frel)
-      var fdst_dir = parts[0] ? "%(dst_dir)/%(parts[0])" : dst_dir
+      var fdst_dir = parts[0] ? Path.join([dst_dir, parts[0]]) : dst_dir
       promises.add(Executor.async { install(fdst_dir, f) })
     }
     Executor.await(promises)
   }
   install(dir, srcs) {
     if (!(srcs is List)) srcs = [srcs]
-    var dst_dir = Directory.ensure(dir ? "%(installDir)/%(dir)" : installDir)
+    var dst_dir = Directory.ensure(dir ? Path.join([installDir, dir]) : installDir)
     var promises = []
     for (src_path in srcs) {
       promises.add(Executor.async {
         var name = Path.basename(src_path)
-        var dst_path = "%(dst_dir)/%(name)"
+        var dst_path = Path.join([dst_dir, name])
         Log.debug("installing %(name) to %(dir.isEmpty ? "/" : dir)")
 
         var mv = !Path.isAbs(src_path) || src_path.startsWith(workDir)
@@ -142,9 +145,11 @@ class Build {
     var tmpdir = _cache_entry.mktmpdir()
     Log.debug("unpacking %(archive)")
     var strip = opts["strip"] || 1
-    Process.spawn(["tar", "-xf", archive, "--strip-components=%(strip)", "-C", tmpdir], null)
+    Process.spawn([TarExe, "-xf", archive, "--strip-components=%(strip)", "-C", tmpdir], null)
     return tmpdir
   }
+  mktmp() { _cache_entry.mktmp() }
+  mktmpdir() { _cache_entry.mktmpdir() }
 
   // Internal use
   // ==========================================================================
@@ -217,10 +222,10 @@ class Build {
     Process.chdir(cwd)
 
     for (f in _deps["files"].keys) {
-      _deps["files"][f] = _cache.fileHasher.hash("%(label.srcdir)/%(f)")
+      _deps["files"][f] = _cache.fileHasher.hash(Path.join([label.srcdir, f]))
     }
     for (f in _deps["directories"].keys) {
-      _deps["directories"][f] = HashDir_.call(f.isEmpty ? label.srcdir : "%(label.srcdir)/%(f)", _cache.fileHasher)
+      _deps["directories"][f] = HashDir_.call(f.isEmpty ? label.srcdir : Path.join([label.srcdir, f]), _cache.fileHasher)
     }
 
     _cache_entry.recordDeps(_deps)
@@ -250,7 +255,7 @@ class Build {
     // File deps
     if (!need_build) {
       for (f in deps["files"]) {
-        var path = "%(label.srcdir)/%(f.key)"
+        var path = Path.join([label.srcdir, f.key])
         Log.debug("checking %(path)")
         if (!File.exists(path)) {
           need_build = true
@@ -268,7 +273,7 @@ class Build {
     // Directory deps
     if (!need_build) {
       for (f in deps["directories"]) {
-        var path = f.key.isEmpty ? label.srcdir : "%(label.srcdir)/%(f.key)"
+        var path = f.key.isEmpty ? label.srcdir : Path.join([label.srcdir, f.key])
         Log.debug("checking %(path)")
         if (!Directory.exists(path)) {
           need_build = true
@@ -301,7 +306,6 @@ class Build {
         Log.debug("checking %(f.key)")
         var sub_label = f.key
         var sub_args = f.value
-
         var b = Build.new_({
           "build_args": {
             "target": Target.parse(sub_args["build_args"]["target"]),
@@ -356,7 +360,8 @@ var HashStringifyMap_ = Fn.new { |x|
 }
 
 var HashDir_ = Fn.new { |x, fhasher|
-  var dir_files = Glob.globFiles("%(x)/**/*").sort(ByteCompare_)
+  var pattern = Path.join([x, "**", "*"])
+  var dir_files = Glob.globFiles(pattern).sort(ByteCompare_)
   var hashes = dir_files.map { |x| fhasher.hash(x) }
   return Sha256.hashHex(hashes.join("\n"))
 }

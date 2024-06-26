@@ -75,7 +75,11 @@
 #define	QUOTE		'\\'
 #define	RANGE		'-'
 #define	RBRACKET	']'
+#ifdef WIN32
+#define	SEP		'\\'
+#else
 #define	SEP		'/'
+#endif
 #define	STAR		'*'
 #define	UNDERSCORE	'_'
 #define	LBRACE		'{'

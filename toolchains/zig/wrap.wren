@@ -7,9 +7,9 @@ var Log = Logger.get("zig")
 
 // Install wrapper
 class Zig {
-  construct new(b) {
-    _b = b
-    _exe = "%(b.installDir)/zig/%(Zig.exeName(b.target, "zig"))"
+  construct new(dir) {
+    _b = dir.build
+    _exe = "%(_b.installDir)/zig/%(Zig.exeName(_b.target, "zig"))"
   }
 
   zigExe { _exe }
@@ -76,13 +76,14 @@ class Zig {
 
   buildLib(b, name, opts) {
     var srcs = GetSrcs_.call(opts)
+    var opt_mode = getOpt_(b, opts)
     var args = [
         _exe, "build-lib",
         "-target", "%(b.target)",
-        "-O", getOpt_(b, opts),
+        "-O", opt_mode,
         "--name", name,
     ]
-    FillArgs_.call(b, args, opts, srcs, false)
+    FillArgs_.call(b, args, opts, srcs, false, opt_mode)
 
     exec_(b, args)
     return "%(Process.cwd)/%(Zig.libName(b.target, name))"
@@ -90,13 +91,14 @@ class Zig {
 
   buildExe(b, name, opts) {
     var srcs = GetSrcs_.call(opts)
+    var opt_mode = getOpt_(b, opts)
     var args = [
         _exe, "build-exe",
         "-target", "%(b.target)",
-        "-O", getOpt_(b, opts),
+        "-O", opt_mode,
         "--name", name,
     ]
-    FillArgs_.call(b, args, opts, srcs, true)
+    FillArgs_.call(b, args, opts, srcs, true, opt_mode)
 
     exec_(b, args)
     return "%(Process.cwd)/%(Zig.exeName(b.target, name))"
@@ -134,7 +136,13 @@ var GetSrcs_ = Fn.new { |opts|
   return srcs
 }
 
-var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs|
+var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
+  if (opt_mode == "Debug") {
+    args.add("-DDEBUG")
+  } else {
+    args.add("-DNDEBUG")
+  }
+
   // zig flags
   args.addAll(opts["flags"] || [])
 

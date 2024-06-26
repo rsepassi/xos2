@@ -6,6 +6,7 @@ class Platform {
   foreign static name
 
   static isWindows { name == "Windows" }
+  static exeName(name) { isWindows ? "%(name).exe" : name }
 }
 
 class Process {
@@ -13,7 +14,6 @@ class Process {
   static arguments { allArguments.count >= 2 ? allArguments[2..-1] : [] }
 
   foreign static allArguments
-  foreign static cwd
   foreign static pid
   foreign static ppid
   foreign static version
@@ -22,12 +22,10 @@ class Process {
   foreign static env()
   foreign static chdir(path)
 
-  static spawn(args) {
-    spawn(args, null, null)
-  }
-  static spawn(args, env) {
-    spawn(args, env, null)
-  }
+  static cwd { cwd_.replace("\\", "/") }
+
+  static spawn(args) { spawn(args, null, null) }
+  static spawn(args, env) { spawn(args, env, null) }
   static spawn(args, env, stdio) {
     var env_flat = null
     if (env != null) {
@@ -50,13 +48,30 @@ class Process {
 
     Scheduler.await_ { spawn_(args, env_flat, stdio[0], stdio[1], stdio[2], Fiber.current) }
   }
+
   foreign static spawn_(args, env, stdin, stdout, stderr, fiber)
+  foreign static cwd_
 }
 
 class Path {
-  static isAbs(p) {
-    return p[0] == "/"
+  static sep { "/" }
+
+  static isSep(c) {
+    if (c == "/") return true
+    if (Platform.isWindows && (c == "/" || c == "\\")) return true
+    return false
   }
+
+  static normsep(p) { Platform.isWindows ? p.replace("\\", "/") : p }
+
+  static isAbs(p) {
+    if (p.isEmpty) return false
+    if (Platform.isWindows) {
+      if (p.count >= 3 && p[1] == ":" && isSep(p[2])) return true
+    }
+    return isSep(p[0])
+  }
+
   static abspath(p) {
     if (isAbs(p)) return p
     return normpath(join([Process.cwd, p]))
@@ -69,12 +84,12 @@ class Path {
       if (!x.isEmpty && isAbs(p)) Fiber.abort("only the first path in a join sequence can be an absolute path, got %(p)")
       x.add(p)
     }
-    return x.join("/")
+    return x.join(sep)
   }
 
   static normpath(p) {
     var isabs = isAbs(p)
-    var parts = p.split("/")
+    var parts = p.split(sep)
     var normparts = []
     for (part in parts) {
       if (part.isEmpty || part == ".") continue
@@ -89,15 +104,15 @@ class Path {
       normparts.add(part)
     }
 
-    var start = isabs ? "/" : ""
-    return start + normparts.join("/")
+    var start = isabs ? sep : ""
+    return start + normparts.join(sep)
   }
 
   static split(p) {
     if (p.isEmpty) return ["", ""]
     var j = null
     for (i in (p.count - 1)..0) {
-      if (p[i] == "/") {
+      if (isSep(p[i])) {
         j = i
         break
       }
@@ -119,7 +134,7 @@ class Path {
   }
 
   static realPath(path) {
-    return Scheduler.await_ { realPath_(path, Fiber.current) }
+    return normsep(Scheduler.await_ { realPath_(path, Fiber.current) })
   }
 
   static isSymlink(path) {
@@ -127,7 +142,7 @@ class Path {
   }
 
   static readLink(path) {
-    return Scheduler.await_ { readLink_(path, Fiber.current) }
+    return normsep(Scheduler.await_ { readLink_(path, Fiber.current) })
   }
 
   foreign static realPath_(path, fiber)

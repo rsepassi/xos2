@@ -35,14 +35,16 @@ var wrencli = Fn.new { |b, args|
     "module/scheduler.wren",
     "module/timer.wren",
   ]
-  var modules = b.dep("//deps/wren:wren_module_include", b.srcs(module_srcs))
+  var modules = b.mktmpdir()
+  b.deptool("//deps/wren:wren_to_c_string").run(modules, b.srcs(wren_modules))
 
   var exe = zig.buildExe(b, "wren", {
     "c_srcs": b.srcGlob("cli/*.c") + b.srcGlob("module/*.c"),
     "flags": [
       "-I%(b.srcDir("module"))",
       "-I%(b.srcDir("cli"))",
-      "-I%(modules.path)/share",
+      "-I%(modules)",
+
     ],
     "c_deps": [
       zig.cDep(b.dep("//deps/libglob"), "glob"),

@@ -25,8 +25,10 @@ pub fn main() !void {
     const supportdir = try bindir.openDir("support", .{});
     const supportpath = try supportdir.realpathAlloc(alloc, ".");
 
-    const wren_path = try supportdir.realpathAlloc(alloc, "wren");
+    const wren_path = try supportdir.realpathAlloc(alloc, if (builtin.os.tag == .windows) "wren.exe" else "wren");
     const script_path = try supportdir.realpathAlloc(alloc, "scripts/main.wren");
+
+    const repo_root = try getRepoRoot(alloc, cwd_path);
 
     // Command-line:
     // wren main.wren <args>
@@ -40,8 +42,14 @@ pub fn main() !void {
 
     // Limited env
     var exec_env = std.process.EnvMap.init(alloc);
+    if (builtin.os.tag == .windows) {
+        _ = std.mem.replace(u8, binpath, "\\", "/", binpath);
+        _ = std.mem.replace(u8, repo_root, "\\", "/", repo_root);
+        try exec_env.put("SYSTEMROOT", env.get("SYSTEMROOT") orelse "");
+        try exec_env.put("WINDIR", env.get("WINDIR") orelse "");
+    }
     try exec_env.put("XOS_ROOT", binpath);
-    try exec_env.put("XOS_REPO_ROOT", try getRepoRoot(alloc, cwd_path));
+    try exec_env.put("XOS_REPO_ROOT", repo_root);
     try exec_env.put("XOS_SYSTEM_PATH", env.get("XOS_SYSTEM_PATH") orelse env.get("PATH") orelse "");
     try exec_env.put("XOS_HOST", getHostTriple());
     try exec_env.put("XOS_ID", env.get("XOS_ID") orelse try supportdir.readFileAlloc(alloc, "xos_id", 1024));
@@ -63,7 +71,7 @@ pub fn main() !void {
     }
 }
 
-fn getRepoRoot(alloc: std.mem.Allocator, path: []const u8) ![]const u8 {
+fn getRepoRoot(alloc: std.mem.Allocator, path: []const u8) ![]u8 {
     const cwd = std.fs.cwd();
     var cur: ?[]const u8 = path;
     while (cur) |c| : (cur = std.fs.path.dirname(c)) {

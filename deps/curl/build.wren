@@ -19,9 +19,9 @@ var curl = Fn.new { |b, args|
   File.copy(b.src("build.zig"))
   File.copy(b.src("platform/config-%(b.target.os).h"), "lib/curl_config.h")
 
-  var deps = ["mbedtls", "brotli", "zlib", "zstd", "cares"].reduce({}) { |m, x|
-    m[x] = b.dep("//deps/%(x)")
-    return m
+  var deps = {}
+  for (dep in ["mbedtls", "brotli", "zlib", "zstd", "cares"]) {
+    deps[dep] = b.dep("//deps/%(dep)")
   }
 
   var build_args = deps.map { |x| "-D%(x.key)=%(x.value.path)" }.toList

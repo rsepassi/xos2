@@ -18,11 +18,13 @@ var xos = Fn.new { |b, args|
   var wren_main = b.src("src/main.wren")
   var wren_modules = b.srcDir("src/wren_modules")
 
-  File.copy(tar.exe("bsdtar"), "tar")
+  import "xos//toolchains/zig/wrap" for Zig
+  var tar_exe = Zig.exeName(b.target, "tar")
+  File.copy(tar.exe("bsdtar"), tar_exe)
 
   b.install("", launcher.exe("xos"))
   b.install("support", wren.exe("wren"))
-  b.install("support", "tar")
+  b.install("support", tar_exe)
   b.install("support", curl.exe("curl"))
   b.install("support/scripts", wren_main)
   b.installDir("support/scripts", wren_modules)

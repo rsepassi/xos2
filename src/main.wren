@@ -27,7 +27,7 @@ commands: %(CMDS.keys.toList)
   return true
 }
 
-var build = Fn.new { |args|
+var buildInner = Fn.new { |args, install|
   var usage = "
 xos build [<build-flags>...] <label> [-- <label-arg>...]
 "
@@ -83,14 +83,64 @@ xos build [<build-flags>...] <label> [-- <label-arg>...]
     "label_args": label_args,
   })
   Log.debug("%(b)")
-  b.build_()
+  var out = b.build_()
 
-  // Install
-  var out_dir = "%(Config.get("repo_root"))/xos-out"
-  Log.debug("installing %(b) output in %(out_dir)")
-  Directory.deleteTree(out_dir)
-  Directory.copy(b.installDir, out_dir)
+  if (install) {
+    // Install
+    var out_dir = "%(Config.get("repo_root"))/xos-out"
+    Log.debug("installing %(b) output in %(out_dir)")
+    Directory.deleteTree(out_dir)
+    Directory.copy(b.installDir, out_dir)
+  }
+
+  return out
+}
+
+var build = Fn.new { |args|
+  buildInner.call(args, true)
   return true
+}
+
+
+var run = Fn.new { |args|
+  var usage = "
+xos run [<build-flags>...] [--bin=<binname>] [--binargs <bin-arg>... --] <label> [-- <label-arg>...]
+"
+  if (args.isEmpty) {
+    System.print(usage)
+    return
+  }
+
+  var filtered_args = []
+  var binname = null
+  var binargs = []
+  var in_binargs = false
+  for (arg in args) {
+    if (in_binargs) {
+      if (arg == "--") {
+        in_binargs = false
+      } else {
+        binargs.add(arg)
+      }
+    } else if (arg == "--binargs") {
+      in_binargs = true
+    } else if (arg.startsWith("--bin=")) {
+      binname = arg.split("=")[1]
+    } else {
+      filtered_args.add(arg)
+    }
+  }
+
+  var install = buildInner.call(filtered_args, false)
+  if (binname == null) binname = install.build.label.target
+
+  var exe = install.exe(binname)
+  Log.debug("running exe %(exe)")
+  var f = Fiber.new {
+    Process.spawn([exe] + binargs, null, [0, 1, 2])
+  }
+  f.try()
+  return f.error == null
 }
 
 var env = Fn.new { |args|
@@ -156,6 +206,7 @@ var cache = Fn.new { |args|
 CMDS = {
   "help": help,
   "build": build,
+  "run": run,
   "env": env,
   "cache": cache,
 }

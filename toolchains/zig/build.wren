@@ -13,13 +13,17 @@ class zig {
       },
       "linux": {
         "x86_64": "c7ae866b8a76a568e2d5cfd31fe89cdb629bdd161fdd5018b29a4a0a17045cad",
-      }
+      },
+      "windows": {
+        "x86_64": "2199eb4c2000ddb1fba85ba78f1fcf9c1fb8b3e57658f6a627a8e513131893f5",
+      },
     }
   }
 
   static getUrl_(target) {
     var version = "0.12.0"
-    return "https://ziglang.org/builds/zig-%(target.os)-%(target.arch)-%(version).tar.xz"
+    var suffix = target.os == "windows" ? "zip" : "tar.xz"
+    return "https://ziglang.org/builds/zig-%(target.os)-%(target.arch)-%(version).%(suffix)"
   }
 
   static call(b, args) {
@@ -29,8 +33,8 @@ class zig {
     b.install("", "zig")
   }
 
-  static wrap(b) {
+  static wrap(dir) {
     import "xos//toolchains/zig/wrap" for Zig
-    return Zig.new(b)
+    return Zig.new(dir)
   }
 }

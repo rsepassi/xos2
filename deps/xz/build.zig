@@ -3,7 +3,10 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const os = target.result.os.tag;
+    const t = target.result;
+
+    const sysroot = b.option([]const u8, "sysroot", "platform sysroot");
+    if (sysroot) |s| b.sysroot = s;
 
     const lib = b.addStaticLibrary(.{
         .name = "lzma",
@@ -25,6 +28,7 @@ pub fn build(b: *std.Build) void {
     lib.addIncludePath(.{ .path = "src/liblzma/simple" });
     lib.addIncludePath(.{ .path = "src/common" });
     lib.addCSourceFiles(.{ .files = &lib_src_files, .flags = &cflags });
+    addPlatformFlags(b, t, sysroot, lib);
     lib.linkLibC();
     const headers = b.addInstallDirectory(.{
         .source_dir = .{ .path = "src/liblzma/api" },
@@ -39,7 +43,7 @@ pub fn build(b: *std.Build) void {
         .name = "xz",
         .target = target,
         .optimize = optimize,
-        .linkage = if (os == .linux) .static else null,
+        .linkage = if (t.os.tag == .linux) .static else null,
         .strip = true,
     });
     xz.defineCMacro("HAVE_CONFIG_H", "1");
@@ -52,6 +56,7 @@ pub fn build(b: *std.Build) void {
     xz.addIncludePath(.{ .path = "lib" });
     xz.addCSourceFiles(.{ .files = &xz_src_files });
     xz.linkLibrary(lib);
+    addPlatformFlags(b, t, sysroot, xz);
     xz.linkLibC();
     b.installArtifact(xz);
 
@@ -59,7 +64,7 @@ pub fn build(b: *std.Build) void {
         .name = "xzdec",
         .target = target,
         .optimize = optimize,
-        .linkage = if (os == .linux) .static else null,
+        .linkage = if (t.os.tag == .linux) .static else null,
         .strip = true,
     });
     xd.defineCMacro("HAVE_CONFIG_H", "1");
@@ -72,8 +77,19 @@ pub fn build(b: *std.Build) void {
     xd.addIncludePath(.{ .path = "lib" });
     xd.addCSourceFiles(.{ .files = &xzdec_src_files });
     xd.linkLibrary(lib);
+    addPlatformFlags(b, t, sysroot, xd);
     xd.linkLibC();
     b.installArtifact(xd);
+}
+
+fn addPlatformFlags(b: *std.Build, t: std.Target, sysroot: ?[]const u8, lib: *std.Build.Step.Compile) void {
+    switch (t.os.tag) {
+        .freebsd => {
+            if (sysroot == null) @panic("must provide sysroot for freebsd builds");
+            lib.setLibCFile(.{ .path = b.pathJoin(&.{ b.sysroot.?, "libc.txt" }) });
+        },
+        else => {},
+    }
 }
 
 const cflags = [_][]const u8{};

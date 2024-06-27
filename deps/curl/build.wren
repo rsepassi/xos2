@@ -25,17 +25,10 @@ var curl = Fn.new { |b, args|
   }
 
   var build_args = deps.map { |x| "-D%(x.key)=%(x.value.path)" }.toList
-  if (b.target.os == "macos") {
-    var sdk = b.dep("//sdk/macos")
-    build_args.add("-Dsysroot=%(sdk.path)/sdk")
-  } else if (b.target.os == "freebsd") {
-    var sdk = b.dep("//sdk/freebsd")
-    build_args.add("-Dsysroot=%(sdk.path)/sdk")
-  }
-
   var zig = b.deptool("//toolchains/zig")
   var out = zig.build(b, {
     "args": build_args,
+    "sysroot": true,
   })
 
   b.installDir("", "%(out)/bin")

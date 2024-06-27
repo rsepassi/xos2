@@ -15,7 +15,9 @@ var xz = Fn.new { |b, args|
   Patch.read(b.src("windows.patch")).apply()
 
   var zig = b.deptool("//toolchains/zig")
-  var lib = zig.build(b, {})
+  var out = zig.build(b, {
+    "sysroot": true,
+  })
 
   b.installDir("", "zig-out/include")
   b.installDir("", "zig-out/bin")

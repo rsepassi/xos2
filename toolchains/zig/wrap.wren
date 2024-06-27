@@ -69,6 +69,10 @@ class Zig {
     ]
     if (!opts["nostdopts"]) args.addAll(defaults)
     if (opts["args"]) args.addAll(opts["args"])
+    if (opts["sysroot"]) {
+      var platform = GetPlatform_.call(b, {})
+      args.add("-Dsysroot=%(platform.sysroot)")
+    }
 
     exec_(b, args)
     return "zig-out"
@@ -150,6 +154,7 @@ class Platform {
   }
   flags { [] }
   cflags { [] }
+  sysroot { "" }
   libflags {
     var flags = []
     if (_opts["libc++"]) flags.add("-lc++")
@@ -165,10 +170,12 @@ class FreeBSD is Platform {
     super(b, opts)
   }
 
+  sysroot { "%(_dir.path)/sdk" }
+
   flags {
     return [
-      "--libc", "%(_dir.path)/sdk/libc.txt",
-      "--sysroot", "%(_dir.path)/sdk",
+      "--libc", "%(sysroot)/libc.txt",
+      "--sysroot", sysroot,
     ]
   }
 }
@@ -180,14 +187,16 @@ class MacOS is Platform {
     super(b, opts)
   }
 
+  sysroot { "%(_dir.path)/sdk" }
+
   flags {
     return [
-      "--libc", "%(_dir.path)/sdk/libc.txt",
+      "--libc", "%(sysroot)/libc.txt",
     ]
   }
 }
 
-var GetPlatform = Fn.new { |b, opts|
+var GetPlatform_ = Fn.new { |b, opts|
   var os = b.target.os
   if (os == "freebsd") {
     return FreeBSD.new(b, opts)
@@ -205,7 +214,7 @@ var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
     args.add("-DNDEBUG")
   }
 
-  var platform = GetPlatform.call(b, opts)
+  var platform = GetPlatform_.call(b, opts)
 
   // zig flags
   args.addAll(opts["flags"] || [])

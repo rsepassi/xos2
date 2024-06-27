@@ -10,13 +10,8 @@ var mbedtls = Fn.new { |b, args|
   File.copy(b.src("build.zig"))
   var zig = b.deptool("//toolchains/zig")
 
-  var build_args = []
-  if (b.target.os == "freebsd") {
-    var sdk = b.dep("//sdk/freebsd")
-    build_args.add("-Dsysroot=%(sdk.path)/sdk")
-  }
   var out = zig.build(b, {
-    "args": build_args,
+    "sysroot": true,
   })
 
   b.installDir("", "%(out)/lib")

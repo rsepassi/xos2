@@ -185,16 +185,6 @@ class MacOS is Platform {
       "--libc", "%(_dir.path)/sdk/libc.txt",
     ]
   }
-
-  cflags {
-    var root = "%(_dir.path)/sdk"
-    return [
-      "--sysroot=%(root)",
-      "-I%(root)/usr/include",
-      "-F%(root)/System/Library/Frameworks",
-      "-DTARGET_OS_OSX",
-    ]
-  }
 }
 
 var GetPlatform = Fn.new { |b, opts|

@@ -37,7 +37,11 @@ foreign class JSONObj_ {
       }
       var j = f.try()
       if (f.error != null) {
-        Fiber.abort("%(x) is not encodable as JSON")
+        if (f.error.endsWith("does not implement 'toJSON'.")) {
+          Fiber.abort("%(x) is not encodable as JSON")
+        } else {
+          Fiber.abort("toJSON for %(x) failed: %(f.error)")
+        }
       }
       return JSONObj_.fromVal(j)
     }

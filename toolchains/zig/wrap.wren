@@ -104,20 +104,27 @@ class Zig {
     return "%(Process.cwd)/%(Zig.exeName(b.target, name))"
   }
 
+  libConfig(b) { libConfig(b, b.label.target, {}) }
   libConfig(b, libname) { libConfig(b, libname, {}) }
   libConfig(b, libname, opts) {
     var cflags = ["-I{{root}}/include"]
-    var ldflags = opts["ldflags"] || []
-    ldflags.add("{{root}}/lib/%(Zig.libName(b.target, libname))")
+    var ldflags = ["{{root}}/lib/%(Zig.libName(b.target, libname))"]
+    ldflags.addAll(opts["ldflags"] || [])
 
+    var deps = (opts["deps"] || []).map { |x| (x is CDep ? x : CDep.create(x)).toJSON }.toList
+    Log.debug("generating libconfig %(deps)")
     var pkgconfig = {
       "Cflags": cflags,
       "Libs": ldflags,
+      "Requires": deps,
     }
     var fname = "%(libname).pc.json"
-    File.write(fname, JSON.stringify(pkgconfig))
+    var json = JSON.stringify(pkgconfig)
+    Log.debug("generating libconfig %(json)")
+    File.write(fname, json)
     return fname
   }
+
 }
 
 var GetSrcs_ = Fn.new { |opts|
@@ -236,37 +243,55 @@ var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
   var dep_libs = []
 
   for (dep in opts["c_deps"] || []) {
-    if (dep is CDep) {
-      dep_includes.addAll(dep.cflags)
-      dep_libs.addAll(dep.libs)
-    } else {
-      if (dep.includeDir) dep_includes.add("-I%(dep.includeDir)")
-      dep_libs.add(dep.lib(dep.build.label.target))
-    }
+    if (!(dep is CDep)) dep = CDep.create(dep)
+    dep_includes.addAll(dep.cflags)
+    dep_libs.addAll(dep.libs)
   }
 
   args.addAll(dep_includes)
+  args.addAll(platform.flags)
+
   args.addAll(srcs)
+  args.addAll(opts["ldflags"] || [])
   if (include_libs) args.addAll(dep_libs)
 
-  // libc, libc++
-  if (opts["libc++"]) args.add("-lc++")
-  if (opts["libc"]) args.add("-lc")
+  args.addAll(platform.libflags)
 }
 
 class CDep {
-  construct new(install_dir, libname) {
+  static create(install_dir) { create(install_dir, install_dir.build.label.target) }
+  static create(install_dir, libname) { new_(install_dir, libname) }
+
+  construct new_(install_dir, libname) {
     var config = JSON.parse(File.read(install_dir.libConfig("%(libname).pc.json")))
     var cflags = config["Cflags"] || []
     var libs = config["Libs"] || []
+    var requires = (config["Requires"] || []).map { |x| CDep.fromJSON(install_dir.build, x) }
 
-    cflags = cflags.map { |x| x.replace("{{root}}", install_dir.path) }.toList
-    libs = libs.map { |x| x.replace("{{root}}", install_dir.path) }.toList
+    for (req in requires) {
+      cflags.addAll(req.cflags)
+      libs.addAll(req.libs)
+    }
 
-    _cflags = cflags
-    _libs = libs
+    _dir = install_dir
+    _libname = libname
+
+    _cflags = cflags.map { |x| x.replace("{{root}}", install_dir.path) }.toList
+    _libs = libs.map { |x| x.replace("{{root}}", install_dir.path) }.toList
   }
 
   cflags { _cflags }
   libs { _libs }
+
+  toJSON {
+    return {
+      "build": _dir.build.toJSON,
+      "libname": _libname,
+    }
+  }
+
+  static fromJSON(b, x) {
+    var dir = b.dep(x["build"]["label"], x["build"]["label_args"])
+    return CDep.create(dir, x["libname"])
+  }
 }

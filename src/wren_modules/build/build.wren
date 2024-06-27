@@ -55,7 +55,9 @@ class Build {
         if (Config.get("bootstrap")) {
           Process.spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst])
         } else {
-          Process.spawn([CurlExe, "-s", "-L", url, "-o", tmp_dst])
+          var args = [CurlExe, "-s", "-L", url, "-o", tmp_dst]
+          Log.debug("%(args)")
+          Process.spawn(args)
         }
         var computed_hash = _cache.setContent(tmp_dst)
         if (hash != computed_hash) {
@@ -157,14 +159,19 @@ class Build {
 
   // Internal use
   // ==========================================================================
+  // Within a build process, a Build can always be reconstructed from exactly:
+  // * build_args
+  // * label
+  // * label_args
   construct new_(args) {
     args["label_args"].sort(ByteCompare_)
 
-    _parent = args["parent"]
     _args = args["build_args"]
     _label = args["label"]
     _label_args = args["label_args"]
-    _cache = args["cache"] || (_parent && _parent.cache_) || BuildCache.new()
+
+    var parent = args["parent"]
+    _cache = args["cache"] || (parent && parent.cache_) || BuildCache.new()
     _deps = {
       "files": {},
       "directories": {},
@@ -174,10 +181,10 @@ class Build {
 
     // xos cache key
     // * xos id
+    // * build arguments
     // * label
     // * label arguments
     // * label build script
-    // * build arguments
     _key = (Fn.new {
       var xos_id = Config.get("xos_id")
       var label_str = "%(_label)"
@@ -193,6 +200,13 @@ class Build {
   }
 
   toString { "Build %(_label) %(_label_args) %(_args) %(_key)" }
+  toJSON {
+    return {
+      "build_args": _args,
+      "label": "%(_label)",
+      "label_args": _label_args,
+    }
+  }
 
   subbuild_(args) {
     args["parent"] = this
@@ -326,11 +340,6 @@ class Build {
           break
         }
       }
-    }
-
-    if (!need_build && Process.env("NO_CACHE") == "1") {
-      need_build = true
-      need_build_reason = "NO_CACHE set"
     }
 
     var out = {

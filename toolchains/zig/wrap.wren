@@ -187,7 +187,7 @@ class MacOS is Platform {
   }
 
   cflags {
-    var root = _dir.sysroot
+    var root = "%(_dir.path)/sdk"
     return [
       "--sysroot=%(root)",
       "-I%(root)/usr/include",

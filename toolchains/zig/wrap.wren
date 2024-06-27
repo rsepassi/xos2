@@ -47,14 +47,14 @@ class Zig {
 
   getOpt_(b, opts) { getOpt(opts["opt"] || b.opt_mode) }
 
-  cDep(install_dir, libname) {
-    return CDep.new(install_dir, libname)
-  }
+  cDep(install_dir, libname) { CDep.create(install_dir, libname) }
 
   exec_(b, args) {
     var env = Process.env()
     env["HOME"] = b.workDir
-    env["XDG_CACHE_HOME"] = b.toolCacheDir
+    env["LOCALAPPDATA"] = b.workDir
+    env["TMP"] = b.workDir
+    env["ZIG_GLOBAL_CACHE_DIR"] = b.toolCacheDir
     Log.debug(args)
     Process.spawn(args, env, [null, 1, 2])
   }
@@ -136,12 +136,79 @@ var GetSrcs_ = Fn.new { |opts|
   return srcs
 }
 
+class Platform {
+  construct new(b, opts) {
+    _b = b
+    _opts = opts
+  }
+  flags { [] }
+  cflags { [] }
+  libflags {
+    var flags = []
+    if (_opts["libc++"]) flags.add("-lc++")
+    if (_opts["libc"]) flags.add("-lc")
+    return flags
+  }
+}
+
+class FreeBSD is Platform {
+  construct new(b, opts) {
+    _dir = b.dep("//sdk/freebsd")
+    _opts = opts
+    super(b, opts)
+  }
+
+  flags {
+    return [
+      "--libc", "%(_dir.path)/sdk/libc.txt",
+      "--sysroot", "%(_dir.path)/sdk",
+    ]
+  }
+}
+
+class MacOS is Platform {
+  construct new(b, opts) {
+    _dir = b.dep("//sdk/macos")
+    _opts = opts
+    super(b, opts)
+  }
+
+  flags {
+    return [
+      "--libc", "%(_dir.path)/sdk/libc.txt",
+    ]
+  }
+
+  cflags {
+    var root = _dir.sysroot
+    return [
+      "--sysroot=%(root)",
+      "-I%(root)/usr/include",
+      "-F%(root)/System/Library/Frameworks",
+      "-DTARGET_OS_OSX",
+    ]
+  }
+}
+
+var GetPlatform = Fn.new { |b, opts|
+  var os = b.target.os
+  if (os == "freebsd") {
+    return FreeBSD.new(b, opts)
+  } else if (os == "macos" && opts["sdk"]) {
+    return MacOS.new(b, opts)
+  } else {
+    return Platform.new(b, opts)
+  }
+}
+
 var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
   if (opt_mode == "Debug") {
     args.add("-DDEBUG")
   } else {
     args.add("-DNDEBUG")
   }
+
+  var platform = GetPlatform.call(b, opts)
 
   // zig flags
   args.addAll(opts["flags"] || [])
@@ -151,19 +218,7 @@ var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
     args.add("-cflags")
     args.addAll(opts["c_flags"])
 
-    // sdk
-    if (opts["sdk"]) {
-      if (b.target.os == "macos") {
-        var sdk = b.dep("//sdk/macos")
-        var root = sdk.sysroot
-        args.addAll([
-          "--sysroot=%(root)",
-          "-I%(root)/usr/include",
-          "-F%(root)/System/Library/Frameworks",
-          "-DTARGET_OS_OSX",
-        ])
-      }
-    }
+    args.addAll(platform.cflags)
 
     // determinism
     args.addAll([

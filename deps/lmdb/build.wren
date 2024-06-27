@@ -12,6 +12,7 @@ var lmdb = Fn.new { |b, args|
     "libc": true,
   })
 
-  b.install("lib", lib)
-  b.install("include", "lmdb.h")
+  b.installHeader("lmdb.h")
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
 }

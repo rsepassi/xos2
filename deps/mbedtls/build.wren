@@ -9,7 +9,16 @@ var mbedtls = Fn.new { |b, args|
   Process.chdir(src)
   File.copy(b.src("build.zig"))
   var zig = b.deptool("//toolchains/zig")
-  var out = zig.build(b, {})
+
+  var build_args = []
+  if (b.target.os == "freebsd") {
+    var sdk = b.dep("//sdk/freebsd")
+    build_args.add("-Dsysroot=%(sdk.path)/sdk")
+  }
+  var out = zig.build(b, {
+    "args": build_args,
+  })
+
   b.installDir("", "%(out)/lib")
   b.installDir("", "%(out)/bin")
 

@@ -51,5 +51,6 @@ var wren = Fn.new { |b, args|
     "libc": true,
   })
   b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
   b.installHeader(b.src("src/include/wren.h"))
 }

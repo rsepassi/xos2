@@ -28,8 +28,17 @@ class StopwatchTreeNode {
   time=(t) { _time = t }
 
   addChild(name, node) {
-    if (_children.containsKey(name)) Fiber.abort("StopwatchTree children already contains name %(name)")
+    name = uniqueName(name)
     _children[name] = node
+  }
+
+  uniqueName(name) {
+    var current = name
+    var i = 0
+    while (_children.containsKey(current)) {
+      current = "%(name) (%(i))"
+    }
+    return current
   }
 
   childTime { _children.reduce(0) { |sum, x| sum + x.value.time } }

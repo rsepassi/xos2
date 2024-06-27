@@ -95,6 +95,26 @@ var OS = {
       "include/uv/unix.h",
     ],
   },
+  "freebsd": {
+    "files": UnixFiles + [
+      "src/unix/bsd-ifaddrs.c",
+      "src/unix/bsd-proctitle.c",
+      "src/unix/freebsd.c",
+      "src/unix/kqueue.c",
+      "src/unix/posix-hrtime.c",
+      "src/unix/random-getrandom.c",
+    ],
+    "flags": [
+      "-I./src/unix",
+      "-D_GNU_SOURCE",
+      "-DHAVE_DLFCN_H=1",
+      "-DHAVE_PTHREAD_PRIO_INHERIT=1",
+    ],
+    "headers": [
+      "include/uv/bsd.h",
+      "include/uv/unix.h",
+    ],
+  },
   "macos": {
     "files": UnixFiles + [
       "src/unix/bsd-ifaddrs.c",

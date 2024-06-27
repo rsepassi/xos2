@@ -5,6 +5,9 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const t = target.result;
 
+    const sysroot = b.option([]const u8, "sysroot", "platform sysroot");
+    if (sysroot) |s| b.sysroot = s;
+
     // libmbedcrypto.a: OBJS_CRYPTO + THIRDPARTY_CRYPTO_OBJECTS
     // libmbedx509.a: OBJS_X509
     // libmbedtls.a: OBJS_TLS
@@ -25,6 +28,7 @@ pub fn build(b: *std.Build) void {
     libcrypto.addIncludePath(.{ .path = "3rdparty/p256-m/p256-m_driver_interface" });
     libcrypto.addCSourceFiles(.{ .files = &crypto_src_files });
     libcrypto.defineCMacro("_FILE_OFFSET_BITS", "64");
+    addPlatformFlags(b, t, sysroot, libcrypto);
     libcrypto.linkLibC();
 
     switch (t.os.tag) {
@@ -43,6 +47,7 @@ pub fn build(b: *std.Build) void {
     libx509.addIncludePath(.{ .path = "library" });
     libx509.addIncludePath(.{ .path = "include" });
     libx509.defineCMacro("_FILE_OFFSET_BITS", "64");
+    addPlatformFlags(b, t, sysroot, libx509);
     libx509.linkLibC();
 
     const libtls = b.addStaticLibrary(.{
@@ -54,6 +59,7 @@ pub fn build(b: *std.Build) void {
     libtls.addIncludePath(.{ .path = "library" });
     libtls.addIncludePath(.{ .path = "include" });
     libtls.defineCMacro("_FILE_OFFSET_BITS", "64");
+    addPlatformFlags(b, t, sysroot, libtls);
     libtls.linkLibC();
 
     const libtest = b.addStaticLibrary(.{
@@ -66,6 +72,7 @@ pub fn build(b: *std.Build) void {
     libtest.addIncludePath(.{ .path = "include" });
     libtest.addIncludePath(.{ .path = "tests/include" });
     libtest.defineCMacro("_FILE_OFFSET_BITS", "64");
+    addPlatformFlags(b, t, sysroot, libtest);
     libtest.linkLibC();
 
     const gen_key = b.addExecutable(.{
@@ -76,6 +83,7 @@ pub fn build(b: *std.Build) void {
     gen_key.addCSourceFiles(.{ .files = &.{"programs/pkey/gen_key.c"} });
     gen_key.addIncludePath(.{ .path = "include" });
     gen_key.linkLibrary(libcrypto);
+    addPlatformFlags(b, t, sysroot, gen_key);
     gen_key.linkLibC();
 
     const cert_write = b.addExecutable(.{
@@ -89,7 +97,7 @@ pub fn build(b: *std.Build) void {
     cert_write.linkLibrary(libcrypto);
     cert_write.linkLibrary(libx509);
     cert_write.linkLibrary(libtest);
-    if (target.result.os.tag == .windows) cert_write.linkSystemLibrary("ws2_32");
+    addPlatformFlags(b, t, sysroot, cert_write);
     cert_write.linkLibC();
 
     b.installArtifact(libcrypto);
@@ -97,6 +105,19 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(libtls);
     b.installArtifact(gen_key);
     b.installArtifact(cert_write);
+}
+
+fn addPlatformFlags(b: *std.Build, t: std.Target, sysroot: ?[]const u8, lib: *std.Build.Step.Compile) void {
+    switch (t.os.tag) {
+        .freebsd => {
+            if (sysroot == null) @panic("must provide sysroot for freebsd builds");
+            lib.setLibCFile(.{ .path = b.pathJoin(&.{ b.sysroot.?, "libc.txt" }) });
+        },
+        .windows => {
+            lib.linkSystemLibrary("ws2_32");
+        },
+        else => {},
+    }
 }
 
 const crypto_src_files = [_][]const u8{

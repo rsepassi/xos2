@@ -11,6 +11,9 @@ pub fn build(b: *std.Build) void {
     const zstd = b.option([]const u8, "zstd", "zstd root");
     const cares = b.option([]const u8, "cares", "cares root");
 
+    const sysroot = b.option([]const u8, "sysroot", "platform sysroot");
+    if (sysroot) |s| b.sysroot = s;
+
     const lib = b.addStaticLibrary(.{
         .name = "curl",
         .target = target,
@@ -30,11 +33,10 @@ pub fn build(b: *std.Build) void {
     lib.addCSourceFiles(.{ .files = &lib_src_files, .flags = &cflags });
     switch (os) {
         .macos => {
-            const sysroot = b.option([]const u8, "sysroot", "macos sysroot");
-            if (sysroot == null) @panic("must provide sysroot for mac builds");
-            b.sysroot = sysroot.?;
-            lib.addIncludePath(.{ .path = b.pathJoin(&.{ b.sysroot.?, "usr/include" }) });
             lib.addFrameworkPath(.{ .path = b.pathJoin(&.{ b.sysroot.?, "System/Library/Frameworks" }) });
+        },
+        .freebsd => {
+            lib.setLibCFile(.{ .path = b.pathJoin(&.{ b.sysroot.?, "libc.txt" }) });
         },
         else => {},
     }
@@ -70,6 +72,9 @@ pub fn build(b: *std.Build) void {
             exe.linkSystemLibrary("crypt32");
             exe.linkSystemLibrary("ws2_32");
             exe.linkSystemLibrary("iphlpapi");
+        },
+        .freebsd => {
+            exe.setLibCFile(.{ .path = b.pathJoin(&.{ b.sysroot.?, "libc.txt" }) });
         },
         else => {},
     }

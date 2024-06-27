@@ -17,6 +17,9 @@ class zig {
       "windows": {
         "x86_64": "2199eb4c2000ddb1fba85ba78f1fcf9c1fb8b3e57658f6a627a8e513131893f5",
       },
+      "freebsd": {
+        "x86_64": "bd49957d1157850b337ee1cf3c00af83585cff98e1ebc3c524a267e7422a2d7b",
+      },
     }
   }
 

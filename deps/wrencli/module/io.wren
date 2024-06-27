@@ -53,7 +53,7 @@ class Directory {
   static copy(src_dir, dst_dir) {
     import "glob" for Glob
     if (Directory.exists(dst_dir)) {
-      dst_dir = ensure("%(dst_dir)/%(Path.basename(src_dir))")
+      dst_dir = ensure(Path.join([dst_dir, Path.basename(src_dir)]))
     }
     var prefix_strip = src_dir.count + 1
     var files = Glob.globFiles("%(src_dir)/**/*")

@@ -138,6 +138,7 @@ class Path {
   }
 
   static isSymlink(path) {
+    if (!isAbs(path)) path = abspath(path)
     return realPath(path) != path
   }
 

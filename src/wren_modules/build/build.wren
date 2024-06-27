@@ -143,9 +143,13 @@ class Build {
   untar(archive) { untar(archive, {}) }
   untar(archive, opts) {
     var tmpdir = _cache_entry.mktmpdir()
-    Log.debug("unpacking %(archive)")
+    var args = [TarExe, "-xf", archive, "-C", tmpdir]
     var strip = opts["strip"] || 1
-    Process.spawn([TarExe, "-xf", archive, "--strip-components=%(strip)", "-C", tmpdir], null)
+    if (strip > 0) args.add("--strip-components=%(strip)")
+    (opts["exclude"] || []).map { |x| args.addAll(["--exclude", x]) }.toList
+    args.addAll(opts["args"] || [])
+    Log.debug("unpacking %(archive), %(args)")
+    Process.spawn(args, null)
     return tmpdir
   }
   mktmp() { _cache_entry.mktmp() }

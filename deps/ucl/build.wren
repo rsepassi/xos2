@@ -12,6 +12,7 @@ var ucl = Fn.new { |b, args|
     "libc": true,
   })
 
-  b.install("lib", lib)
-  b.install("include", "include/ucl.h")
+  b.installHeader("include/ucl.h")
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
 }

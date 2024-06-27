@@ -46,7 +46,6 @@ outdir=$builddir/out
 tmpdir=$builddir/tmp
 toolsdir=$tmpdir/tools
 supportdir=$outdir/support
-scriptsdir=$supportdir/scripts
 
 if [ "$XOS_BOOTSTRAP" != "1" ]
 then
@@ -103,7 +102,6 @@ fi
 
 mkdir -p $outdir
 mkdir -p $supportdir
-mkdir -p $scriptsdir
 
 # Deps
 cp busybox/xos/bin/busybox $supportdir
@@ -165,18 +163,22 @@ BUILD_OUT=$PWD/wrencli/xos \
 mv wrencli/xos/bin/wren $supportdir
 
 # Main launcher
-zig build-exe -target $target -O $opt --name xos $srcdir/main.zig -lc
+zig build-exe -target $target -O $opt --name xos \
+  -Iwrencli/xos/include \
+  -Iwren/xos/include \
+  $srcdir/main.zig \
+  wrencli/xos/lib/libwrencli.a \
+  wrencli/xos/lib/libxos.a \
+  libuv/xos/lib/libuv.a \
+  wren/xos/lib/libwren.a \
+  lmdb/xos/lib/liblmdb.a \
+  ucl/xos/lib/libucl.a \
+  libglob/xos/lib/libglob.a \
+  -lc
 mv xos $outdir
 
 # Scripts
-scripts="
-main.wren
-"
-for script in $scripts
-do
-ln -s $srcdir/$script $scriptsdir
-done
-ln -s $srcdir/wren_modules $scriptsdir
+ln -s $srcdir/wren_modules $supportdir
 
 # Links
 bbtools="
@@ -189,7 +191,7 @@ do
 done
 
 # Identify a bootstrap build by timestamp
-date > $supportdir/xos_id
+echo -n "Bootstrap $(date)" > $supportdir/xos_id
 echo "" > $supportdir/bootstrap
 
 

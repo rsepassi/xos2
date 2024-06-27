@@ -7,6 +7,9 @@
 // Executes the Wren script at [path] in a new VM.
 WrenInterpretResult runFile(const char* path, bool cleanup);
 
+// Executes the Wren source in a new VM.
+WrenInterpretResult runSource(const char* module_name, const char* source, bool cleanup);
+
 // Runs the Wren interactive REPL.
 WrenInterpretResult runRepl();
 

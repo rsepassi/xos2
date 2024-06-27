@@ -12,6 +12,12 @@
 #include <stdio.h>
 #include <fcntl.h>
 
+#define STANDARD_FS_REQUEST_CALLBACK(name_, action) \
+  void name_##Callback(uv_fs_t* request) { \
+    if (handleRequestError(action, request)) return; \
+    schedulerResume(freeRequest(request), false); \
+  }
+
 extern bool xosDirectoryDeleteTree(char* path);
 extern bool xosDirectoryMkdirs(char* path);
 
@@ -104,7 +110,7 @@ WrenHandle* freeRequest(uv_fs_t* request)
 // frees the request.
 //
 // Returns true if an error was reported.
-static bool handleRequestError(uv_fs_t* request)
+static bool handleRequestError(const char* action, uv_fs_t* request)
 {
   if (request->result >= 0) return false;
 
@@ -117,14 +123,10 @@ static bool handleRequestError(uv_fs_t* request)
 
   char* errstr;
   if (error == UV_ENOENT) {
-    const char* fmt = "%s: either destination directory does not exist or file %s does not exist";
-    ssize_t bufsz = snprintf(NULL, 0, fmt, errstr_uv, path_uv);
-    errstr = (char*)malloc(bufsz + 1);
-    snprintf(errstr, bufsz + 1, fmt, errstr_uv, path_uv);
+    const char* fmt = "error: %s failed. %s: either destination directory does not exist or file %s does not exist";
+    errstr = strfmt(fmt, action, errstr_uv, path_uv);
   } else {
-    ssize_t bufsz = snprintf(NULL, 0, "%s: %s", errstr_uv, path_uv);
-    errstr = (char*)malloc(bufsz + 1);
-    snprintf(errstr, bufsz + 1, "%s: %s", errstr_uv, path_uv);
+    errstr = strfmt("error: %s failed. %s: %s", action, errstr_uv, path_uv);
   }
 
   freeRequest(request);
@@ -134,9 +136,16 @@ static bool handleRequestError(uv_fs_t* request)
   return true;
 }
 
+STANDARD_FS_REQUEST_CALLBACK(directoryCreate, "dir create")
+STANDARD_FS_REQUEST_CALLBACK(directoryDelete, "dir delete")
+STANDARD_FS_REQUEST_CALLBACK(fileDelete, "file delete")
+STANDARD_FS_REQUEST_CALLBACK(fileRename, "file rename")
+STANDARD_FS_REQUEST_CALLBACK(fileCopy, "file copy")
+STANDARD_FS_REQUEST_CALLBACK(fileSymlink, "symlink")
+
 static void directoryListCallback(uv_fs_t* request)
 {
-  if (handleRequestError(request)) return;
+  if (handleRequestError("dir list", request)) return;
 
   uv_dirent_t entry;
 
@@ -167,24 +176,18 @@ void directoryList(WrenVM* vm)
   }
 }
 
-void fileDirectoryCallback(uv_fs_t* request) {
-  if (handleRequestError(request)) return;
-
-  schedulerResume(freeRequest(request), false);
-}
-
 void directoryCreate(WrenVM* vm)
 {
   const char* path = wrenGetSlotString(vm, 1);
   uv_fs_t* request = createRequest(wrenGetSlotHandle(vm, 2));
-  uv_fs_mkdir(getLoop(), request, path, 0755, fileDirectoryCallback);
+  uv_fs_mkdir(getLoop(), request, path, 0755, directoryCreateCallback);
 }
 
 void directoryDelete(WrenVM* vm)
 {
   const char* path = wrenGetSlotString(vm, 1);
   uv_fs_t* request = createRequest(wrenGetSlotHandle(vm, 2));
-  uv_fs_rmdir(getLoop(), request, path, fileDirectoryCallback);
+  uv_fs_rmdir(getLoop(), request, path, directoryDeleteCallback);
 }
 
 typedef struct sThreadRequestData
@@ -332,19 +335,13 @@ void fileFd(WrenVM* vm) {
   wrenSetSlotDouble(vm, 0, fd);
 }
 
-static void genericFileCallback(uv_fs_t* request)
-{
-  if (handleRequestError(request)) return;
-  schedulerResume(freeRequest(request), false);
-}
-
 void fileDelete(WrenVM* vm)
 {
   const char* path = wrenGetSlotString(vm, 1);
   WrenHandle* fiber = wrenGetSlotHandle(vm, 2);
   uv_fs_t* request = createRequest(fiber);
   
-  int error = uv_fs_unlink(getLoop(), request, path, genericFileCallback);
+  int error = uv_fs_unlink(getLoop(), request, path, fileDeleteCallback);
   if (error != 0 ) {
     freeRequest(request);
     abortFiber(vm, "error: %s", uv_strerror(error));
@@ -358,7 +355,7 @@ void fileSymlink(WrenVM* vm)
   WrenHandle* fiber = wrenGetSlotHandle(vm, 3);
   uv_fs_t* request = createRequest(fiber);
 
-  int error = uv_fs_symlink(getLoop(), request, src, dst, 0, genericFileCallback);
+  int error = uv_fs_symlink(getLoop(), request, src, dst, 0, fileSymlinkCallback);
   if (error != 0 ) {
     freeRequest(request);
     abortFiber(vm, "error: %s", uv_strerror(error));
@@ -372,7 +369,7 @@ void fileCopy(WrenVM* vm)
   WrenHandle* fiber = wrenGetSlotHandle(vm, 3);
   uv_fs_t* request = createRequest(fiber);
 
-  int error = uv_fs_copyfile(getLoop(), request, src, dst, UV_FS_COPYFILE_FICLONE, genericFileCallback);
+  int error = uv_fs_copyfile(getLoop(), request, src, dst, UV_FS_COPYFILE_FICLONE, fileCopyCallback);
   if (error != 0 ) {
     freeRequest(request);
     abortFiber(vm, "error: %s", uv_strerror(error));
@@ -386,7 +383,7 @@ void fileRename(WrenVM* vm)
   WrenHandle* fiber = wrenGetSlotHandle(vm, 3);
   uv_fs_t* request = createRequest(fiber);
   
-  int error = uv_fs_rename(getLoop(), request, src, dst, genericFileCallback);
+  int error = uv_fs_rename(getLoop(), request, src, dst, fileRenameCallback);
   if (error != 0 ) {
     freeRequest(request);
     abortFiber(vm, "error: %s", uv_strerror(error));
@@ -395,7 +392,7 @@ void fileRename(WrenVM* vm)
 
 static void fileOpenCallback(uv_fs_t* request)
 {
-  if (handleRequestError(request)) return;
+  if (handleRequestError("file open", request)) return;
   
   double fd = (double)request->result;
   schedulerResume(freeRequest(request), true);
@@ -435,7 +432,7 @@ void fileOpen(WrenVM* vm)
 // Called by libuv when the stat call for size completes.
 static void fileSizeCallback(uv_fs_t* request)
 {
-  if (handleRequestError(request)) return;
+  if (handleRequestError("file stat", request)) return;
 
   double size = (double)request->statbuf.st_size;
   schedulerResume(freeRequest(request), true);
@@ -452,7 +449,7 @@ void fileSizePath(WrenVM* vm)
 
 static void fileCloseCallback(uv_fs_t* request)
 {
-  if (handleRequestError(request)) return;
+  if (handleRequestError("file close", request)) return;
 
   schedulerResume(freeRequest(request), false);
 }
@@ -486,7 +483,7 @@ void fileDescriptor(WrenVM* vm)
 
 static void fileReadBytesCallback(uv_fs_t* request)
 {
-  if (handleRequestError(request)) return;
+  if (handleRequestError("file read", request)) return;
 
   FileRequestData* data = (FileRequestData*)request->data;
   uv_buf_t buffer = data->buffer;
@@ -523,7 +520,7 @@ void fileReadBytes(WrenVM* vm)
 
 static void realPathCallback(uv_fs_t* request)
 {
-  if (handleRequestError(request)) return;
+  if (handleRequestError("real path", request)) return;
   
   wrenEnsureSlots(getVM(), 3);
   wrenSetSlotString(getVM(), 2, (char*)request->ptr);
@@ -548,7 +545,7 @@ void fileReadLink(WrenVM* vm)
 // Called by libuv when the stat call completes.
 static void statCallback(uv_fs_t* request)
 {
-  if (handleRequestError(request)) return;
+  if (handleRequestError("stat", request)) return;
   
   WrenVM* vm = getVM();
   wrenEnsureSlots(vm, 3);
@@ -589,7 +586,7 @@ void fileSize(WrenVM* vm)
 
 static void fileWriteBytesCallback(uv_fs_t* request)
 {
-  if (handleRequestError(request)) return;
+  if (handleRequestError("file write", request)) return;
  
   FileRequestData* data = (FileRequestData*)request->data;
   free(data->buffer.base);

@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "os.h"
-#include "vm.h"
-#include "wren.h"
+#include "cli.h"
 
 int main(int argc, const char* argv[])
 {
@@ -23,22 +21,22 @@ int main(int argc, const char* argv[])
     return 0;
   }
 
-  osSetArguments(argc, argv);
+  cliSetArguments(argc, argv);
 
   WrenInterpretResult result;
   if (argc == 1)
   {
-    result = runRepl();
+    result = cliRunRepl();
   }
   else
   {
-    result = runFile(argv[1], false);
+    result = cliRunFile(argv[1], false);
   }
 
   // Exit with an error code if the script failed.
   if (result == WREN_RESULT_COMPILE_ERROR) return 65; // EX_DATAERR.
   if (result == WREN_RESULT_RUNTIME_ERROR) return 70; // EX_SOFTWARE.
 
-  int code = getExitCode();
+  int code = cliGetExitCode();
   return code;
 }

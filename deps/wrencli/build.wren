@@ -13,9 +13,10 @@ var xos = Fn.new { |b, args|
     "libc": true,
   })
   b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
 }
 
-var wrencli = Fn.new { |b, args|
+var lib = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
 
   var module_srcs = [
@@ -38,23 +39,58 @@ var wrencli = Fn.new { |b, args|
   var modules = b.mktmpdir()
   b.deptool("//deps/wren:wren_to_c_string").run(modules, b.srcs(wren_modules))
 
-  var exe = zig.buildExe(b, "wren", {
-    "c_srcs": b.srcGlob("cli/*.c") + b.srcGlob("module/*.c"),
+  var cli_srcs = b.srcGlob("cli/*.c")
+  cli_srcs.removeAt(cli_srcs.indexOf(b.src("cli/main.c")))
+
+  var deps = [
+    zig.cDep(b.dep("//deps/libglob"), "glob"),
+    zig.cDep(b.dep("//deps/libuv"), "uv"),
+    b.dep("//deps/lmdb"),
+    b.dep("//deps/ucl"),
+    b.dep("//deps/wren"),
+    b.dep(":xos"),
+  ]
+
+  var lib = zig.buildLib(b, "wrencli", {
+    "c_srcs": cli_srcs + b.srcGlob("module/*.c"),
     "flags": [
       "-I%(b.srcDir("module"))",
       "-I%(b.srcDir("cli"))",
       "-I%(modules)",
-
     ],
-    "c_deps": [
-      zig.cDep(b.dep("//deps/libglob"), "glob"),
-      zig.cDep(b.dep("//deps/libuv"), "uv"),
-      b.dep("//deps/lmdb"),
-      b.dep("//deps/ucl"),
-      b.dep("//deps/wren"),
-      b.dep(":xos"),
-    ],
+    "c_deps": deps,
     "libc": true,
   })
+
+  b.installHeader(b.src("cli/cli.h"))
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b, "wrencli", {
+    "deps": deps,
+  }))
+}
+
+var wrencli = Fn.new { |b, args|
+  var zig = b.deptool("//toolchains/zig")
+
+  var deps = [
+    zig.cDep(b.dep("//deps/libglob"), "glob"),
+    zig.cDep(b.dep("//deps/libuv"), "uv"),
+    b.dep("//deps/lmdb"),
+    b.dep("//deps/ucl"),
+    b.dep("//deps/wren"),
+    zig.cDep(b.dep(":lib"), "wrencli"),
+    b.dep(":xos"),
+  ]
+
+  var exe = zig.buildExe(b, "wren", {
+    "c_srcs": [b.src("cli/main.c")],
+    "flags": [
+      "-I%(b.srcDir("module"))",
+      "-I%(b.srcDir("cli"))",
+    ],
+    "c_deps": deps,
+    "libc": true,
+  })
+
   b.installExe(exe)
 }

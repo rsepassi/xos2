@@ -45,11 +45,16 @@ xos build [<build-flags>...] <label> [-- <label-arg>...]
   // Parse build flags
   var build_flags = []
   var argi = 0
-  while (args[argi].startsWith("--")) {
+  while (argi < args.count && args[argi].startsWith("--")) {
     build_flags.add(args[argi])
     argi = argi + 1
   }
   build_flags = flag_parser.parse(build_flags)
+
+  if (argi >= args.count) {
+    System.print("error: no label provided")
+    return
+  }
 
   // Parse label argument
   var label = Build.Label.parse(args[argi], Config.get("cwd"))
@@ -150,10 +155,10 @@ var env = Fn.new { |args|
       "XOS_SYSTEM_PATH",
       "XOS_HOST",
       "XOS_ID",
+      "WREN_MODULES",
       "PATH",
       "LOG",
       "LOG_SCOPES",
-      "NO_CACHE",
     ]
 
   for (v in vars) {

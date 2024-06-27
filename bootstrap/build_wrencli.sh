@@ -49,6 +49,13 @@ zig build-lib -target $TARGET -O $OPT \
   xos/xos.zig \
   -lc
 
+zig build-lib -target $TARGET -O $OPT \
+  --name wrencli \
+  $cflags \
+  cli/*.c \
+  module/*.c \
+  -lc
+
 zig build-exe -target $TARGET -O $OPT \
   --name wren \
   $cflags \
@@ -59,5 +66,8 @@ zig build-exe -target $TARGET -O $OPT \
   -lc
 
 cd $BUILD_OUT
-mkdir bin
+mkdir bin lib include
 mv $src/wren bin
+mv $src/libwrencli.a lib
+mv $src/libxos.a lib
+mv $src/cli/cli.h include

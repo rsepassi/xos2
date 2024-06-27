@@ -11,13 +11,13 @@
   #include "TargetConditionals.h"
 #endif
 
-int numArgs;
-const char** args;
+static int osNumArgs;
+static const char** osArgs;
 
 void osSetArguments(int argc, const char* argv[])
 {
-  numArgs = argc;
-  args = argv;
+  osNumArgs = argc;
+  osArgs = argv;
 }
 
 void platformHomePath(WrenVM* vm)
@@ -96,9 +96,9 @@ void processAllArguments(WrenVM* vm)
   wrenEnsureSlots(vm, 2);
   wrenSetSlotNewList(vm, 0);
 
-  for (int i = 0; i < numArgs; i++)
+  for (int i = 0; i < osNumArgs; i++)
   {
-    wrenSetSlotString(vm, 1, args[i]);
+    wrenSetSlotString(vm, 1, osArgs[i]);
     wrenInsertInList(vm, 0, -1, 1);
   }
 }

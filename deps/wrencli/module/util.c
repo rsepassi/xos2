@@ -11,7 +11,7 @@ static char* vstrfmt(char* fmt, va_list args) {
   return errstr;
 }
 
-char* strfmt(char* fmt, ...) {
+char* strfmt(const char* fmt, ...) {
   size_t bufsz;
   {
     va_list args;

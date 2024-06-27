@@ -3,7 +3,7 @@
 
 #include "wren.h"
 
-char* strfmt(char* fmt, ...);
+char* strfmt(const char* fmt, ...);
 void abortFiber(WrenVM* vm, char* fmt, ...);
 
 #endif

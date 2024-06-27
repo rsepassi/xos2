@@ -2,9 +2,13 @@ import "os" for Process
 import "io" for File
 
 var launcher = Fn.new { |b, args|
+  b.src("src/main.wren")
   var zig = b.deptool("//toolchains/zig", [])
   var exe = zig.buildExe(b, "xos", {
     "root": b.src("src/main.zig"),
+    "c_deps": [
+      zig.cDep(b.dep("//deps/wrencli:lib"), "wrencli"),
+    ],
     "libc": true,
   })
   b.install("bin", exe)
@@ -12,7 +16,6 @@ var launcher = Fn.new { |b, args|
 
 var xos = Fn.new { |b, args|
   var launcher = b.dep(":launcher")
-  var wren = b.dep("//deps/wrencli")
   var curl = b.dep("//deps/curl")
   var tar = b.dep("//deps/libarchive:bsdtar")
   var wren_main = b.src("src/main.wren")
@@ -23,11 +26,9 @@ var xos = Fn.new { |b, args|
   File.copy(tar.exe("bsdtar"), tar_exe)
 
   b.install("", launcher.exe("xos"))
-  b.install("support", wren.exe("wren"))
   b.install("support", tar_exe)
   b.install("support", curl.exe("curl"))
-  b.install("support/scripts", wren_main)
-  b.installDir("support/scripts", wren_modules)
+  b.installDir("support", wren_modules)
 
   // todo: xos_id (srcs + zig version)
   File.write("xos_id", b.key)

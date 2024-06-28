@@ -109,6 +109,8 @@ class Zig {
       "Cflags": cflags,
       "Libs": ldflags,
       "Requires": deps,
+      "sdk": opts["sdk"],
+      "libc": opts["libc"],
     }
     var fname = "%(libname).pc.json"
     var json = JSON.stringify(pkgconfig)
@@ -180,6 +182,7 @@ class MacOS is Platform {
   flags {
     return [
       "--libc", "%(sysroot)/libc.txt",
+      "-F%(sysroot)/System/Library/Frameworks",
     ]
   }
 }
@@ -200,6 +203,18 @@ var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
     args.add("-DDEBUG")
   } else {
     args.add("-DNDEBUG")
+  }
+
+  // dependency flags
+  var dep_includes = []
+  var dep_libs = []
+  for (dep in opts["c_deps"] || []) {
+    if (!(dep is CDep)) dep = CDep.create(dep)
+    dep_includes.addAll(dep.cflags)
+    dep_libs.addAll(dep.libs)
+    if (dep.sdk) opts["sdk"] = true
+    if (dep.libc) opts["libc"] = true
+    if (dep.libcpp) opts["libc++"] = true
   }
 
   var platform = GetPlatform_.call(b, opts)
@@ -223,16 +238,6 @@ var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
     ])
 
     args.add("--")
-  }
-
-  // dependency flags
-  var dep_includes = []
-  var dep_libs = []
-
-  for (dep in opts["c_deps"] || []) {
-    if (!(dep is CDep)) dep = CDep.create(dep)
-    dep_includes.addAll(dep.cflags)
-    dep_libs.addAll(dep.libs)
   }
 
   args.addAll(dep_includes)
@@ -265,10 +270,16 @@ class CDep {
 
     _cflags = cflags.map { |x| x.replace("{{root}}", install_dir.path) }.toList
     _libs = libs.map { |x| x.replace("{{root}}", install_dir.path) }.toList
+    _sdk = config["sdk"] == true
+    _libc = config["libc"] == true
+    _libcpp = config["libc++"] == true
   }
 
   cflags { _cflags }
   libs { _libs }
+  libc { _libc }
+  libcpp { _libcpp }
+  sdk { _sdk }
 
   toJSON {
     return {

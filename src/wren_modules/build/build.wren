@@ -404,18 +404,7 @@ class Build {
   }
 }
 
-var ByteCompare_ = Fn.new { |a, b|
-  // a < b by bytes
-  a = a.bytes
-  b = b.bytes
-  var len = a.count.min(b.count)
-  for (i in 0...len) {
-    if (a[i] < b[i]) return true
-    if (a[i] > b[i]) return false
-  }
-  if (a.count < b.count) return true
-  return false
-}
+var ByteCompare_ = Fn.new { |a, b| a.bytes < b.bytes }
 
 var HashStringifyMap_ = Fn.new { |x|
   var items = []

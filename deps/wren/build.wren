@@ -35,7 +35,10 @@ class wren_to_c_string {
 
 var wren = Fn.new { |b, args|
   var modules = b.mktmpdir()
-  b.deptool(":wren_to_c_string").run(modules, [b.src("src/optional/wren_opt_meta.wren")])
+  b.deptool(":wren_to_c_string").run(modules, [
+    b.src("src/optional/wren_opt_meta.wren"),
+    b.src("src/vm/wren_core.wren"),
+  ])
 
   var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "wren", {

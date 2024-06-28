@@ -301,6 +301,16 @@ class StringByteSequence is Sequence {
   iteratorValue(iterator) { _string.byteAt_(iterator) }
 
   count { _string.byteCount_ }
+
+  <(other) {
+    var len = this.count.min(other.count)
+    for (i in 0...len) {
+      if (this[i] < other[i]) return true
+      if (this[i] > other[i]) return false
+    }
+    if (this.count < other.count) return true
+    return false
+  }
 }
 
 class StringCodePointSequence is Sequence {

@@ -31,6 +31,10 @@ class Target {
   os { _os }
   abi { _abi }
 
+  exeName(name) { os == "windows" ? "%(name).exe" : name }
+  libName(name) { os == "windows" ? "%(name).lib" : "lib%(name).a" }
+  dylibName(name) { os == "windows" ? "%(name).lib" : "lib%(name).so" }
+
   toString {
     return "%(_arch)-%(_os)-%(_abi)"
   }

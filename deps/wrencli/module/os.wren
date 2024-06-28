@@ -6,7 +6,6 @@ class Platform {
   foreign static name
 
   static isWindows { name == "Windows" }
-  static exeName(name) { isWindows ? "%(name).exe" : name }
 }
 
 class Process {

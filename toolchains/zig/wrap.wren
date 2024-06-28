@@ -9,22 +9,10 @@ var Log = Logger.get("zig")
 class Zig {
   construct new(dir) {
     _b = dir.build
-    _exe = "%(_b.installDir)/zig/%(Zig.exeName(_b.target, "zig"))"
+    _exe = "%(_b.installDir)/zig/%(_b.target.exeName("zig"))"
   }
 
   zigExe { _exe }
-
-  static exeName(target, name) {
-    return target.os == "windows" ? "%(name).exe" : name
-  }
-
-  static libName(target, name) {
-    return target.os == "windows" ? "%(name).lib" : "lib%(name).a"
-  }
-
-  static dylibName(target, name) {
-    return target.os == "windows" ? "%(name).lib" : "lib%(name).so"
-  }
 
   getOpt(opt) {
     var opts = {
@@ -70,7 +58,7 @@ class Zig {
     if (!opts["nostdopts"]) args.addAll(defaults)
     if (opts["args"]) args.addAll(opts["args"])
     if (opts["sysroot"]) {
-      var platform = GetPlatform_.call(b, {})
+      var platform = GetPlatform_.call(b, {"sdk": true})
       args.add("-Dsysroot=%(platform.sysroot)")
     }
 
@@ -90,7 +78,7 @@ class Zig {
     FillArgs_.call(b, args, opts, srcs, false, opt_mode)
 
     exec_(b, args)
-    return "%(Process.cwd)/%(Zig.libName(b.target, name))"
+    return "%(Process.cwd)/%(b.target.libName(name))"
   }
 
   buildExe(b, name, opts) {
@@ -105,14 +93,14 @@ class Zig {
     FillArgs_.call(b, args, opts, srcs, true, opt_mode)
 
     exec_(b, args)
-    return "%(Process.cwd)/%(Zig.exeName(b.target, name))"
+    return "%(Process.cwd)/%(b.target.exeName(name))"
   }
 
   libConfig(b) { libConfig(b, b.label.target, {}) }
   libConfig(b, libname) { libConfig(b, libname, {}) }
   libConfig(b, libname, opts) {
     var cflags = ["-I{{root}}/include"]
-    var ldflags = ["{{root}}/lib/%(Zig.libName(b.target, libname))"]
+    var ldflags = ["{{root}}/lib/%(b.target.libName(libname))"]
     ldflags.addAll(opts["ldflags"] || [])
 
     var deps = (opts["deps"] || []).map { |x| (x is CDep ? x : CDep.create(x)).toJSON }.toList

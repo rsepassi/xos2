@@ -1,4 +1,4 @@
-import "os" for Process, Path, Debug, Platform
+import "os" for Process, Path, Debug
 import "io" for Directory, File
 import "log" for Logger
 import "hash" for Sha256
@@ -12,9 +12,6 @@ import "build/cache" for BuildCache
 import "build/target" for Target
 
 var Log = Logger.get("xos")
-
-var TarExe = Platform.exeName("tar")
-var CurlExe = Platform.exeName("curl")
 
 class Build {
   static Target { Target }
@@ -55,7 +52,7 @@ class Build {
         if (Config.get("bootstrap")) {
           Process.spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst])
         } else {
-          var args = [CurlExe, "-s", "-L", url, "-o", tmp_dst]
+          var args = [Target.host.exeName("curl"), "-s", "-L", url, "-o", tmp_dst]
           Log.debug("%(args)")
           Process.spawn(args)
         }
@@ -145,7 +142,7 @@ class Build {
   untar(archive) { untar(archive, {}) }
   untar(archive, opts) {
     var tmpdir = _cache_entry.mktmpdir()
-    var args = [TarExe, "-xf", archive, "-C", tmpdir]
+    var args = [Target.host.exeName("tar"), "-xf", archive, "-C", tmpdir]
     var strip = opts["strip"] || 1
     if (strip > 0) args.add("--strip-components=%(strip)")
     (opts["exclude"] || []).map { |x| args.addAll(["--exclude", x]) }.toList

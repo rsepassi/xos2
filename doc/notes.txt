@@ -5,14 +5,15 @@
   Unrecognized file extension
   Garbage collection?
 * dynamic label creation?
-* wren wrappers should be part of tool output
 * implement external repos - repo name mapped to url
 * documentation
-* Increase concurrency: Fibers in dependency and file loops
+* Increase concurrency: Fibers in dependency and file loops, batch apis
 * detailed review of caching policy
 * tests
-* UCL configuration parser
+* UCL configuration parser (e.g. for repo specification)
 * Tracking license, version url, documentation
 * Cloud cache
-* Cache untar results if from content?
-* Verify Windows build
+* Cache untar results if from content? (using dynamic labels?)
+* Verify Windows, FreeBSD builds
+* xos cache tools, see ids, etc
+* add b.system to access system path

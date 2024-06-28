@@ -1,0 +1,33 @@
+xos was built to support a new cross-platform platform, akin to a browser but
+with some different goals (which are discussed elsewhere).
+
+Platform features include:
+* Support for iOS, Android, Windows, Linux, and MacOS
+* A declarative reactive UI system with support for
+  * text, images, 2D graphics
+  * mouse, keyboard, and touch inputs
+  * animations
+* Audio (speaker and microphone) support
+* Public-private key authentication, signing, and encryption
+* Filesystem and database access (key-value and relational)
+* Peer-to-peer messaging and networking
+* End-to-end encrypted synchronization (optionally with CRDTs)
+* Dynamic Wren scripts (akin to JavaScript in a browser)
+* Filetypes: jpeg, png, gif, wav, mp3, ogg, epub, txt, md, xml, csv
+
+Future support for:
+* PDF
+* Video
+* ODS
+* WebAssembly
+
+Dependencies:
+* UI: wgpu, freetype, harfbuzz, nanovg
+* Inputs: glfw
+* Filesystem: libuv
+* Network: libuv, libcurl
+* Database: lmdb, sqlite
+* Audio: miniaudio
+* Encryption: monocypher, mbedtls
+* Compression: zstd, xz
+* Build: xos, zig

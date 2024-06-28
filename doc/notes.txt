@@ -4,19 +4,15 @@
   Could not change current working directory
   Unrecognized file extension
   Garbage collection?
-* track build function imports as dynamic deps
 * dynamic label creation?
 * wren wrappers should be part of tool output
 * implement external repos - repo name mapped to url
-* Add NO_CACHE to skip cache check
 * documentation
 * Increase concurrency: Fibers in dependency and file loops
 * detailed review of caching policy
-* keep cache checks in memory to avoid duplicate file access
 * tests
 * UCL configuration parser
 * Tracking license, version url, documentation
 * Cloud cache
 * Cache untar results if from content?
 * Verify Windows build
-* JSON - use pretty print instead of compact?

@@ -36,7 +36,27 @@ class Meta {
     return compile_(source, false, true)
   }
 
+  static captureImports(fn) { ImportCapture_.new(fn) }
+
   foreign static compile_(source, isExpression, printErrors)
   foreign static getModuleVariables_(module)
   foreign static getModuleVariable_(module, name)
+  foreign static captureImportsBegin_()
+  foreign static captureImportsEnd_()
+}
+
+class ImportCapture_ {
+  construct new(fn) {
+    _fn = fn
+    _imports = null
+  }
+
+  imports { _imports }
+
+  call() {
+    Meta.captureImportsBegin_()
+    var out = _fn.call()
+    _imports = Meta.captureImportsEnd_()
+    return out
+  }
 }

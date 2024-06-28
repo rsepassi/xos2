@@ -168,7 +168,7 @@ var env = Fn.new { |args|
 }
 
 var cache_clean = Fn.new { |args|
-  for (d in Glob.glob(".xos-cache/pkg/*/*/home")) {
+  for (d in Glob.glob(".xos-cache/label/*/*/home")) {
     var pkg = Path.dirname(d)
     Directory.deleteTree(pkg)
   }
@@ -221,6 +221,7 @@ var initConfig = Fn.new {
     "repo_root": Process.env("XOS_REPO_ROOT"),
     "host_target": Build.Target.parse(Process.env("XOS_HOST")),
     "xos_id": Process.env("XOS_ID"),
+    "no_cache": Process.env("NO_CACHE") == "1",
     "cwd": Process.cwd,
     "bootstrap": File.exists("%(Process.env("XOS_ROOT"))/support/bootstrap"),
   }

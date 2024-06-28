@@ -13,6 +13,30 @@ import "build/target" for Target
 
 var Log = Logger.get("xos")
 
+var BuiltinModules_ = {
+  "io": 1,
+  "os": 1,
+  "meta": 1,
+  "hash": 1,
+  "kv": 1,
+  "json": 1,
+  "random": 1,
+  "scheduler": 1,
+  "repl": 1,
+  "glob": 1,
+  "timer": 1,
+  "record": 1,
+  "enum": 1,
+  "flagparse": 1,
+  "log": 1,
+  "build/patch": 1,
+  "build/label": 1,
+  "build/cache": 1,
+  "build/config": 1,
+  "build/target": 1,
+  "build/install_dir": 1,
+}
+
 class Build {
   static Target { Target }
   static Label { Label }
@@ -64,7 +88,7 @@ class Build {
     } else {
       Log.debug("%(_label) fetching %(url), cached")
     }
-    _deps["fetches"][url] = hash
+    _deps["content"][url] = hash
     return _cache.getContent(hash)
   }
 
@@ -126,6 +150,8 @@ class Build {
         var dst_path = Path.join([dst_dir, name])
         Log.debug("installing %(name) to %(dir.isEmpty ? "/" : dir)")
 
+        // If it's a file that lives in this package's temporary working
+        // directory, move it into the output directory. Otherwise, copy it.
         var mv = !Path.isAbs(src_path) || src_path.startsWith(workDir)
         if (mv) {
           File.rename(src_path, dst_path)
@@ -172,8 +198,9 @@ class Build {
     _deps = {
       "files": {},
       "directories": {},
-      "fetches": {},
+      "content": {},
       "labels": {},
+      "imports": {},
     }
 
     // xos cache key
@@ -202,6 +229,17 @@ class Build {
       "build_args": _args,
       "label": "%(_label)",
       "label_args": _label_args,
+    }
+  }
+
+  addImport_(module) {
+    if (BuiltinModules_.containsKey(module)) return
+    Log.debug("%(_label) depends on module %(module)")
+    if (module.startsWith("xos//")) {
+      var module_path = Path.join([Config.get("repo_root"), module[5..-1]])
+      _deps["imports"][module] = _cache.fileHasher.hash("%(module_path).wren")
+    } else {
+      b.src("%(module).wren")
     }
   }
 
@@ -267,6 +305,25 @@ class Build {
 
     var deps = _cache_entry.deps
 
+    // Import deps
+    if (!need_build) {
+      var root = Config.get("repo_root")
+      for (f in deps["imports"]) {
+        var path = Path.join([root, f.key[5..-1]]) + ".wren"
+        Log.debug("checking %(path)")
+        if (!File.exists(path)) {
+          need_build = true
+          need_build_reason = "%(f.key) no longer exists"
+          break
+        }
+        if (_cache.fileHasher.hash(path) != f.value) {
+          need_build = true
+          need_build_reason = "%(f.key) contents changed"
+          break
+        }
+      }
+    }
+
     // File deps
     if (!need_build) {
       for (f in deps["files"]) {
@@ -305,7 +362,7 @@ class Build {
 
     // Network deps
     if (!need_build) {
-      for (f in deps["fetches"]) {
+      for (f in deps["content"]) {
         Log.debug("checking %(f.key)")
         if (_cache.getContent(f.value) == null) {
           need_build = true

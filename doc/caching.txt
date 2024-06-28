@@ -1,0 +1,47 @@
+Cache artifacts
+---------------
+
+.xos-cache/: All cache state and artifacts are in this directory at the repo root
+  content/: Content-addressed (SHA256) artifacts, typically from downloads
+  tools/: Custom cache directories managed by tools, keyed by the tool's label key
+  label/: Cached label artifacts, keyed by label key
+
+label/00/0000000000000000000000000000000000000000000000000000000000000000/
+  ok: A label directory is valid/complete iff this is present
+  deps.json: All dynamically tracked dependencies
+  out/: Label's output directory, opaque to xos
+  home/: Temporary directory used during the label's build, opaque to xos
+
+deps.json: Dynamically marked dependencies
+  files: files from the label's src directory
+  directories: directories from the label's src directory
+  content: content-addressed artifacts
+  labels: other labels
+  imports: other imported Wren modules
+
+label key: This key identifies a label output, not including its dependencies
+  SHA256(
+    xos_id
+    label
+    label arguments, in the order passed
+    build arguments (opt, target)
+    build script hash (e.g. SHA256(foo/bar/build.wren))
+  )
+
+Output identification
+---------------------
+
+To identify a specific output directory, we recursively hash the label key and
+deps.json.
+
+OutputHash = Hash(label key, deps.json, map(OutputHash, deps.json[labels]))
+
+This allows for shared caches with precomputed output keys.
+
+Notes
+-----
+
+* Maybe tools should be specified in deps.json separately so that they can be
+  built for the currently invoking host instead of for the originally invoking
+  host?
+* Other imported modules need to be included

@@ -1,8 +1,6 @@
-import "io" for Directory
 import "os" for Process
 
 var lmdb = Fn.new { |b, args|
-  Directory.create("lmdb")
   var src = b.untar(b.src("lmdb-0.9.31.tar.gz"))
   Process.chdir("%(src)/libraries/liblmdb")
 

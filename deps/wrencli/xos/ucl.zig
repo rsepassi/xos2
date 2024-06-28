@@ -220,7 +220,7 @@ fn jsonBuildObj(vm: ?*wren.c.WrenVM, slot: c_int, ismap: bool) !*ucl.c.ucl_objec
 
 fn jsonObjStringify(vm: ?*wren.c.WrenVM) callconv(.C) void {
     const obj: **ucl.c.ucl_object_t = @ptrCast(@alignCast(wren.c.wrenGetSlotForeign(vm, 0)));
-    if (ucl.c.ucl_object_emit(obj.*, ucl.c.UCL_EMIT_JSON_COMPACT)) |s| {
+    if (ucl.c.ucl_object_emit(obj.*, ucl.c.UCL_EMIT_JSON)) |s| {
         defer ucl.c.UCL_FREE(std.mem.len(s), s);
         wren.c.wrenEnsureSlots(vm, 1);
         wren.c.wrenSetSlotString(vm, 0, s);

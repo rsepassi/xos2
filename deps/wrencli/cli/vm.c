@@ -9,6 +9,10 @@
 #include "vm.h"
 #include "log.h"
 
+extern void* xosCtxInit();
+extern void xosCtxDeinit(void*);
+extern void xosCtxCaptureImportsAdd(WrenVM*, const char*);
+
 // The single VM instance that the CLI uses.
 static WrenVM* vm;
 
@@ -164,6 +168,7 @@ static void findModulesDirectory(const char* module_name)
 static const char* resolveModule(WrenVM* vm, const char* importer,
                                  const char* module)
 {
+  xosCtxCaptureImportsAdd(vm, module);
   // Logical import strings are used as-is and need no resolution.
   if (pathType(module) == PATH_TYPE_SIMPLE) return module;
 
@@ -292,6 +297,8 @@ static void reportError(WrenVM* vm, WrenErrorType type,
 
 static void initVM()
 {
+  void* xos_ctx = xosCtxInit();
+
   WrenConfiguration config;
   wrenInitConfiguration(&config);
 
@@ -301,6 +308,7 @@ static void initVM()
   config.loadModuleFn = loadModule;
   config.writeFn = write;
   config.errorFn = reportError;
+  config.userData = xos_ctx;
 
   // Since we're running in a standalone process, be generous with memory.
   config.initialHeapSize = 1024 * 1024 * 100;
@@ -319,6 +327,8 @@ static void freeVM()
   uv_loop_close(loop);
   free(loop);
 
+  void* xos_ctx = wrenGetUserData(vm);
+  xosCtxDeinit(xos_ctx);
   wrenFreeVM(vm);
 
   if (wrenModulesDirectory != NULL) pathFree(wrenModulesDirectory);

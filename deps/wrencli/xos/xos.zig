@@ -5,6 +5,7 @@ pub usingnamespace @import("hash.zig");
 pub usingnamespace @import("ucl.zig");
 pub usingnamespace @import("random.zig");
 pub usingnamespace @import("debug.zig");
+pub usingnamespace @import("ctx.zig");
 
 export fn xosDirectoryDeleteTree(path: [*c]const u8) bool {
     std.fs.cwd().deleteTree(std.mem.span(path)) catch {

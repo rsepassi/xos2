@@ -89,6 +89,7 @@ pub fn mainOuter(alloc: std.mem.Allocator) !void {
     try exec_env.put("PATH", supportpath);
     try exec_env.put("LOG", env.get("LOG") orelse "");
     try exec_env.put("LOG_SCOPES", env.get("LOG_SCOPES") orelse "");
+    try exec_env.put("NO_CACHE", env.get("NO_CACHE") orelse "");
 
     var child = std.process.Child.init(exec_args.items, alloc);
     child.env_map = &exec_env;

@@ -199,7 +199,7 @@ if [ "$1" = "full" ]
 then
   cd $rootdir
   mkdir -p .xos-cache
-  rm -rf .xos-cache/pkg
+  rm -rf .xos-cache/label
   rm -rf .xos-cache/tools
 
   # Build xos with bootstrap

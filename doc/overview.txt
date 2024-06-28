@@ -1,0 +1,64 @@
+xos is a functional build system.
+
+BUILD_OUT = BUILD_FUNC(BUILD_IN)
+
+It aims for simplicity, reproducibility, minimal incremental rebuilds, goals
+which it (mostly) shares with systems like Bazel, Guix, Nix, and others.
+
+A build is a simple function that can do arbitrary work and populates an output
+directory. Inputs are dynamically accessed and marked; unlike many other
+systems, inputs do not need to be statically declared. xos uses the Wren
+embedded scripting language for build scripts, but allows for arbitrary tool
+usage.
+
+Here's an example function that builds the LMDB database:
+
+```wren
+var lmdb = Fn.new { |b, args|
+  var url = "https://github.com/LMDB/lmdb/archive/refs/tags/LMDB_0.9.31.tar.gz"
+  var hash = "dd70a8c67807b3b8532b3e987b0a4e998962ecc28643e1af5ec77696b081c9b0"
+  var src = b.untar(b.fetch(url, hash))
+  Process.chdir("%(src)/libraries/liblmdb")
+
+  var zig = b.deptool("//toolchains/zig")
+  var lib = zig.buildLib(b, "lmdb", {
+    "c_srcs": ["mdb.c", "midl.c"],
+    "libc": true,
+  })
+
+  b.installHeader("lmdb.h")
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
+}
+```
+
+There are a few things to note:
+* Network downloads are supported, and cached by SHA256 key
+* Build functions can do arbitrary filesystem work. They are run in their own
+  temporary directory that will be deleted on completion. Only files put in
+  the output directory (with b.install*, which places files into b.installDir)
+  are retained.
+* Tools (in this case the Zig compiler) are explicitly depended on and, as
+  is the case here, can expose Wren wrappers. Build functions can also directly
+  invoke tool executables (Process.spawn). xos seals the PATH to prevent
+  accidental use of system executables, but allows for escape if desired.
+* Wren module imports are supported, and become part of the build's input set.
+  A change to one of the imported modules will trigger a rebuild. This allows
+  for arbitrary abstraction, if desired, without sacrificing correctness.
+
+Upon requesting a build, xos determines whether or not the build function
+needs to be reinvoked, which is a question of whether the build function
+itself has changed, or whether any of its inputs have changed.
+
+A build is identified by:
+* A label @repo//path/to/a:target, which points to the Wren module the function
+  is defined in, and the function name within that module.
+* A list of label (string) arguments (defaulting to the empty list)
+* Build arguments, e.g. --target=x86_64-linux-musl --opt=2
+
+If xos does not have an entry for the build in the cache, it will invoke the
+build function. If there is an entry in the cache, then xos will further check
+the marked inputs for staleness. If they are all fresh, the output directory
+is returned. Otherwise, xos will invoke the build function.
+
+See caching.txt for a detailed description of xos's cache and caching policy.

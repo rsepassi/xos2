@@ -7,6 +7,7 @@ class Config {
   }
 
   static get(key) {
+    if (!__config.containsKey(key)) Fiber.abort("Config does not define %(key)")
     return __config[key]
   }
 }

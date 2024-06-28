@@ -5,6 +5,9 @@
 
 #include "wren_opt_meta.wren.inc"
 
+extern void xosCtxCaptureImportsBegin(WrenVM*);
+extern void xosCtxCaptureImportsEnd(WrenVM*);
+
 void metaCompile(WrenVM* vm)
 {
   const char* source = wrenGetSlotString(vm, 1);
@@ -125,6 +128,16 @@ WrenForeignMethodFn wrenMetaBindForeignMethod(WrenVM* vm,
   if (strcmp(signature, "getModuleVariable_(_,_)") == 0)
   {
     return metaGetModuleVariable;
+  }
+
+  if (strcmp(signature, "captureImportsBegin_()") == 0)
+  {
+    return xosCtxCaptureImportsBegin;
+  }
+
+  if (strcmp(signature, "captureImportsEnd_()") == 0)
+  {
+    return xosCtxCaptureImportsEnd;
   }
   
   ASSERT(false, "Unknown method.");

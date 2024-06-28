@@ -54,14 +54,22 @@ class Label {
   }
 
   getBuilder() {
-    if (_repo != "local") Fiber.abort("repo unimplemented, specified in %(this)")
-    Meta.eval("import \"%(moduleName)\"")
-    var f = Fiber.new {
-      return Meta.getModuleVariable(moduleName, _target)
+    if (_builder == null) {
+      if (_repo != "local") Fiber.abort("repo unimplemented, specified in %(this)")
+
+      var capture = Meta.captureImports {
+        Meta.eval("import \"%(moduleName)\"")
+      }
+      capture.call()
+
+      var f = Fiber.new {
+        return Meta.getModuleVariable(moduleName, _target)
+      }
+      var fn = f.try()
+      if (f.error != null) Fiber.abort("unable to load variable '%(_target)' from %(modulePath)")
+      _builder = Builder.new(fn, capture.imports)
     }
-    var fn = f.try()
-    if (f.error != null) Fiber.abort("unable to load variable '%(_target)' from %(modulePath)")
-    return Builder.new(fn)
+    return _builder
   }
 
   static repoPath(repo) {
@@ -99,16 +107,23 @@ class Label {
     _repo = repo
     _path = path
     _target = target
+    _builder = null
   }
 }
 
 class Builder {
-  construct new(fn) {
+  construct new(fn, imports) {
     _fn = fn
+    _imports = imports
   }
 
   build(b, args) {
-    _fn.call(b, args)
+    var capture = Meta.captureImports {
+      _fn.call(b, args)
+    }
+    capture.call()
+    for (m in _imports) b.addImport_(m)
+    for (m in capture.imports) b.addImport_(m)
     return wrap(b)
   }
 

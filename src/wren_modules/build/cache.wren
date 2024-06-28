@@ -2,17 +2,20 @@ import "io" for Directory, File
 import "os" for Path
 import "hash" for Sha256
 import "json" for JSON
+import "log" for Logger
 
 import "build/config" for Config
+
+var Log = Logger.get("xos")
 
 class BuildCache {
   construct new() {
     var dir = Directory.ensure(Path.join(["%(Config.get("repo_root"))", ".xos-cache"]))
     Directory.ensure(Path.join([dir, "content"]))
-    Directory.ensure(Path.join([dir, "pkg"]))
+    Directory.ensure(Path.join([dir, "label"]))
     _dir = dir
     if (_cache == null) _cache = {
-      "pkg": {},
+      "label": {},
       "content": {},
     }
     _file_cache = FileHashCache_.new()
@@ -21,11 +24,11 @@ class BuildCache {
   dir { _dir }
 
   entry(key) {
-    if (!_cache["pkg"].containsKey(key)) {
+    if (!_cache["label"].containsKey(key)) {
       var e = BuildCacheEntry_.new(this, key)
-      _cache["pkg"][key] = e
+      _cache["label"][key] = e
     }
-    return _cache["pkg"][key]
+    return _cache["label"][key]
   }
 
   setContent(src_path) {
@@ -59,13 +62,25 @@ class BuildCacheEntry_ {
   construct new(cache, key) {
     _cache = cache
     _key = key
-    _dir = Path.join([cache.dir, "pkg", key[0...2], key])
+    _dir = Path.join([cache.dir, "label", key[0...2], key])
     _tmpi = 0
     _ok = null
     _deps = null
   }
 
-  ok { _ok == null ? _ok = File.exists(Path.join([_dir, "ok"])) : _ok }
+  ok {
+    if (_ok == null) {
+      _ok = File.exists(Path.join([_dir, "ok"]))
+      if (Config.get("no_cache")) {
+        Log.info("Config.no_cache enabled, disabling cache for %(_key)")
+        _ok = false
+      }
+      return _ok
+    } else {
+      return _ok
+    }
+  }
+
   workDir { Path.join([_dir, "home"]) }
   outDir { Path.join([_dir, "out"]) }
 

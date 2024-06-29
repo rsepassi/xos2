@@ -16,7 +16,7 @@ var glfw_platform = {
   },
   "windows": {
     "flags": ["-D_GLFW_WIN32"],
-    "ldflags": [],
+    "ldflags": ["-lws2_32", "-luserenv", "-lbcrypt", "-lgdi32", "--subsystem", "windows"],
   },
 }
 
@@ -59,7 +59,7 @@ var example_platform = {
     "ldflags": ["-lGL"],
   },
   "windows": {
-    "ldflags": [],
+    "ldflags": ["-lopengl32"],
   },
 }
 

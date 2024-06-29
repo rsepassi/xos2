@@ -73,12 +73,13 @@ class Build {
       StopwatchTree.time(url) {
         var tmp_dst = _cache_entry.mktmp()
         Log.debug("%(_label) fetching %(url) to %(tmp_dst)")
+        var stdio = NormalizeStdio_.call(null)
         if (Config.get("bootstrap")) {
-          Process.spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst])
+          Process.spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst], null, stdio)
         } else {
           var args = [Target.host.exeName("curl"), "-s", "-L", url, "-o", tmp_dst]
           Log.debug("%(args)")
-          Process.spawn(args)
+          Process.spawn(args, null, stdio)
         }
         var computed_hash = _cache.setContent(tmp_dst)
         if (hash != computed_hash) {
@@ -174,11 +175,22 @@ class Build {
     (opts["exclude"] || []).map { |x| args.addAll(["--exclude", x]) }.toList
     args.addAll(opts["args"] || [])
     Log.debug("unpacking %(archive), %(args)")
-    Process.spawn(args, null)
+    var stdio = NormalizeStdio_.call(null)
+    Process.spawn(args, null, stdio)
     return tmpdir
   }
   mktmp() { _cache_entry.mktmp() }
   mktmpdir() { _cache_entry.mktmpdir() }
+
+  systemExport(args) { systemExport(args, null, null) }
+  systemExport(args, env) { systemExport(args, env, null) }
+  systemExport(args, env, stdio) {
+    if (env == null) env = Process.env()
+    Log.debug("running system command: %(args)")
+    stdio = NormalizeStdio_.call(stdio)
+    env["PATH"] = Config.get("system_path")
+    Process.spawn(args, env, stdio)
+  }
 
   // Internal use
   // ==========================================================================
@@ -420,4 +432,17 @@ var HashDir_ = Fn.new { |x, fhasher|
   var dir_files = Glob.globFiles(pattern).sort(ByteCompare_)
   var hashes = dir_files.map { |x| fhasher.hash(x) }
   return Sha256.hashHex(hashes.join("\n"))
+}
+
+var NormalizeStdio_ = Fn.new { |stdio|
+  if (Log.level != Log.DEBUG) return stdio
+  if (stdio == null) return [null, 1, 2]
+  var i = 0
+  var new_stdio = []
+  for (fd in stdio) {
+    if (fd == null) fd = i
+    new_stdio.add(fd)
+    i = i + 1
+  }
+  return new_stdio
 }

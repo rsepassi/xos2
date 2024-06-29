@@ -16,4 +16,8 @@
 * Cache untar results if from content? (using dynamic labels?)
 * Verify Windows, FreeBSD builds
 * xos cache tools, see ids, etc
-* add b.system to access system path
+* add b.system to access system path without export
+* Should system usage be marked in the output somehow? May be important for
+  cloud caching (either not allowed, or some configurable hashing function)
+* Allow for aliases, i.e. a target that is an alias for another label, without
+  having to re-export the output directory

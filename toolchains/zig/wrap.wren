@@ -99,8 +99,13 @@ class Zig {
   libConfig(b) { libConfig(b, b.label.target, {}) }
   libConfig(b, libname) { libConfig(b, libname, {}) }
   libConfig(b, libname, opts) {
-    var cflags = ["-I{{root}}/include"]
-    var ldflags = ["{{root}}/lib/%(b.target.libName(libname))"]
+    var cflags = []
+    var ldflags = []
+    if (!opts["nostdopts"]) {
+      cflags.add("-I{{root}}/include")
+      ldflags.add("{{root}}/lib/%(b.target.libName(libname))")
+    }
+    cflags.addAll(opts["cflags"] || [])
     ldflags.addAll(opts["ldflags"] || [])
 
     var deps = (opts["deps"] || []).map { |x| (x is CDep ? x : CDep.create(x)).toJSON }.toList
@@ -118,7 +123,6 @@ class Zig {
     File.write(fname, json)
     return fname
   }
-
 }
 
 var GetSrcs_ = Fn.new { |opts|

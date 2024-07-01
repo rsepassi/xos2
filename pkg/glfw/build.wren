@@ -63,7 +63,7 @@ var example_platform = {
   },
 }
 
-var example = Fn.new { |b, args|
+var demo = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
   var platform = example_platform[b.target.os]
 
@@ -71,10 +71,39 @@ var example = Fn.new { |b, args|
     b.dep(":glfw"),
   ]
 
-  var exe = zig.buildExe(b, "app", {
-    "root": b.src("app.zig"),
+  var exe = zig.buildExe(b, "demo", {
+    "root": b.src("demo.zig"),
     "c_deps": deps,
     "ldflags": platform["ldflags"],
   })
   b.installExe(exe)
+}
+
+
+var wgpu_flags = {
+  "windows": "-DGLFW_EXPOSE_NATIVE_WIN32",
+  "macos": "-DGLFW_EXPOSE_NATIVE_COCOA",
+  "linux": "-DGLFW_EXPOSE_NATIVE_X11",
+}
+
+var wgpu = Fn.new { |b, args|
+  var wgpu = b.dep("//pkg/wgpu")
+  var glfw = b.dep(":glfw")
+
+  // linux sdk
+  var srcs = [b.src("wgpu_glue.c")]
+  if (b.target.os == "macos") srcs = ["-x", "objective-c"] + srcs
+
+  var zig = b.deptool("//toolchains/zig")
+  var lib = zig.buildLib(b, "wgpu_glfw_glue", {
+    "c_srcs": srcs,
+    "c_deps": [
+      zig.cDep(wgpu, "wgpu_native"),
+      glfw,
+    ],
+    "flags": [
+      wgpu_flags[b.target.os],
+    ],
+  })
+  b.installLib(lib)
 }

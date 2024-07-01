@@ -84,11 +84,10 @@ class BuildCacheEntry_ {
   workDir { Path.join([_dir, "home"]) }
   outDir { Path.join([_dir, "out"]) }
 
-  clear() {
-    Directory.deleteTree(_dir)
-  }
-
   init() {
+    Directory.deleteTree(_dir)
+    Directory.deleteTree(toolCacheDir)
+
     Directory.mkdirs(_dir)
     Directory.create(workDir)
     Directory.create(outDir)
@@ -122,10 +121,7 @@ class BuildCacheEntry_ {
     File.write(Path.join([_dir, "deps.json"]), JSON.stringify(deps))
   }
 
-  toolCacheDir {
-    var d = Directory.ensure(Path.join([_cache.dir, "tools", _key[0...2]]))
-    return Path.join([d, _key])
-  }
+  toolCacheDir { Path.join([_cache.dir, "tools", _key[0...2], _key]) }
 }
 
 class FileHashCache_ {

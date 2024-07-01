@@ -47,7 +47,7 @@ class Build {
   key { _key }
   workDir { _cache_entry.workDir }
   installDir { _cache_entry.outDir }
-  toolCacheDir { _cache_entry.toolCacheDir }
+  toolCacheDir { Directory.mkdirs(_cache_entry.toolCacheDir) }
 
   // File dependencies
   src(path) {
@@ -278,7 +278,6 @@ class Build {
     }
     Log.info("%(this) building, reason=%(need_build["reason"])")
 
-    _cache_entry.clear()
     _cache_entry.init()
 
     var cwd = Process.cwd

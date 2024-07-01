@@ -21,7 +21,7 @@ class rust {
       Fn.new { |tool| File.copy(runner, tool) } :
       Fn.new { |tool| File.symlink("wrenbox", tool) }
 
-    var tools = ["rustcc", "cc", "ar"]
+    var tools = ["rustcc", "cc", "ar", "strip"]
     for (tool in tools) {
       b.install("tools", b.src("%(tool).wren"))
       installFn.call(tool)

@@ -24,6 +24,16 @@ var skip_args = [
 ]
 
 var main = Fn.new { |args|
+  var opt = Process.env("XOS_RUSTCC_OPT")
+  var target = Process.env("XOS_RUSTCC_TARGET")
+  var zig = Process.env("XOS_RUSTCC_ZIG")
+  var flags = Process.env("XOS_RUSTCC_CFLAGS").split(" ")
+
+  if (args[0] == "--version") {
+    Process.spawn([zig, "cc", "--version"], null, [null, 1, 2])
+    return
+  }
+
   var filtered = []
   for (arg in args) {
     var skip = false
@@ -57,11 +67,6 @@ var main = Fn.new { |args|
 
     filtered.add(arg)
   }
-
-  var opt = Process.env("XOS_RUSTCC_OPT")
-  var target = Process.env("XOS_RUSTCC_TARGET")
-  var zig = Process.env("XOS_RUSTCC_ZIG")
-  var flags = Process.env("XOS_RUSTCC_CFLAGS").split(" ")
 
   var zigargs = [
     zig, "cc", "-target", target, "-O%(opt)"

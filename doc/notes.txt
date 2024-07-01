@@ -21,3 +21,6 @@
   cloud caching (either not allowed, or some configurable hashing function)
 * Allow for aliases, i.e. a target that is an alias for another label, without
   having to re-export the output directory
+* Move logging to wrencli, add debug logging to Process.spawn
+* Wren package manager
+* Add ccache for zig cc invocations

@@ -15,6 +15,13 @@ var skip_args = [
 ]
 
 var main = Fn.new { |args|
+  var zig = Process.env("XOS_RUSTCC_ZIG")
+
+  if (args[0] == "--version") {
+    Process.spawn([zig, "cc", "--version"], null, [null, 1, 2])
+    return
+  }
+
   var filtered = []
   for (arg in args) {
     var skip = false
@@ -45,8 +52,6 @@ var main = Fn.new { |args|
 
     filtered.add(arg)
   }
-
-  var zig = Process.env("XOS_RUSTCC_ZIG")
 
   var zigargs = [
     zig, "cc", "-O2"

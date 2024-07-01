@@ -102,6 +102,11 @@ class Rust {
     env["XOS_RUSTCC_OPT"] = opt
     env["XOS_RUSTCC_ZIG"] = zig.zigExe
     env["XOS_RUSTCC_CFLAGS"] = platform.ccflags.join(" ")
+    // TODO: enable. zig cc seems to fail error: unable to create compilation
+    // if (!user_opts["nocache"]) {
+    //   var sccache = b.deptool("//toolchains/zig/sccache")
+    //   env["RUSTC_WRAPPER"] = sccache.exe("sccache")
+    // }
     env[RustTriples["%(b.target)"]["linker"]] = "rustcc"
 
     var stdio = Log.level == Log.DEBUG ? [null, 1, 2] : null

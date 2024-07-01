@@ -1,6 +1,8 @@
 import "io" for File
 import "log" for Logger
 
+import "build/patch" for Patch
+
 var Log = Logger.get("zig")
 
 // Build target
@@ -33,6 +35,8 @@ class zig {
     File.rename(
       b.untar(b.fetch(getUrl_(b.target), urlHashes_[b.target.os][b.target.arch])),
       "zig")
+    import "os" for Process
+    Patch.read(b.src("zig.patch")).apply()
     b.install("", "zig")
   }
 

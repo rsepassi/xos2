@@ -29,7 +29,7 @@ var wgpu = Fn.new { |b, args|
   File.copy("%(header.path)/include/webgpu.h", "ffi/webgpu-headers/webgpu.h")
 
   var toml = File.read("Cargo.toml")
-  toml.replace("\"cdylib\",", "")
+  toml = toml.replace("\"cdylib\",", "")
   var toml_append = """
 [profile.release]
 panic = "abort"

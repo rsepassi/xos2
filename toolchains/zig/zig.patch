@@ -1,0 +1,33 @@
+diff --git a/stack_probe.zig b/stack_probe2.zig
+index 5533464..ccec41c 100644
+--- a/zig/lib/compiler_rt/stack_probe.zig
++++ b/zig/lib/compiler_rt/stack_probe.zig
+@@ -9,23 +9,22 @@ const is_gnu = abi.isGnu();
+ const is_mingw = os_tag == .windows and is_gnu;
+ 
+ const linkage: std.builtin.GlobalLinkage = if (builtin.is_test) .internal else .weak;
+-const strong_linkage: std.builtin.GlobalLinkage = if (builtin.is_test) .internal else .strong;
+ pub const panic = @import("common.zig").panic;
+ 
+ comptime {
+     if (builtin.os.tag == .windows) {
+         // Default stack-probe functions emitted by LLVM
+         if (is_mingw) {
+-            @export(_chkstk, .{ .name = "_alloca", .linkage = strong_linkage });
+-            @export(___chkstk_ms, .{ .name = "___chkstk_ms", .linkage = strong_linkage });
++            @export(_chkstk, .{ .name = "_alloca", .linkage = linkage });
++            @export(___chkstk_ms, .{ .name = "___chkstk_ms", .linkage = linkage });
+ 
+             if (arch.isAARCH64()) {
+-                @export(__chkstk, .{ .name = "__chkstk", .linkage = strong_linkage });
++                @export(__chkstk, .{ .name = "__chkstk", .linkage = linkage });
+             }
+         } else if (!builtin.link_libc) {
+             // This symbols are otherwise exported by MSVCRT.lib
+-            @export(_chkstk, .{ .name = "_chkstk", .linkage = strong_linkage });
+-            @export(__chkstk, .{ .name = "__chkstk", .linkage = strong_linkage });
++            @export(_chkstk, .{ .name = "_chkstk", .linkage = linkage });
++            @export(__chkstk, .{ .name = "__chkstk", .linkage = linkage });
+         }
+     }
+ 

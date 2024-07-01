@@ -84,10 +84,10 @@ class Rust {
     var args = [cargo, "build", "--target", rust_target, "--verbose"]
     if (opts["bin"]) {
       args.addAll(["--bin", opts["bin"]])
-      artifact_name = opts["bin"]
+      artifact_name = b.target.exeName(opts["bin"])
     } else {
       args.add("--lib")
-      artifact_name = b.target.libName(name)
+      artifact_name = "lib%(name).a"
     }
     if (opt != 0) args.add("--release")
 
@@ -104,8 +104,19 @@ class Rust {
     env["XOS_RUSTCC_CFLAGS"] = platform.ccflags.join(" ")
     env[RustTriples["%(b.target)"]["linker"]] = "rustcc"
 
-    Process.spawn(args, env)
+    var stdio = Log.level == Log.DEBUG ? [null, 1, 2] : null
+    Process.spawn(args, env, stdio)
 
-    return Path.join(["target", rust_target, opt == 0 ? "debug" : "release", artifact_name])
+    var artifact_dir = Path.join(["target", rust_target, opt == 0 ? "debug" : "release"])
+
+    var output_path = Path.join([artifact_dir, artifact_name])
+
+    if (b.target.os == "windows" && output_path.endsWith(".a")) {
+      var new_path = Path.join([artifact_dir, "%(name).lib"])
+      File.rename(output_path, new_path)
+      output_path = new_path
+    }
+
+    return output_path
   }
 }

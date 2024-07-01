@@ -8,6 +8,7 @@ var skip_prefixes = [
 var skip_suffixes = [
   "crti.o",
   "crt1.o",
+  ".def",
 ]
 var skip_args = [
   "-Wl,-dylib",
@@ -65,6 +66,7 @@ var main = Fn.new { |args|
   var zigargs = [
     zig, "cc", "-target", target, "-O%(opt)"
   ]
+  if (target.contains("windows")) zigargs.add("-lunwind")
   zigargs.addAll(flags)
   zigargs.addAll(filtered)
   System.print(zigargs)

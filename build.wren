@@ -32,3 +32,12 @@ var xos = Fn.new { |b, args|
   File.write("xos_id", b.key)
   b.install("support", "xos_id")
 }
+
+var wrenbox = Fn.new { |b, args|
+  var zig = b.deptool("//toolchains/zig")
+  var exe = zig.buildExe(b, "wrenbox", {
+    "root": b.src("src/wrenbox.zig"),
+    "libc": true,
+  })
+  b.installExe(exe)
+}

@@ -47,7 +47,7 @@ class Build {
   key { _key }
   workDir { _cache_entry.workDir }
   installDir { _cache_entry.outDir }
-  toolCacheDir { Directory.mkdirs(_cache_entry.toolCacheDir) }
+  toolCacheDir { Directory.ensure(_cache_entry.toolCacheDir) }
 
   // File dependencies
   src(path) {

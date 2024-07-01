@@ -15,12 +15,18 @@ class Directory {
 
   static create(path) {
     ensureString_(path)
-    return Scheduler.await_ { create_(path, Fiber.current) }
+    return Scheduler.await_ {
+      create_(path, Fiber.current)
+      return path
+    }
   }
 
   static mkdirs(path) {
     ensureString_(path)
-    return Scheduler.await_ { mkdirs_(path, Fiber.current) }
+    return Scheduler.await_ {
+      mkdirs_(path, Fiber.current)
+      return path
+    }
   }
 
   static delete(path) {
@@ -68,6 +74,7 @@ class Directory {
     }
 
     Executor.await(copies)
+    return dst_dir
   }
 
   foreign static create_(path, fiber)

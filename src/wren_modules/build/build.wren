@@ -226,8 +226,7 @@ class Build {
       var label_str = "%(_label)"
       var label_args_str = "%(_label_args)"
       var build_args_str = HashStringifyMap_.call(_args)
-      var build_script_hash = _cache.fileHasher.hash(_label.modulePath)
-      var key_inputs = "%(xos_id) %(label_str) %(label_args_str) %(build_args_str) %(build_script_hash)"
+      var key_inputs = "%(xos_id) %(label_str) %(label_args_str) %(build_args_str)"
       var key = Sha256.hashHex(key_inputs)
       return key
     }).call()

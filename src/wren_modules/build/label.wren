@@ -22,7 +22,7 @@ class Label {
   srcdir { _path.isEmpty ? repoPath : Path.join([repoPath, _path]) }
   repoPath { Label.repoPath(repo) }
   modulePath { Path.join([srcdir, "build.wren"]) }
-  moduleName { "xos//%(_path)/build" }
+  moduleName { _path.isEmpty ? "xos//build" : "xos//%(_path)/build" }
 
   static parse(label, label_src_dir) {
     // Valid forms:

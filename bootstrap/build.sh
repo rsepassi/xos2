@@ -89,11 +89,13 @@ then
   zig=$(which zig)
   ln -s $zig $toolsdir/zig
 
-  export XOS_BOOTSTRAP=1
-  export XOS_BOOTSTRAP_ROOT=$rootdir
-  export PATH="$toolsdir"
-  export TARGET="$target"
-  exec $bootstrapdir/build.sh "$@"
+  exec env -i \
+    XOS_BOOTSTRAP=1 \
+    XOS_BOOTSTRAP_ROOT=$rootdir \
+    PATH="$toolsdir" \
+    TARGET="$target" \
+    HOME="$HOME" \
+    $bootstrapdir/build.sh "$@"
 fi
 
 >&2 echo "bootstrapping xos for $target $opt"
@@ -101,10 +103,10 @@ fi
 >&2 echo "outdir=$outdir"
 
 mkdir -p $outdir
-mkdir -p $supportdir
+mkdir -p $supportdir/bin
 
 # Deps
-cp busybox/xos/bin/busybox $supportdir
+cp busybox/xos/bin/busybox $supportdir/bin
 
 mkdir -p libuv/xos
 tar xf $depsdir/libuv/libuv-1.48.0.tar.gz -C libuv --strip-components=1
@@ -160,25 +162,17 @@ OPT=$opt \
 SRCDIR=$PWD/wrencli \
 BUILD_OUT=$PWD/wrencli/xos \
   $bootstrapdir/build_wrencli.sh
-mv wrencli/xos/bin/wren $supportdir
+mv wrencli/xos/bin/wren $supportdir/bin
 
 # Main launcher
 zig build-exe -target $target -O $opt --name xos \
-  -Iwrencli/xos/include \
-  -Iwren/xos/include \
   $srcdir/main.zig \
-  wrencli/xos/lib/libwrencli.a \
-  wrencli/xos/lib/libxos.a \
-  libuv/xos/lib/libuv.a \
-  wren/xos/lib/libwren.a \
-  lmdb/xos/lib/liblmdb.a \
-  ucl/xos/lib/libucl.a \
-  libglob/xos/lib/libglob.a \
   -lc
 mv xos $outdir
 
 # Scripts
 ln -s $srcdir/wren_modules $supportdir
+ln -s $srcdir/main.wren $supportdir
 
 # Links
 bbtools="
@@ -187,7 +181,7 @@ wget
 "
 for tool in $bbtools
 do
-  ln -s busybox $supportdir/$tool
+  ln -s busybox $supportdir/bin/$tool
 done
 
 # Identify a bootstrap build by timestamp

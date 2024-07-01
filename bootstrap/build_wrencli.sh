@@ -29,7 +29,6 @@ cflags="
   -Icli \
   -I $root/libuv/xos/include \
   -I $root/wren/xos/include \
-  -I $root/wren/src/vm \
   -I $root/lmdb/xos/include \
   -I $root/ucl/xos/include \
   -I $root/libglob/xos/include \
@@ -44,24 +43,21 @@ libs="
 "
 
 zig build-lib -target $TARGET -O $OPT \
-  --name xos \
-  $cflags \
-  xos/xos.zig \
-  -lc
-
-zig build-lib -target $TARGET -O $OPT \
   --name wrencli \
   $cflags \
-  cli/*.c \
+  cli/cli.c \
+  cli/modules.c \
+  cli/path.c \
+  cli/vm.c \
   module/*.c \
+  -Mzig=xos/xos.zig \
   -lc
 
 zig build-exe -target $TARGET -O $OPT \
   --name wren \
   $cflags \
-  cli/*.c \
-  module/*.c \
-  libxos.a \
+  cli/main.c \
+  libwrencli.a \
   $libs \
   -lc
 
@@ -69,5 +65,4 @@ cd $BUILD_OUT
 mkdir bin lib include
 mv $src/wren bin
 mv $src/libwrencli.a lib
-mv $src/libxos.a lib
 mv $src/cli/cli.h include

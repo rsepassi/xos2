@@ -22,6 +22,7 @@ extern void fileAllocate(WrenVM* vm);
 extern void fileFinalize(void* data);
 extern void fileDelete(WrenVM* vm);
 extern void fileSymlink(WrenVM* vm);
+extern void fileChmod(WrenVM* vm);
 extern void fileCopy(WrenVM* vm);
 extern void fileRename(WrenVM* vm);
 extern void fileOpen(WrenVM* vm);
@@ -196,6 +197,7 @@ static ModuleRegistry modules[] =
       STATIC_METHOD("delete_(_,_)", fileDelete)
       STATIC_METHOD("rename_(_,_,_)", fileRename)
       STATIC_METHOD("symlink_(_,_,_)", fileSymlink)
+      STATIC_METHOD("chmod_(_,_,_)", fileChmod)
       STATIC_METHOD("copy_(_,_,_)", fileCopy)
       STATIC_METHOD("open_(_,_,_)", fileOpen)
       STATIC_METHOD("sizePath_(_,_)", fileSizePath)

@@ -268,9 +268,9 @@ void processSpawn(WrenVM* vm) {
   if (has_env) free(env);
 
   if (rc != 0) {
+    abortFiber(vm, "process spawn failed: code=%d %s, arg0=%s", rc, uv_strerror(rc), state->args[0]);
     free(state->args);
     free(state);
-    abortFiber(vm, "process spawn failed: code=%d %s", rc, uv_strerror(rc));
     return;
   }
 }

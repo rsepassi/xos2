@@ -212,6 +212,21 @@ foreign class File {
     return Scheduler.await_ { writeBytes_(bytes, offset, Fiber.current) }
   }
 
+  static replace(path, from, to) { replace(path, path, from, to) }
+  static replace(src_path, dst_path, from, to) {
+    var src = File.read(src_path)
+    File.write(dst_path, src.replace(from, to))
+  }
+
+  static chmod(src, mode) {
+    if (mode is String) {
+      if (!(mode.count == 5 && mode[0...2] == "0o")) Fiber.abort("string mode must be an octal 0oAAA")
+      var nums = mode[2..-1].map { |x| Num.fromString(x) }.toList
+      mode = nums[0] * 64 + nums[1] * 8 + nums[2]
+    }
+    return Scheduler.await_ { chmod_(src, mode, Fiber.current) }
+  }
+
   ensureOpen_() {
     if (!isOpen) Fiber.abort("File is not open.")
   }
@@ -232,6 +247,7 @@ foreign class File {
   foreign static rename_(src, dst, fiber)
   foreign static symlink_(src, dst, fiber)
   foreign static copy_(src, dst, fiber)
+  foreign static chmod_(path, mode, fiber)
 
   foreign fd
   foreign close_(fiber)

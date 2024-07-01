@@ -142,6 +142,7 @@ STANDARD_FS_REQUEST_CALLBACK(fileDelete, "file delete")
 STANDARD_FS_REQUEST_CALLBACK(fileRename, "file rename")
 STANDARD_FS_REQUEST_CALLBACK(fileCopy, "file copy")
 STANDARD_FS_REQUEST_CALLBACK(fileSymlink, "symlink")
+STANDARD_FS_REQUEST_CALLBACK(fileChmod, "chmod")
 
 static void directoryListCallback(uv_fs_t* request)
 {
@@ -359,6 +360,20 @@ void fileSymlink(WrenVM* vm)
   if (error != 0 ) {
     freeRequest(request);
     abortFiber(vm, "error: %s", uv_strerror(error));
+  }
+}
+
+void fileChmod(WrenVM* vm)
+{
+  const char* path = wrenGetSlotString(vm, 1);
+  int mode = (int)wrenGetSlotDouble(vm, 2);
+  WrenHandle* fiber = wrenGetSlotHandle(vm, 3);
+  uv_fs_t* request = createRequest(fiber);
+
+  int error = uv_fs_chmod(getLoop(), request, path, mode, fileChmodCallback);
+  if (error != 0 ) {
+    freeRequest(request);
+    abortFiber(vm, "error: chmod failed, %s", uv_strerror(error));
   }
 }
 

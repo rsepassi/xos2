@@ -14,6 +14,8 @@ class Zig {
 
   zigExe { _exe }
 
+  getPlatform(b, opt) { GetPlatform_.call(b, opt) }
+
   getOpt(opt) {
     var opts = {
       0: "Debug",
@@ -28,6 +30,25 @@ class Zig {
       "Fast": "ReleaseFast",
       "ReleaseSafe": "ReleaseSafe",
       "ReleaseFast": "ReleaseFast",
+    }
+    if (!opts.containsKey(opt)) Fiber.abort("unrecognized optimization mode %(opt)")
+    return opts[opt]
+  }
+
+  getCCOpt(opt) {
+    var opts = {
+      0: 0,
+      1: 1,
+      2: 2,
+      3: 3,
+      "s": "s",
+      "z": "z",
+      "Debug": 0,
+      "Safe": 2,
+      "Small": "s",
+      "Fast": 3,
+      "ReleaseSafe": 2,
+      "ReleaseFast": 3,
     }
     if (!opts.containsKey(opt)) Fiber.abort("unrecognized optimization mode %(opt)")
     return opts[opt]
@@ -148,6 +169,7 @@ class Platform {
   }
   flags { [] }
   cflags { [] }
+  ccflags { [] }
   sysroot { "" }
   libflags {
     var flags = []
@@ -187,6 +209,15 @@ class MacOS is Platform {
     return [
       "--libc", "%(sysroot)/libc.txt",
       "-F%(sysroot)/System/Library/Frameworks",
+    ]
+  }
+
+  ccflags {
+    return [
+      "-I%(sysroot)/usr/include",
+      "-L%(sysroot)/usr/lib",
+      "-F%(sysroot)/System/Library/Frameworks",
+      "-DTARGET_OS_OSX",
     ]
   }
 }

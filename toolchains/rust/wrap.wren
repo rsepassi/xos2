@@ -57,10 +57,16 @@ class Rust {
   buildExe(b, name, opts) { build_(b, name, opts, {"bin": name}) }
   buildLib(b, name, opts) { build_(b, name, opts, {}) }
 
+  libConfig(b, name, opts) {
+    var zig = b.deptool("//toolchains/zig")
+    return zig.libConfig(b, name, opts)
+  }
+
   build_(b, name, user_opts, opts) {
     var base = b.deptool("//toolchains/rust/base")
     var zig = b.deptool("//toolchains/zig")
-    var opt = zig.getOpt(b.opt_mode)
+    var opt = zig.getCCOpt(b.opt_mode)
+    var platform = zig.getPlatform(b, {"sdk": true})
 
     var rust_home = base.build.toolCacheDir
     var rust_target = target(b.target)
@@ -75,7 +81,7 @@ class Rust {
 
     // cargo build arguments
     var artifact_name
-    var args = [cargo, "build", "--target", rust_target, "--verbose", "-j", "1"]
+    var args = [cargo, "build", "--target", rust_target, "--verbose"]
     if (opts["bin"]) {
       args.addAll(["--bin", opts["bin"]])
       artifact_name = opts["bin"]
@@ -83,7 +89,7 @@ class Rust {
       args.add("--lib")
       artifact_name = b.target.libName(name)
     }
-    if (opt != "Debug") args.add("--release")
+    if (opt != 0) args.add("--release")
 
     // setup env
     var env = Process.env()
@@ -95,10 +101,11 @@ class Rust {
     env["XOS_RUSTCC_TARGET"] = "%(b.target)"
     env["XOS_RUSTCC_OPT"] = opt
     env["XOS_RUSTCC_ZIG"] = zig.zigExe
+    env["XOS_RUSTCC_CFLAGS"] = platform.ccflags.join(" ")
     env[RustTriples["%(b.target)"]["linker"]] = "rustcc"
 
-    Process.spawn(args, env, [null, 1, 2])
+    Process.spawn(args, env)
 
-    return Path.join(["target", rust_target, opt == "Debug" ? "debug" : "release", artifact_name])
+    return Path.join(["target", rust_target, opt == 0 ? "debug" : "release", artifact_name])
   }
 }

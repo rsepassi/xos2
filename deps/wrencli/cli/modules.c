@@ -4,6 +4,7 @@
 
 #include "modules.h"
 #include "path.h"
+#include "log.h"
 
 #include "glob.wren.inc"
 #include "io.wren.inc"
@@ -381,6 +382,7 @@ static char* readFile(const char* path)
 
 WrenLoadModuleResult loadBuiltInModule(const char* name)
 {
+  DLOG("loadBuiltInModule %s", name);
   WrenLoadModuleResult result = {0};
   ModuleRegistry* module = findModule(name);
   if (module == NULL) {

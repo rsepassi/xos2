@@ -112,14 +112,6 @@ static void findModulesDirectory(const char* module_name)
   // relative to.
   Path* directory = pathNew(module_name);
 
-  bool free_root = false;
-  if (rootDirectory == NULL) {
-    pathDirName(directory);
-    rootDirectory = pathToString(directory);
-    pathFree(directory);
-    free_root = true;
-  }
-
   Path* searchDirectory = pathNew(rootDirectory);
   Path* lastPath = realPath(searchDirectory);
 
@@ -133,7 +125,6 @@ static void findModulesDirectory(const char* module_name)
     {
       pathNormalize(modulesDirectory);
       wrenModulesDirectory = modulesDirectory;
-      DLOG("wrenModulesDirectory=%s", wrenModulesDirectory->chars);
       break;
     }
 
@@ -153,7 +144,6 @@ static void findModulesDirectory(const char* module_name)
     lastPath = thisPath;
   }
 
-  if (free_root) free(rootDirectory);
   pathFree(lastPath);
   pathFree(searchDirectory);
 }
@@ -193,6 +183,7 @@ static const char* resolveModule(WrenVM* vm, const char* importer,
 // module was found but could not be read.
 static WrenLoadModuleResult loadModule(WrenVM* vm, const char* module)
 {
+  DLOG("loadModule %s", module);
   WrenLoadModuleResult result = {0};
   Path* filePath;
   if (pathType(module) == PATH_TYPE_SIMPLE)
@@ -335,6 +326,7 @@ static void freeVM()
 }
 
 WrenInterpretResult runFile(const char* path, bool cleanup) {
+  DLOG("runFile %s", path);
   char* source = readFile(path);
   if (source == NULL)
   {
@@ -359,11 +351,17 @@ WrenInterpretResult runFile(const char* path, bool cleanup) {
     module = relative;
   }
 
+  Path* directory = pathNew(module->chars);
+  pathDirName(directory);
+  rootDirectory = pathToString(directory);
+  pathFree(directory);
+
   pathRemoveExtension(module);
 
   WrenInterpretResult result = runSource(module->chars, source, cleanup);
 
   if (cleanup) {
+    free(rootDirectory);
     free(source);
     pathFree(module);
   }
@@ -373,6 +371,8 @@ WrenInterpretResult runFile(const char* path, bool cleanup) {
 
 WrenInterpretResult runSource(const char* module_name, const char* source, bool cleanup)
 {
+  // This cast is safe since we don't try to free the string later.
+  if (rootDirectory == NULL) rootDirectory = (char*)".";
   initVM();
 
   uv_disable_stdio_inheritance();

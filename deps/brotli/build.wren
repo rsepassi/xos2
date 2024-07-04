@@ -19,7 +19,7 @@ var brotli = Fn.new { |b, args|
     "libc++": true,
   })
 
-  b.installDir("include", "c/include/brotli")
+  b.installHeaderDir("c/include")
   b.installLib(lib)
   b.installLibConfig(zig.libConfig(b, "brotli"))
 }

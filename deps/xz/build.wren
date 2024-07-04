@@ -19,7 +19,7 @@ var xz = Fn.new { |b, args|
     "sysroot": true,
   })
 
-  b.installDir("", "zig-out/include")
+  b.installHeaderDir("zig-out/include")
   b.installDir("", "zig-out/bin")
   b.installDir("", "zig-out/lib")
   b.installLibConfig(zig.libConfig(b, "lzma"))

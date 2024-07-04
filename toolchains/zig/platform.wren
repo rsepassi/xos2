@@ -82,6 +82,16 @@ class MacOS is Platform {
   }
 }
 
+class Windows is Platform {
+  construct new(b, opts) {
+    _dir = b.dep("//sdk/windows")
+    _opts = opts
+    super(b, opts)
+  }
+
+  ldargs { ["-L%(_dir.path)/sdk/x64"] }
+}
+
 var GetPlatform_ = Fn.new { |b, opts|
   opts = opts is PlatformOpts ? opts : PlatformOpts.new(opts)
   var os = b.target.os
@@ -89,6 +99,8 @@ var GetPlatform_ = Fn.new { |b, opts|
     return FreeBSD.new(b, opts)
   } else if (os == "macos" && opts.sdk) {
     return MacOS.new(b, opts)
+  } else if (os == "windows" && opts.sdk) {
+    return Windows.new(b, opts)
   } else {
     return Platform.new(b, opts)
   }

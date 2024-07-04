@@ -13,7 +13,7 @@ var wgpu_platform = {
     "ldflags": ["-framework", "Metal", "-framework", "QuartzCore"]
   },
   "windows": {
-    "ldflags": "-lunwind -ldxgi -ld3d11 -lkernel32 -luser32 -ld3dcompiler".split(" "),
+    "ldflags": "-lunwind -lopengl32 -ldxgi -ld3d11 -lkernel32 -luser32 -ld3dcompiler".split(" "),
   },
   "linux": {
     "ldflags": ["-lunwind"],

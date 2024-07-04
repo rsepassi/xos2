@@ -99,6 +99,7 @@ class Rust {
     env["RUSTFLAGS"] = "-C panic=abort"
     env["PATH"] = Process.pathJoin([Path.join([_b.installDir, "tools"]), env["PATH"]])
     env["HOME"] = rust_home
+    env["XOS_RUST_SDK_PATH"] = platform.sysroot
     env["XOS_RUSTCC_TARGET"] = "%(b.target)"
     env["XOS_RUSTCC_OPT"] = opt
     env["XOS_RUSTCC_ZIG"] = zig.zigExe

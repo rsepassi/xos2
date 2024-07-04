@@ -77,7 +77,7 @@ class MacOS is Platform {
       "-I%(sysroot)/usr/include",
       "-L%(sysroot)/usr/lib",
       "-F%(sysroot)/System/Library/Frameworks",
-      "-DTARGET_OS_OSX",
+      "-includeTargetConditionals.h",
     ]
   }
 }
@@ -92,6 +92,32 @@ class Windows is Platform {
   ldargs { ["-L%(_dir.path)/sdk/x64"] }
 }
 
+class IOS is Platform {
+  construct new(b, opts) {
+    _dir = b.dep("//sdk/ios")
+    _opts = opts
+    super(b, opts)
+  }
+
+  sysroot { "%(_dir.path)/sdk" }
+
+  flags {
+    return [
+      "--libc", "%(sysroot)/libc.txt",
+      "-F%(sysroot)/System/Library/Frameworks",
+    ]
+  }
+
+  ccflags {
+    return [
+      "-I%(sysroot)/usr/include",
+      "-L%(sysroot)/usr/lib",
+      "-F%(sysroot)/System/Library/Frameworks",
+      "-includeTargetConditionals.h",
+    ]
+  }
+}
+
 var GetPlatform_ = Fn.new { |b, opts|
   opts = opts is PlatformOpts ? opts : PlatformOpts.new(opts)
   var os = b.target.os
@@ -101,6 +127,8 @@ var GetPlatform_ = Fn.new { |b, opts|
     return MacOS.new(b, opts)
   } else if (os == "windows" && opts.sdk) {
     return Windows.new(b, opts)
+  } else if (os == "ios") {
+    return IOS.new(b, opts)
   } else {
     return Platform.new(b, opts)
   }

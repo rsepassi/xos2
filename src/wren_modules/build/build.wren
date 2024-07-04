@@ -125,6 +125,15 @@ class Build {
   installLib(srcs) { install("lib", srcs) }
   installLibConfig(src) { install(Path.join(["lib", "pkgconfig"]), src) }
   installHeader(srcs) { install("include", srcs) }
+  installHeaderDir(src_dir) {
+    for (entry in Glob.glob(Path.join([src_dir, "*"]))) {
+      if (Directory.exists(entry)) {
+        installDir("include", entry)
+      } else {
+        installHeader(entry)
+      }
+    }
+  }
   installArtifact(srcs) { install("share", srcs) }
   installDir(src_dir) { installDir("", src_dir) }
   installDir(dst_dir, src_dir) {

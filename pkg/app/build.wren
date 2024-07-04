@@ -24,6 +24,7 @@ var glfw_wgpu_glue = Fn.new { |b, args|
     "flags": [
       glfw_flags[b.target.os],
     ],
+    "libc": true,
   })
   b.installLib(lib)
   b.installLibConfig(zig.libConfig(b))

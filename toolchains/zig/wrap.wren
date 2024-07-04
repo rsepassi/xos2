@@ -188,8 +188,9 @@ var GetArgs_ = Fn.new { |b, opts, include_libs|
   if (include_libs) {
     args.addAll(cargs["ldargs"])
     args.addAll(modules["ldargs"])
-    args.addAll(platform.ldargs)
   }
+
+  args.addAll(platform.ldargs)
 
   return args
 }
@@ -268,7 +269,7 @@ var GetModules_ = Fn.new { |b, modules|
 }
 
 var GetCArgs_ = Fn.new { |b, opts|
-  var platform_opts = Platform.Opts.new()
+  var platform_opts = Platform.Opts.new(opts)
 
   // dependency flags
   var dep_includes = []
@@ -314,11 +315,7 @@ var GetCArgs_ = Fn.new { |b, opts|
   return {
     "args": args,
     "ldargs": ldargs,
-    "platform_opts": Platform.Opts.new({
-      "sdk": opts["sdk"],
-      "libc": opts["libc"],
-      "libc++": opts["libc++"],
-    }),
+    "platform_opts": platform_opts,
   }
 }
 

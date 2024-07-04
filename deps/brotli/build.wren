@@ -16,6 +16,7 @@ var brotli = Fn.new { |b, args|
   var lib = zig.buildLib(b, "brotli", {
     "c_srcs": srcs,
     "flags": ["-Ic/include"],
+    "libc": true,
     "libc++": true,
   })
 

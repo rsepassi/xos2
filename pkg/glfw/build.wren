@@ -12,7 +12,7 @@ var glfw_platform = {
   },
   "linux": {
     "flags": ["-D_GLFW_X11"],
-    "ldflags": [],
+    "ldflags": ["-lX11"],
   },
   "windows": {
     "flags": ["-D_GLFW_WIN32"],

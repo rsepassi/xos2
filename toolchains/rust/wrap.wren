@@ -81,7 +81,7 @@ class Rust {
 
     // cargo build arguments
     var artifact_name
-    var args = [cargo, "build", "--target", rust_target, "--verbose"]
+    var args = [cargo, "build", "--target", rust_target]
     if (opts["bin"]) {
       args.addAll(["--bin", opts["bin"]])
       artifact_name = b.target.exeName(opts["bin"])
@@ -96,6 +96,7 @@ class Rust {
     env["RUSTUP_HOME"] = Path.join([rust_home, ".rustup"])
     env["CARGO_HOME"] = Path.join([rust_home, ".cargo"])
     env["CC"] = "rustcc"
+    env["RUSTFLAGS"] = "-C panic=abort"
     env["PATH"] = Process.pathJoin([Path.join([_b.installDir, "tools"]), env["PATH"]])
     env["HOME"] = rust_home
     env["XOS_RUSTCC_TARGET"] = "%(b.target)"

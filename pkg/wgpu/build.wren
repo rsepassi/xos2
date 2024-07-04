@@ -16,7 +16,7 @@ var wgpu_platform = {
     "ldflags": "-lunwind -ldxgi -ld3d11 -lkernel32 -luser32 -ld3dcompiler".split(" "),
   },
   "linux": {
-    "ldflags": [],
+    "ldflags": ["-lunwind"],
   },
 }
 
@@ -30,11 +30,6 @@ var wgpu = Fn.new { |b, args|
 
   var toml = File.read("Cargo.toml")
   toml = toml.replace("\"cdylib\",", "")
-  var toml_append = """
-[profile.release]
-panic = "abort"
-"""
-  toml = toml + toml_append
   File.write("Cargo.toml", toml)
 
   var rust = b.deptool("//toolchains/rust")

@@ -1,7 +1,9 @@
-import "os" for Process
+import "os" for Process, Path
 import "io" for File
 import "json" for JSON
 import "log" for Logger
+
+import "xos//toolchains/zig/platform" for Platform
 
 var Log = Logger.get("zig")
 
@@ -14,9 +16,10 @@ class Zig {
 
   zigExe { _exe }
 
-  getPlatform(b, opt) { GetPlatform_.call(b, opt) }
+  getPlatform(b, opt) { Platform.get(b, opt) }
 
-  getOpt(opt) {
+  getOpt(opt) { Zig.getOpt(opt) }
+  static getOpt(opt) {
     var opts = {
       0: "Debug",
       1: "Debug",
@@ -35,7 +38,8 @@ class Zig {
     return opts[opt]
   }
 
-  getCCOpt(opt) {
+  getCCOpt(opt) { Zig.getCCOpt(opt) }
+  static getCCOpt(opt) {
     var opts = {
       0: 0,
       1: 1,
@@ -57,6 +61,7 @@ class Zig {
   getOpt_(b, opts) { getOpt(opts["opt"] || b.opt_mode) }
 
   cDep(install_dir, libname) { CDep.create(install_dir, libname) }
+  moduleDep(install_dir, modulename) { ModuleDep.create(install_dir, modulename) }
 
   exec_(b, args) {
     var env = Process.env()
@@ -79,7 +84,7 @@ class Zig {
     if (!opts["nostdopts"]) args.addAll(defaults)
     if (opts["args"]) args.addAll(opts["args"])
     if (opts["sysroot"]) {
-      var platform = GetPlatform_.call(b, {"sdk": true})
+      var platform = Platform.get(b, {"sdk": true})
       args.add("-Dsysroot=%(platform.sysroot)")
     }
 
@@ -88,33 +93,44 @@ class Zig {
   }
 
   buildLib(b, name, opts) {
-    var srcs = GetSrcs_.call(opts)
-    var opt_mode = getOpt_(b, opts)
-    var args = [
-        _exe, "build-lib",
-        "-target", "%(b.target)",
-        "-O", opt_mode,
-        "--name", name,
-    ]
-    FillArgs_.call(b, args, opts, srcs, false, opt_mode)
-
+    var args = [_exe, "build-lib", "--name", name]
+    args.addAll(GetTopLevelArgs_.call(b, opts, false))
     exec_(b, args)
     return "%(Process.cwd)/%(b.target.libName(name))"
   }
 
   buildExe(b, name, opts) {
-    var srcs = GetSrcs_.call(opts)
-    var opt_mode = getOpt_(b, opts)
-    var args = [
-        _exe, "build-exe",
-        "-target", "%(b.target)",
-        "-O", opt_mode,
-        "--name", name,
-    ]
-    FillArgs_.call(b, args, opts, srcs, true, opt_mode)
-
+    var args = [_exe, "build-exe", "--name", name]
+    args.addAll(GetTopLevelArgs_.call(b, opts, true))
     exec_(b, args)
     return "%(Process.cwd)/%(b.target.exeName(name))"
+  }
+
+  moduleConfig(b, opts) { moduleConfig(b, b.label.target, opts) }
+  moduleConfig(b, module_name, opts) {
+    var cdeps = (opts["c_deps"] || []).map { |x| (x is CDep ? x : CDep.create(x)).toJSON }.toList
+
+    var modules = {}
+    for (el in opts["modules"] || []) {
+      var m = el.value
+      m = (m is ModuleDep ? m : ModuleDep.create(m)).toJSON
+      modules[el.key] = m
+    }
+
+    var mconfig = {
+      "root": opts["root"],
+      "Cflags": opts["cflags"] || [],
+      "Libs": opts["ldflags"] || [],
+      "Requires": cdeps,
+      "sdk": opts["sdk"],
+      "libc": opts["libc"],
+      "Modules": modules,
+    }
+    var fname = "%(module_name).pc.json"
+    var json = JSON.stringify(mconfig)
+    Log.debug("generating zig module config %(json)")
+    File.write(fname, json)
+    return fname
   }
 
   libConfig(b) { libConfig(b, b.label.target, {}) }
@@ -138,6 +154,7 @@ class Zig {
       "sdk": opts["sdk"],
       "libc": opts["libc"],
     }
+
     var fname = "%(libname).pc.json"
     var json = JSON.stringify(pkgconfig)
     Log.debug("generating libconfig %(json)")
@@ -146,99 +163,112 @@ class Zig {
   }
 }
 
-var GetSrcs_ = Fn.new { |opts|
-  var srcs = []
-
-  var root = opts["root"]
-  if (root) srcs.add(root)
-
-  var csrcs = opts["c_srcs"]
-  if (csrcs) {
-    if (!(csrcs is List)) Fiber.abort("c_srcs must be a list")
-    srcs.addAll(csrcs)
-  }
-
-  if (srcs.isEmpty) Fiber.abort("must provide srcs, either root or c_srcs")
-  return srcs
+var GetTopLevelArgs_ = Fn.new { |b, opts, include_libs|
+  var opt_mode = Zig.getOpt(b.opt_mode)
+  var args = [
+    "-target", "%(b.target)",
+    "-O", opt_mode,
+  ]
+  args.addAll(GetArgs_.call(b, opts, include_libs))
+  return args
 }
 
-class Platform {
-  construct new(b, opts) {
-    _b = b
-    _opts = opts
+var GetArgs_ = Fn.new { |b, opts, include_libs|
+  var cargs = GetCArgs_.call(b, opts)
+  var args = cargs["args"]
+
+  var module_opts = opts["modules"] || {}
+  if (opts["root"]) module_opts["__xosroot__"] = opts["root"]
+  var modules = GetModules_.call(b, module_opts)
+
+  var platform = Platform.get(b, cargs["platform_opts"].union(modules["platform_opts"]))
+  args.addAll(platform.flags)
+  args.addAll(modules["module_args"])
+
+  if (include_libs) {
+    args.addAll(cargs["ldargs"])
+    args.addAll(modules["ldargs"])
+    args.addAll(platform.ldargs)
   }
-  flags { [] }
-  cflags { [] }
-  ccflags { [] }
-  sysroot { "" }
-  libflags {
-    var flags = []
-    if (_opts["libc++"]) flags.add("-lc++")
-    if (_opts["libc"]) flags.add("-lc")
-    return flags
+
+  return args
+}
+
+var CollectModules_ = Fn.new { |all, modules|
+  var wrapped = {}
+  for (el in modules) {
+    if (el.key == "__xosroot__") {
+      if (all.containsKey(el.key)) Fiber.abort("duplicate root modules found: %(all["__xosroot"]) and %(el.value)")
+      var m = el.value
+      m = m is String ? m : (m is ModuleDep ? m : ModuleDep.create(m))
+      all[el.key] = m
+    } else {
+      var m = el.value
+      m = m is ModuleDep ? m : ModuleDep.create(m)
+      if (all.containsKey(m.key)) continue
+      all[m.key] = m
+      wrapped[el.key] = m
+      CollectModules_.call(all, m.modules)
+    }
+  }
+  return wrapped
+}
+
+var GetModules_ = Fn.new { |b, modules|
+  // Each module needs a name for -Mname=root
+  // Then they need to be tied together with --dep flags
+
+  var all_modules = {}
+  var modules_wrapped = CollectModules_.call(all_modules, modules)
+
+  var module_args = []
+  var ldargs = []
+  var platform_opts = Platform.Opts.new()
+
+  var root_module = all_modules.remove("__xosroot__")
+  var root_module_key = "xx"
+  if (root_module) {
+    if (root_module is String) {
+      for (el in modules_wrapped) {
+        module_args.addAll(["--dep", "%(el.key)=%(el.value.key)"])
+      }
+      module_args.add("-Mmain=%(root_module)")
+    } else {
+      var m = root_module
+      root_module_key = m.key
+      ldargs.addAll(m.libs)
+      module_args.addAll(m.cflags)
+      for (el in modules_wrapped) {
+        module_args.addAll(["--dep", "%(el.key)=%(el.value.key)"])
+      }
+      module_args.add("-Mmain=%(m.root)")
+      platform_opts = platform_opts.union(m.platformOpts)
+    }
+  }
+
+  for (el in all_modules) {
+    var m = el.value
+    if (m.key == root_module_key) continue
+    ldargs.addAll(m.libs)
+    module_args.addAll(m.cflags)
+    for (el2 in m.modules) {
+      var dep_key = el2.value.key
+      if (dep_key == root_module_key) dep_key = "main"
+      module_args.addAll(["--dep", "%(el2.key)=%(dep_key)"])
+    }
+    module_args.add("-M%(el.key)=%(m.root)")
+    platform_opts = platform_opts.union(m.platformOpts)
+  }
+
+  return {
+    "module_args": module_args,
+    "ldargs": ldargs,
+    "platform_opts": platform_opts,
   }
 }
 
-class FreeBSD is Platform {
-  construct new(b, opts) {
-    _dir = b.dep("//sdk/freebsd")
-    _opts = opts
-    super(b, opts)
-  }
-
-  sysroot { "%(_dir.path)/sdk" }
-
-  flags {
-    return [
-      "--libc", "%(sysroot)/libc.txt",
-      "--sysroot", sysroot,
-    ]
-  }
-}
-
-class MacOS is Platform {
-  construct new(b, opts) {
-    _dir = b.dep("//sdk/macos")
-    _opts = opts
-    super(b, opts)
-  }
-
-  sysroot { "%(_dir.path)/sdk" }
-
-  flags {
-    return [
-      "--libc", "%(sysroot)/libc.txt",
-      "-F%(sysroot)/System/Library/Frameworks",
-    ]
-  }
-
-  ccflags {
-    return [
-      "-I%(sysroot)/usr/include",
-      "-L%(sysroot)/usr/lib",
-      "-F%(sysroot)/System/Library/Frameworks",
-      "-DTARGET_OS_OSX",
-    ]
-  }
-}
-
-var GetPlatform_ = Fn.new { |b, opts|
-  var os = b.target.os
-  if (os == "freebsd") {
-    return FreeBSD.new(b, opts)
-  } else if (os == "macos" && opts["sdk"]) {
-    return MacOS.new(b, opts)
-  } else {
-    return Platform.new(b, opts)
-  }
-}
-
-var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
-  if (opt_mode == "Debug") {
-    args.add("-DDEBUG")
-  } else {
-    args.add("-DNDEBUG")
-  }
+var GetCArgs_ = Fn.new { |b, opts|
+  var platform_opts = Platform.Opts.new()
 
   // dependency flags
   var dep_includes = []
@@ -247,22 +277,22 @@ var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
     if (!(dep is CDep)) dep = CDep.create(dep)
     dep_includes.addAll(dep.cflags)
     dep_libs.addAll(dep.libs)
-    if (dep.sdk) opts["sdk"] = true
-    if (dep.libc) opts["libc"] = true
-    if (dep.libcpp) opts["libc++"] = true
+    platform_opts = platform_opts.union(dep.platformOpts)
   }
 
-  var platform = GetPlatform_.call(b, opts)
+  var platform = Platform.get(b, platform_opts)
+
+  var args = []
 
   // zig flags
+  args.add(Zig.getOpt(b.opt_mode) == "Debug" ? "-DDEBUG" : "-DNDEBUG")
   args.addAll(opts["flags"] || [])
 
   // c flags
   if (opts["c_flags"]) {
     args.add("-cflags")
     args.addAll(opts["c_flags"])
-
-    args.addAll(platform.cflags)
+    args.addAll(platform.ccflags)
 
     // determinism
     args.addAll([
@@ -271,18 +301,25 @@ var FillArgs_ = Fn.new { |b, args, opts, srcs, include_libs, opt_mode|
       "-D__TIME__=",
       "-D__TIMESTAMP__=",
     ])
-
     args.add("--")
   }
 
   args.addAll(dep_includes)
   args.addAll(platform.flags)
+  args.addAll(opts["c_srcs"] || [])
 
-  args.addAll(srcs)
-  args.addAll(opts["ldflags"] || [])
-  if (include_libs) args.addAll(dep_libs)
+  var ldargs = opts["ldflags"] || []
+  ldargs.addAll(dep_libs)
 
-  args.addAll(platform.libflags)
+  return {
+    "args": args,
+    "ldargs": ldargs,
+    "platform_opts": Platform.Opts.new({
+      "sdk": opts["sdk"],
+      "libc": opts["libc"],
+      "libc++": opts["libc++"],
+    }),
+  }
 }
 
 class CDep {
@@ -290,7 +327,12 @@ class CDep {
   static create(install_dir, libname) { new_(install_dir, libname) }
 
   construct new_(install_dir, libname) {
-    var config = JSON.parse(File.read(install_dir.libConfig("%(libname).pc.json")))
+    var pc_path = install_dir.libConfig("%(libname).pc.json")
+    if (!File.exists(pc_path)) Fiber.abort("no lib config exists for %(install_dir.build.label) at %(pc_path)")
+    var f = Fiber.new { JSON.parse(File.read(pc_path)) }
+    var config = f.try()
+    if (f.error != null) Fiber.abort("could not parse the pc.json for %(install_dir.build.label) %(libname)")
+
     var cflags = config["Cflags"] || []
     var libs = config["Libs"] || []
     var requires = (config["Requires"] || []).map { |x| CDep.fromJSON(install_dir.build, x) }
@@ -305,16 +347,16 @@ class CDep {
 
     _cflags = cflags.map { |x| x.replace("{{root}}", install_dir.path) }.toList
     _libs = libs.map { |x| x.replace("{{root}}", install_dir.path) }.toList
-    _sdk = config["sdk"] == true
-    _libc = config["libc"] == true
-    _libcpp = config["libc++"] == true
+    _platform_opts = Platform.Opts.new({
+      "sdk": config["sdk"] == true,
+      "libc": config["libc"] == true,
+      "libc++": config["libc++"] == true,
+    })
   }
 
   cflags { _cflags }
   libs { _libs }
-  libc { _libc }
-  libcpp { _libcpp }
-  sdk { _sdk }
+  platformOpts { _platform_opts }
 
   toJSON {
     return {
@@ -327,4 +369,64 @@ class CDep {
     var dir = b.dep(x["build"]["label"], x["build"]["label_args"])
     return CDep.create(dir, x["libname"])
   }
+}
+
+class ModuleDep {
+  static create(install_dir) { new_(install_dir, install_dir.build.label.target) }
+  static create(install_dir, module_name) { new_(install_dir, module_name) }
+
+  construct new_(install_dir, module_name) {
+    var pc_path = Path.join([install_dir.path, "zig", "%(module_name).pc.json"])
+    if (!File.exists(pc_path)) Fiber.abort("no zig module config exists for %(install_dir.build.label) at %(pc_path)")
+
+    var f = Fiber.new { JSON.parse(File.read(pc_path)) }
+    var config = f.try()
+    if (f.error != null) Fiber.abort("could not parse the zig pc.json for %(install_dir.build.label) %(module_name)")
+
+    var cflags = config["Cflags"] || []
+    var libs = config["Libs"] || []
+    var requires = (config["Requires"] || []).map { |x| CDep.fromJSON(install_dir.build, x) }
+    for (req in requires) {
+      cflags.addAll(req.cflags)
+      libs.addAll(req.libs)
+    }
+
+    var modules = {}
+    for (el in config["Modules"] || []) {
+      modules[el.key] = ModuleDep.fromJSON(install_dir.build, el.value)
+    }
+
+    _dir = install_dir
+    _name = module_name
+    _root = config["root"]
+    _modules = modules
+    _cflags = cflags
+    _libs = libs
+    _platform_opts = Platform.Opts.new({
+      "sdk": config["sdk"] == true,
+      "libc": config["libc"] == true,
+      "libc++": config["libcpp"] == true,
+    })
+  }
+
+  name { _name }
+  root { _root }
+  modules { _modules }
+  cflags { _cflags }
+  libs { _libs }
+  platformOpts { _platform_opts }
+
+  toJSON {
+    return {
+      "build": _dir.build.toJSON,
+      "modulename": _name,
+    }
+  }
+
+  static fromJSON(b, x) {
+    var dir = b.dep(x["build"]["label"], x["build"]["label_args"])
+    return ModuleDep.create(dir, x["modulename"])
+  }
+
+  key { "%(name)_%(_dir.build.key)" }
 }

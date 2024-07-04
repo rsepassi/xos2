@@ -75,10 +75,8 @@ class BuildCacheEntry_ {
         Log.info("Config.no_cache enabled, disabling cache for %(_key)")
         _ok = false
       }
-      return _ok
-    } else {
-      return _ok
     }
+    return _ok
   }
 
   workDir { Path.join([_dir, "home"]) }
@@ -87,6 +85,9 @@ class BuildCacheEntry_ {
   init() {
     Directory.deleteTree(_dir)
     Directory.deleteTree(toolCacheDir)
+    _tmpi = 0
+    _ok = null
+    _deps = null
 
     Directory.mkdirs(_dir)
     Directory.create(workDir)
@@ -97,6 +98,7 @@ class BuildCacheEntry_ {
     File.create(Path.join([_dir, "ok"]))
     Directory.deleteTree(workDir)
     _ok = true
+    _deps = null
   }
 
   mktmp() {

@@ -49,3 +49,11 @@ panic = "abort"
     "libc": true,
   }))
 }
+
+var zig = Fn.new { |b, args|
+  var zig = b.deptool("//toolchains/zig")
+  b.install("zig", zig.moduleConfig(b, "gpu", {
+    "root": b.src("gpu.zig"),
+    "c_deps": [zig.cDep(b.dep(":wgpu"), "wgpu_native")],
+  }))
+}

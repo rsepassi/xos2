@@ -15,28 +15,24 @@ class Directory {
 
   static create(path) {
     ensureString_(path)
-    return Scheduler.await_ {
-      create_(path, Fiber.current)
-      return path
-    }
+    Scheduler.await_ { create_(path, Fiber.current) }
+    return path
   }
 
   static mkdirs(path) {
     ensureString_(path)
-    return Scheduler.await_ {
-      mkdirs_(path, Fiber.current)
-      return path
-    }
+    Scheduler.await_ { mkdirs_(path, Fiber.current) }
+    return path
   }
 
   static delete(path) {
     ensureString_(path)
-    return Scheduler.await_ { delete_(path, Fiber.current) }
+    Scheduler.await_ { delete_(path, Fiber.current) }
   }
 
   static deleteTree(path) {
     ensureString_(path)
-    return Scheduler.await_ { deleteTree_(path, Fiber.current) }
+    Scheduler.await_ { deleteTree_(path, Fiber.current) }
   }
 
   static exists(path) {
@@ -108,23 +104,27 @@ foreign class File {
     ensureString_(src)
     ensureString_(dst)
     Scheduler.await_ { rename_(src, dst, Fiber.current) }
+    return dst
   }
 
   static symlink(src, dst) {
     ensureString_(src)
     ensureString_(dst)
     Scheduler.await_ { symlink_(src, dst, Fiber.current) }
+    return dst
   }
 
   static copy(src) { copy(src, Path.basename(src)) }
   static copy(src, dst) {
     if (Path.isSymlink(src)) {
-      return File.symlink(Path.readLink(src), dst)
+      File.symlink(Path.readLink(src), dst)
+      return dst
     }
 
     ensureString_(src)
     ensureString_(dst)
     Scheduler.await_ { copy_(src, dst, Fiber.current) }
+    return dst
   }
 
   static exists(path) {
@@ -181,13 +181,11 @@ foreign class File {
   construct new_(fd) {}
 
   close() {
-    if (isOpen == false) return
+    if (!isOpen) return
     return Scheduler.await_ { close_(Fiber.current) }
   }
 
-  foreign descriptor
-
-  isOpen { descriptor != -1 }
+  isOpen { fd != -1 }
 
   size {
     ensureOpen_()
@@ -335,7 +333,7 @@ class Stdin {
       if (result != null) return result
     }
 
-    if (__isClosed == true) Fiber.abort("Stdin was closed.")
+    if (__isClosed) Fiber.abort("Stdin was closed.")
 
     // Otherwise, we need to wait for input to come in.
     __handleData = handleData

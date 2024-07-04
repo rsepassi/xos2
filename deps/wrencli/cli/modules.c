@@ -28,7 +28,6 @@ extern void fileRename(WrenVM* vm);
 extern void fileOpen(WrenVM* vm);
 extern void fileSizePath(WrenVM* vm);
 extern void fileClose(WrenVM* vm);
-extern void fileDescriptor(WrenVM* vm);
 extern void fileReadBytes(WrenVM* vm);
 extern void fileRealPath(WrenVM* vm);
 extern void fileReadLink(WrenVM* vm);
@@ -203,7 +202,6 @@ static ModuleRegistry modules[] =
       STATIC_METHOD("sizePath_(_,_)", fileSizePath)
       METHOD("fd", fileFd)
       METHOD("close_(_)", fileClose)
-      METHOD("descriptor", fileDescriptor)
       METHOD("readBytes_(_,_,_)", fileReadBytes)
       METHOD("size_(_)", fileSize)
       METHOD("stat_(_)", fileStat)

@@ -489,13 +489,6 @@ void fileClose(WrenVM* vm)
   wrenSetSlotBool(vm, 0, false);
 }
 
-void fileDescriptor(WrenVM* vm)
-{
-  int* foreign = (int*)wrenGetSlotForeign(vm, 0);
-  int fd = *foreign;
-  wrenSetSlotDouble(vm, 0, fd);
-}
-
 static void fileReadBytesCallback(uv_fs_t* request)
 {
   if (handleRequestError("file read", request)) return;

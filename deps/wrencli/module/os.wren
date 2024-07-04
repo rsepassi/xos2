@@ -23,6 +23,8 @@ class Process {
 
   static cwd { cwd_.replace("\\", "/") }
 
+  static pathJoin(parts) { parts.join(Platform.isWindows ? ";" : ":") }
+
   static spawn(args) { spawn(args, null, null) }
   static spawn(args, env) { spawn(args, env, null) }
   static spawn(args, env, stdio) {

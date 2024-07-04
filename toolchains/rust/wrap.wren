@@ -96,7 +96,7 @@ class Rust {
     env["RUSTUP_HOME"] = Path.join([rust_home, ".rustup"])
     env["CARGO_HOME"] = Path.join([rust_home, ".cargo"])
     env["CC"] = "rustcc"
-    env["PATH"] = Path.join([_b.installDir, "tools"]) + ":" + env["PATH"]
+    env["PATH"] = Process.pathJoin([Path.join([_b.installDir, "tools"]), env["PATH"]])
     env["HOME"] = rust_home
     env["XOS_RUSTCC_TARGET"] = "%(b.target)"
     env["XOS_RUSTCC_OPT"] = opt

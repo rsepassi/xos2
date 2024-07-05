@@ -32,10 +32,10 @@ class Platform {
   ccflags { [] }
   sysroot { "" }
   ldargs {
-    var flags = []
-    if (_opts.libcpp) flags.add("-lc++")
-    if (_opts.libc) flags.add("-lc")
-    return flags
+    var args = []
+    if (_opts.libcpp) args.add("-lc++")
+    if (_opts.libc) args.add("-lc")
+    return args
   }
 }
 
@@ -89,7 +89,11 @@ class Windows is Platform {
     super(b, opts)
   }
 
-  ldargs { ["-L%(_dir.path)/sdk/x64"] }
+  ldargs {
+    var args = super
+    args.add(["-L%(_dir.path)/sdk/x64"])
+    return args
+  }
 }
 
 class IOS is Platform {

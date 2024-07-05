@@ -2,6 +2,7 @@ import "os" for Process, Path
 import "io" for File
 import "json" for JSON
 import "log" for Logger
+import "record" for Record
 
 import "xos//toolchains/zig/platform" for Platform
 
@@ -58,21 +59,10 @@ class Zig {
     return opts[opt]
   }
 
-  getOpt_(b, opts) { getOpt(opts["opt"] || b.opt_mode) }
-
   cDep(install_dir, libname) { CDep.create(install_dir, libname) }
   moduleDep(install_dir, modulename) { ModuleDep.create(install_dir, modulename) }
 
-  exec_(b, args) {
-    var env = Process.env()
-    env["HOME"] = b.workDir
-    env["LOCALAPPDATA"] = b.workDir
-    env["TMP"] = b.workDir
-    env["ZIG_GLOBAL_CACHE_DIR"] = b.toolCacheDir
-    Log.debug(args)
-    Process.spawn(args, env, [null, 1, 2])
-  }
-
+  // zig build (using build.zig)
   build(b, opts) {
     var args = [
       _exe, "build",
@@ -89,26 +79,36 @@ class Zig {
     }
 
     exec_(b, args)
-    return "zig-out"
+    return "%(Process.cwd)/zig-out"
   }
 
+  // zig build-lib
   buildLib(b, name, opts) {
     var args = [_exe, "build-lib", "--name", name]
-    args.addAll(GetTopLevelArgs_.call(b, opts, false))
+    args.addAll(buildArgs(b, opts).allLib)
     exec_(b, args)
     return "%(Process.cwd)/%(b.target.libName(name))"
   }
 
+  // zig build-exe
   buildExe(b, name, opts) {
     var args = [_exe, "build-exe", "--name", name]
-    args.addAll(GetTopLevelArgs_.call(b, opts, true))
+    args.addAll(buildArgs(b, opts).allExe)
     exec_(b, args)
     return "%(Process.cwd)/%(b.target.exeName(name))"
   }
 
+  buildArgs(b, opts) { ZigArgs.create(b, opts) }
+
+  // zig module config file
   moduleConfig(b, opts) { moduleConfig(b, b.label.target, opts) }
   moduleConfig(b, module_name, opts) {
     var cdeps = (opts["c_deps"] || []).map { |x| (x is CDep ? x : CDep.create(x)).toJSON }.toList
+
+    var root = opts["root"]
+    if (root == null) {} else if (root is String) {} else {
+      root = (root is ModuleDep ? root : ModuleDep.create(root)).toJSON
+    }
 
     var modules = {}
     for (el in opts["modules"] || []) {
@@ -118,7 +118,7 @@ class Zig {
     }
 
     var mconfig = {
-      "root": opts["root"],
+      "root": root,
       "Cflags": opts["cflags"] || [],
       "Libs": opts["ldflags"] || [],
       "Requires": cdeps,
@@ -133,6 +133,7 @@ class Zig {
     return fname
   }
 
+  // c library config file
   libConfig(b) { libConfig(b, b.label.target, {}) }
   libConfig(b, libname) { libConfig(b, libname, {}) }
   libConfig(b, libname, opts) {
@@ -161,58 +162,78 @@ class Zig {
     File.write(fname, json)
     return fname
   }
-}
 
-var GetTopLevelArgs_ = Fn.new { |b, opts, include_libs|
-  var opt_mode = Zig.getOpt(b.opt_mode)
-  var args = [
-    "-target", "%(b.target)",
-    "-O", opt_mode,
-  ]
-  args.addAll(GetArgs_.call(b, opts, include_libs))
-  return args
-}
-
-var GetArgs_ = Fn.new { |b, opts, include_libs|
-  var cargs = GetCArgs_.call(b, opts)
-  var args = cargs["args"]
-
-  var module_opts = opts["modules"] || {}
-  if (opts["root"]) module_opts["__xosroot__"] = opts["root"]
-  var modules = GetModules_.call(b, module_opts)
-
-  var platform = Platform.get(b, cargs["platform_opts"].union(modules["platform_opts"]))
-  args.addAll(platform.flags)
-  args.addAll(modules["module_args"])
-
-  if (include_libs) {
-    args.addAll(cargs["ldargs"])
-    args.addAll(modules["ldargs"])
+  // Internal
+  // ==========================================================================
+  getOpt_(b, opts) { getOpt(opts["opt"] || b.opt_mode) }
+  exec_(b, args) {
+    var env = Process.env()
+    env["HOME"] = b.workDir
+    env["LOCALAPPDATA"] = b.workDir
+    env["TMP"] = b.workDir
+    env["ZIG_GLOBAL_CACHE_DIR"] = b.toolCacheDir
+    Log.debug(args)
+    Process.spawn(args, env, [null, 1, 2])
   }
-
-  args.addAll(platform.ldargs)
-
-  return args
 }
 
-var CollectModules_ = Fn.new { |all, modules|
-  var wrapped = {}
-  for (el in modules) {
-    if (el.key == "__xosroot__") {
-      if (all.containsKey(el.key)) Fiber.abort("duplicate root modules found: %(all["__xosroot"]) and %(el.value)")
-      var m = el.value
-      m = m is String ? m : (m is ModuleDep ? m : ModuleDep.create(m))
-      all[el.key] = m
-    } else {
-      var m = el.value
-      m = m is ModuleDep ? m : ModuleDep.create(m)
-      if (all.containsKey(m.key)) continue
-      all[m.key] = m
-      wrapped[el.key] = m
-      CollectModules_.call(all, m.modules)
+var ZigArgs_ = Record.create("ZigArgs_", ["target", "opt", "compile", "link", "platformCompile", "platformLink"])
+class ZigArgs is ZigArgs_ {
+  static create(b, opts) {
+    var args = {
+      "opt": ["-O", Zig.getOpt(b.opt_mode)],
+      "target": ["-target", "%(b.target)"],
+      "compile": [],
+      "link": [],
+      "platformCompile": [],
+      "platformLink": [],
     }
+
+    var cargs = GetCArgs_.call(b, opts)
+    args["compile"].addAll(cargs["args"])
+
+    var module_opts = opts["modules"] || {}
+    if (opts["root"]) module_opts["__xosroot__"] = opts["root"]
+    var modules = GetModules_.call(b, module_opts)
+
+    var platform = Platform.get(b, cargs["platform_opts"].union(modules["platform_opts"]))
+    args["platformCompile"].addAll(platform.flags)
+    args["compile"].addAll(modules["module_args"])
+
+    args["link"].addAll(cargs["ldargs"])
+    args["link"].addAll(modules["ldargs"])
+
+    args["platformLink"].addAll(platform.ldargs)
+
+    return ZigArgs_.fromMap_(ZigArgs, args)
   }
-  return wrapped
+
+  construct new_(args) { super(args) }
+
+  allLib { get_(false) }
+  allExe { get_(true) }
+
+  toString {
+    return "ZigArgs(\n" +
+      "  opt=%(opt)\n" +
+      "  target=%(target)\n" +
+      "  compile=%(compile)\n" +
+      "  link=%(link)\n" +
+      "  platformCompile=%(platformCompile)\n" +
+      "  platformLink=%(platformLink)\n" +
+      ")"
+  }
+
+  get_(include_link) {
+    var args = []
+    args.addAll(target)
+    args.addAll(opt)
+    args.addAll(compile)
+    args.addAll(platformCompile)
+    if (include_link) args.addAll(link)
+    args.addAll(platformLink)
+    return args
+  }
 }
 
 var GetModules_ = Fn.new { |b, modules|
@@ -319,31 +340,53 @@ var GetCArgs_ = Fn.new { |b, opts|
   }
 }
 
+var CollectModules_ = Fn.new { |all, modules|
+  var wrapped = {}
+  for (el in modules) {
+    if (el.key == "__xosroot__") {
+      if (all.containsKey(el.key)) Fiber.abort("duplicate root modules found: %(all["__xosroot"]) and %(el.value)")
+      var m = el.value
+      m = m is String ? m : (m is ModuleDep ? m : ModuleDep.create(m))
+      all[el.key] = m
+    } else {
+      var m = el.value
+      m = m is ModuleDep ? m : ModuleDep.create(m)
+      if (all.containsKey(m.key)) continue
+      all[m.key] = m
+      wrapped[el.key] = m
+      CollectModules_.call(all, m.modules)
+    }
+  }
+  return wrapped
+}
+
 class CDep {
   static create(install_dir) { create(install_dir, install_dir.build.label.target) }
-  static create(install_dir, libname) { new_(install_dir, libname) }
-
-  construct new_(install_dir, libname) {
+  static create(install_dir, libname) {
+    var b = install_dir.build
     var pc_path = install_dir.libConfig("%(libname).pc.json")
-    if (!File.exists(pc_path)) Fiber.abort("no lib config exists for %(install_dir.build.label) at %(pc_path)")
-    var f = Fiber.new { JSON.parse(File.read(pc_path)) }
+    if (!File.exists(pc_path)) Fiber.abort("no lib config exists for %(b.label) at %(pc_path)")
+    var f = Fiber.new { JSON.parse(File.read(pc_path).replace("{{root}}", install_dir.path)) }
     var config = f.try()
-    if (f.error != null) Fiber.abort("could not parse the pc.json for %(install_dir.build.label) %(libname)")
+    if (f.error != null) Fiber.abort("could not parse the pc.json for %(b.label) %(libname)")
+    return new_(b, config, libname)
+  }
 
+  construct new_(b, config, libname) {
     var cflags = config["Cflags"] || []
     var libs = config["Libs"] || []
-    var requires = (config["Requires"] || []).map { |x| CDep.fromJSON(install_dir.build, x) }
+    var requires = (config["Requires"] || []).map { |x| CDep.fromJSON(b, x) }
 
     for (req in requires) {
       cflags.addAll(req.cflags)
       libs.addAll(req.libs)
     }
 
-    _dir = install_dir
+    _b = b
     _libname = libname
 
-    _cflags = cflags.map { |x| x.replace("{{root}}", install_dir.path) }.toList
-    _libs = libs.map { |x| x.replace("{{root}}", install_dir.path) }.toList
+    _cflags = cflags
+    _libs = libs
     _platform_opts = Platform.Opts.new({
       "sdk": config["sdk"] == true,
       "libc": config["libc"] == true,
@@ -357,7 +400,7 @@ class CDep {
 
   toJSON {
     return {
-      "build": _dir.build.toJSON,
+      "build": _b.toJSON,
       "libname": _libname,
     }
   }
@@ -369,20 +412,24 @@ class CDep {
 }
 
 class ModuleDep {
-  static create(install_dir) { new_(install_dir, install_dir.build.label.target) }
-  static create(install_dir, module_name) { new_(install_dir, module_name) }
+  static create(install_dir) { create(install_dir, install_dir.build.label.target) }
+  static create(install_dir, module_name) {
+    var path = install_dir.path
+    var b = install_dir.build
 
-  construct new_(install_dir, module_name) {
-    var pc_path = Path.join([install_dir.path, "zig", "%(module_name).pc.json"])
-    if (!File.exists(pc_path)) Fiber.abort("no zig module config exists for %(install_dir.build.label) at %(pc_path)")
+    var pc_path = Path.join([path, "zig", "%(module_name).pc.json"])
+    if (!File.exists(pc_path)) Fiber.abort("no zig module config exists for %(b.label) at %(pc_path)")
 
     var f = Fiber.new { JSON.parse(File.read(pc_path)) }
     var config = f.try()
-    if (f.error != null) Fiber.abort("could not parse the zig pc.json for %(install_dir.build.label) %(module_name)")
+    if (f.error != null) Fiber.abort("could not parse the zig pc.json for %(b.label) %(module_name)")
+    return new_(b, config, module_name)
+  }
 
+  construct new_(b, config, name) {
     var cflags = config["Cflags"] || []
     var libs = config["Libs"] || []
-    var requires = (config["Requires"] || []).map { |x| CDep.fromJSON(install_dir.build, x) }
+    var requires = (config["Requires"] || []).map { |x| CDep.fromJSON(b, x) }
     for (req in requires) {
       cflags.addAll(req.cflags)
       libs.addAll(req.libs)
@@ -390,11 +437,11 @@ class ModuleDep {
 
     var modules = {}
     for (el in config["Modules"] || []) {
-      modules[el.key] = ModuleDep.fromJSON(install_dir.build, el.value)
+      modules[el.key] = ModuleDep.fromJSON(b, el.value)
     }
 
-    _dir = install_dir
-    _name = module_name
+    _b = b
+    _name = name
     _root = config["root"]
     _modules = modules
     _cflags = cflags
@@ -415,7 +462,7 @@ class ModuleDep {
 
   toJSON {
     return {
-      "build": _dir.build.toJSON,
+      "build": _b.toJSON,
       "modulename": _name,
     }
   }
@@ -425,5 +472,5 @@ class ModuleDep {
     return ModuleDep.create(dir, x["modulename"])
   }
 
-  key { "%(name)_%(_dir.build.key)" }
+  key { "%(name)_%(_b.key)" }
 }

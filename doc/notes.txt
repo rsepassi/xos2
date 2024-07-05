@@ -9,7 +9,7 @@
 * documentation
 * Increase concurrency: Fibers in dependency and file loops, batch apis
 * detailed review of caching policy
-* tests
+* tests, CI
 * UCL configuration parser (e.g. for repo specification)
 * Tracking license, version url, documentation
 * Cloud cache
@@ -23,4 +23,5 @@
   having to re-export the output directory
 * Move logging to wrencli, add debug logging to Process.spawn
 * Wren package manager
-* Add ccache for zig cc invocations
+* Add ccache for zig cc invocations?
+* Filter error stack traces?

@@ -18,6 +18,9 @@ var wgpu_platform = {
   "linux": {
     "ldflags": ["-lunwind"],
   },
+  "ios": {
+    "ldflags": ["-framework", "Foundation", "-framework", "UIKit", "-framework", "Metal", "-framework", "MetalKit"],
+  },
 }
 
 var wgpu = Fn.new { |b, args|

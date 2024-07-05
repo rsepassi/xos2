@@ -44,7 +44,7 @@ pub const Resources = struct {
         const exepath = try std.fs.selfExePathAlloc(allocator);
         defer allocator.free(exepath);
         const exedir = std.fs.path.dirname(exepath) orelse return error.NoResourceDir;
-        const resource_dir_path = try std.fs.path.join(allocator, &.{ exedir, "resources" });
+        const resource_dir_path = try std.fs.path.join(allocator, &.{ exedir, "xos-resources" });
         defer allocator.free(resource_dir_path);
         return .{
             .dir = try std.fs.cwd().openDir(resource_dir_path, .{}),
@@ -308,7 +308,7 @@ pub const glfw = struct {
 //     // void drop_callback(GLFWwindow* window, int count, const char** paths)
 // };
 
-var gctx: Ctx = undefined;
+var gctx: *Ctx = undefined;
 var gapp: App = undefined;
 
 extern fn doiOSLog(msg: [*:0]const u8) void;
@@ -331,11 +331,15 @@ const iosApp = struct {
 
     fn provideMetalLayer(layer: *anyopaque, width: f64, height: f64) callconv(.C) void {
         log.debug("provideMetalLayer ({d}, {d})", .{ width, height });
-        gctx = .{
+        gctx = Ctx.init() catch |err| {
+            log.err("Ctx init failed: {any}", .{err});
+            @panic("Ctx init failed");
+        };
+        gctx.platform = .{
             .metal_layer = layer,
             .window_size = .{ width, height },
         };
-        gapp = App.init(&gctx) catch |err| {
+        gapp = App.init(gctx) catch |err| {
             log.err("App init failed: {any}", .{err});
             @panic("App init failed");
         };
@@ -344,7 +348,7 @@ const iosApp = struct {
 
     fn handleResize(width: f64, height: f64) callconv(.C) void {
         log.debug("handleResize ({d}, {d})", .{ width, height });
-        gctx.window_size = .{ width, height };
+        gctx.platform.window_size = .{ width, height };
         gapp.onEvent(.{ .resize = {} });
     }
 

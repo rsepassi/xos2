@@ -37,6 +37,7 @@ class StopwatchTreeNode {
     var i = 0
     while (_children.containsKey(current)) {
       current = "%(name) (%(i))"
+      i = i + 1
     }
     return current
   }

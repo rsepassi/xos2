@@ -24,6 +24,7 @@ class Process {
   static cwd { cwd_.replace("\\", "/") }
 
   static pathJoin(parts) { parts.join(Platform.isWindows ? ";" : ":") }
+  static pathSplit(path) { path.split(Platform.isWindows ? ";" : ":") }
 
   static spawn(args) { spawn(args, null, null) }
   static spawn(args, env) { spawn(args, env, null) }

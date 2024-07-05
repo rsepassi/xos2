@@ -35,6 +35,9 @@ class Target {
   libName(name) { os == "windows" ? "%(name).lib" : "lib%(name).a" }
   dylibName(name) { os == "windows" ? "%(name).lib" : "lib%(name).so" }
 
+  isDesktop { !isMobile }
+  isMobile { os == "ios" || (os == "linux" && abi == "android") }
+
   toString {
     return "%(_arch)-%(_os)-%(_abi)"
   }

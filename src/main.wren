@@ -82,7 +82,7 @@ xos build [<build-flags>...] <label> [-- <label-arg>...]
   }
 
   // Build
-  var b = Build.new_({
+  var b = Build.get({
     "build_args": build_flags,
     "label": label,
     "label_args": label_args,
@@ -220,6 +220,7 @@ var initConfig = Fn.new {
   var config = {
     "repo_root": Process.env("XOS_REPO_ROOT"),
     "system_path": Process.env("XOS_SYSTEM_PATH"),
+    "system_home": Process.env("XOS_SYSTEM_HOME"),
     "host_target": Build.Target.parse(Process.env("XOS_HOST")),
     "xos_id": Process.env("XOS_ID"),
     "no_cache": Process.env("NO_CACHE") == "1",

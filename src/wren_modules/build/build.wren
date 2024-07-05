@@ -191,14 +191,23 @@ class Build {
   mktmp() { _cache_entry.mktmp() }
   mktmpdir() { _cache_entry.mktmpdir() }
 
+  system(args) { system(args, null, null) }
+  system(args, env) { system(args, env, null) }
+  system(args, env, stdio) {
+    if (!Path.isAbs(args[0])) {
+      args[0] = WhichExe_.call(args[0], Config.get("system_path"))
+    }
+    Log.debug("running system command: %(args)")
+    stdio = NormalizeStdio_.call(stdio)
+    Process.spawn(args, env, stdio)
+  }
+
   systemExport(args) { systemExport(args, null, null) }
   systemExport(args, env) { systemExport(args, env, null) }
   systemExport(args, env, stdio) {
     if (env == null) env = Process.env()
-    Log.debug("running system command: %(args)")
-    stdio = NormalizeStdio_.call(stdio)
     env["PATH"] = Config.get("system_path")
-    Process.spawn(args, env, stdio)
+    system(args, env, stdio)
   }
 
   // Internal use
@@ -207,15 +216,44 @@ class Build {
   // * build_args
   // * label
   // * label_args
-  construct new_(args) {
-    args["label_args"].sort(ByteCompare_)
+  static get(args) {
+    // xos cache key
+    // * xos id
+    // * build arguments
+    // * label
+    // * label arguments
+    // * label build script
+    var label = args["label"]
+    var label_args = args["label_args"]
+    var build_args = args["build_args"]
+    var key = (Fn.new {
+      var xos_id = Config.get("xos_id")
+      var label_str = "%(label)"
+      var label_args_str = "%(label_args)"
+      var build_args_str = HashStringifyMap_.call(build_args)
+      var key_inputs = "%(xos_id) %(label_str) %(label_args_str) %(build_args_str)"
+      var key = Sha256.hashHex(key_inputs)
+      return key
+    }).call()
 
+    if (__builds == null) __builds = {}
+    var cached = __builds[key]
+    if (cached) return cached
+
+    args["key"] = key
+    var build = Build.new__(args)
+    __builds[key] = build
+    return build
+  }
+
+  construct new__(args) {
+    _needBuild = true
     _args = args["build_args"]
     _label = args["label"]
     _label_args = args["label_args"]
+    _key = args["key"]
 
-    var parent = args["parent"]
-    _cache = args["cache"] || (parent && parent.cache_) || BuildCache.new()
+    _cache = args["cache"] || BuildCache.new()
     _deps = {
       "files": {},
       "directories": {},
@@ -223,22 +261,6 @@ class Build {
       "labels": {},
       "imports": {},
     }
-
-    // xos cache key
-    // * xos id
-    // * build arguments
-    // * label
-    // * label arguments
-    // * label build script
-    _key = (Fn.new {
-      var xos_id = Config.get("xos_id")
-      var label_str = "%(_label)"
-      var label_args_str = "%(_label_args)"
-      var build_args_str = HashStringifyMap_.call(_args)
-      var key_inputs = "%(xos_id) %(label_str) %(label_args_str) %(build_args_str)"
-      var key = Sha256.hashHex(key_inputs)
-      return key
-    }).call()
 
     _cache_entry = _cache.entry(_key)
   }
@@ -264,8 +286,8 @@ class Build {
   }
 
   subbuild_(args) {
-    args["parent"] = this
-    return Build.new_(args)
+    args["cache"] = _cache
+    return Build.get(args)
   }
 
   cache_ { _cache }
@@ -302,13 +324,21 @@ class Build {
 
     _cache_entry.recordDeps(_deps)
     _cache_entry.done()
-    _needBuild = {"need": false}
+    _needBuild = false
 
     Log.info("%(_label) built")
     return out
   }
 
   needBuild_ {
+    // If we already know it's fresh, skip
+    if (!_needBuild) {
+      return {
+        "need": false,
+        "reason": "",
+      }
+    }
+
     // If we haven't built this label before, we need to build it
     if (!_cache_entry.ok) {
       return {
@@ -397,7 +427,7 @@ class Build {
         Log.debug("checking %(f.key)")
         var sub_label = f.key
         var sub_args = f.value
-        var b = Build.new_({
+        var b = Build.get({
           "build_args": {
             "target": Target.parse(sub_args["build_args"]["target"]),
             "opt": sub_args["build_args"]["opt"],
@@ -415,6 +445,7 @@ class Build {
       }
     }
 
+    if (!need_build) _needBuild = false
     var out = {
       "need": need_build,
       "reason": need_build_reason,
@@ -452,4 +483,12 @@ var NormalizeStdio_ = Fn.new { |stdio|
     i = i + 1
   }
   return new_stdio
+}
+
+var WhichExe_ = Fn.new { |exe, path|
+  for (dir in Process.pathSplit(path)) {
+    var x = Path.join([dir, exe])
+    if (File.exists(x)) return x
+  }
+  Fiber.abort("executable %(exe) not found in path, searched %(path)")
 }

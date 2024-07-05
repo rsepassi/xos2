@@ -46,6 +46,7 @@ pub fn main() !void {
     try exec_env.put("XOS_ROOT", binpath);
     try exec_env.put("XOS_REPO_ROOT", repo_root);
     try exec_env.put("XOS_SYSTEM_PATH", env.get("XOS_SYSTEM_PATH") orelse env.get("PATH") orelse "");
+    try exec_env.put("XOS_SYSTEM_HOME", env.get("XOS_SYSTEM_HOME") orelse env.get("HOME") orelse "");
     try exec_env.put("XOS_HOST", getHostTriple());
     try exec_env.put("XOS_ID", env.get("XOS_ID") orelse try cwd.readFileAlloc(alloc, xosid_path, 1024));
     try exec_env.put("WREN_MODULES", try std.fs.path.join(alloc, &.{ supportpath, "wren_modules" }));

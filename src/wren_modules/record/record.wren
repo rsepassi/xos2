@@ -38,7 +38,6 @@ class Record {
     }
     s = s + "}\n"
     s = s + "return %(name)"
-    System.print(s)
     return Meta.compile(s).call()
   }
 }

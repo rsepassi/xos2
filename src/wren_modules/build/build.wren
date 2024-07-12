@@ -58,7 +58,8 @@ class Build {
   srcs(paths) { paths.map { |x| src(x) }.toList }
   srcGlob(pattern) {
     var prefix_strip = label.srcdir.count + 1
-    return srcs(Glob.glob(Path.join([label.srcdir, pattern])).map { |x| x[prefix_strip..-1] })
+    var globbed = Glob.glob(Path.join([label.srcdir, pattern])).map { |x| x[prefix_strip..-1] }.toList
+    return srcs(globbed)
   }
   srcDir(path) {
     var out = path.isEmpty ? label.srcdir : Path.join([label.srcdir, path])

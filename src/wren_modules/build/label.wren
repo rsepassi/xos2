@@ -46,7 +46,12 @@ class Label {
       var root = Label.repoPath(repo)
       if (!label_src_dir.startsWith(root)) Fiber.abort("The label %(label) is referenced from %(label_src_dir) which doesn't seem to be within the repository rooted at %(root)")
       if (label_src_dir != root) {
-        path = label_src_dir[root.count + 1..-1]
+        label_src_dir = label_src_dir[root.count + 1..-1]
+        if (path == null || path.isEmpty) {
+          path = label_src_dir
+        } else {
+          path = Path.join([label_src_dir, path])
+        }
       }
     }
 

@@ -47,7 +47,13 @@ extern void processExit(WrenVM* vm);
 extern void processEnv(WrenVM* vm);
 extern void processEnvName(WrenVM* vm);
 extern void processChdir(WrenVM* vm);
-extern void processSpawn(WrenVM* vm);
+extern void subprocessAllocate(WrenVM* vm);
+extern void subprocessFinalize(WrenVM* vm);
+extern void subprocessKill(WrenVM* vm);
+extern void subprocessIsDone(WrenVM* vm);
+extern void subprocessPid(WrenVM* vm);
+extern void subprocessWait(WrenVM* vm);
+extern void subprocessWrite(WrenVM* vm);
 extern void osDebug(WrenVM* vm);
 extern void statPath(WrenVM* vm);
 extern void statBlockCount(WrenVM* vm);
@@ -250,7 +256,15 @@ static ModuleRegistry modules[] =
       STATIC_METHOD("env()", processEnv)
       STATIC_METHOD("env(_)", processEnvName)
       STATIC_METHOD("chdir(_)", processChdir)
-      STATIC_METHOD("spawn_(_,_,_,_,_,_)", processSpawn)
+    END_CLASS
+    CLASS(Subprocess)
+      ALLOCATE(subprocessAllocate)
+      FINALIZE(subprocessFinalize)
+      METHOD("kill(_)", subprocessKill)
+      METHOD("pid", subprocessPid)
+      METHOD("done", subprocessIsDone)
+      METHOD("wait_(_)", subprocessWait)
+      METHOD("write_(_,_)", subprocessWrite)
     END_CLASS
     CLASS(Path)
       STATIC_METHOD("realPath_(_,_)", fileRealPath)

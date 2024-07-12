@@ -142,7 +142,10 @@ class Glob {
         matches.addAll(Glob.glob_(pattern))
       }
     }
-    return GlobFilter_.call(matches, config)
+
+    var out = GlobFilter_.call(matches, config)
+    out.sort() { |a, b| a.bytes < b.bytes }
+    return out
   }
 
   foreign static glob_(pattern)

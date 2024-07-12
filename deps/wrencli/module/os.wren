@@ -29,30 +29,114 @@ class Process {
   static spawn(args) { spawn(args, null, null) }
   static spawn(args, env) { spawn(args, env, null) }
   static spawn(args, env, stdio) {
-    var env_flat = null
-    if (env != null) {
-      if (!(env is Map)) Fiber.abort("env must be a Map, got %(env)")
-      env_flat = List.filled(env.count, 0)
-      var i = 0
-      for (el in env) {
-        env_flat[i] = "%(el.key)=%(el.value)"
-        i = i + 1
-      }
-    }
-
-    if (stdio == null) stdio = [-1, -1, -1]
-    if (stdio.count != 3) Fiber.abort("stdio specification must include an entry for stdin, stdout, and stderr, but got %(stdio.count) entries")
-    stdio = stdio.map { |x|
-      if (x == null) return -1
-      if (!(x is Num)) Fiber.abort("stdio entries must be null or an integer fd, got %(x)")
-      return x
-    }.toList
-
-    Scheduler.await_ { spawn_(args, env_flat, stdio[0], stdio[1], stdio[2], Fiber.current) }
+    if (stdio == null) stdio = [null, null, null]
+    child(args)
+      .env(env)
+      .stdin(stdio[0])
+      .stdout(stdio[1])
+      .stderr(stdio[2])
+      .run()
   }
 
-  foreign static spawn_(args, env, stdin, stdout, stderr, fiber)
+  static spawnCapture(args) { spawnCapture(args, null) }
+  static spawnCapture(args, env) {
+    var stdout_parts = []
+    var stdout = Fn.new { |val| stdout_parts.add(val) }
+    var stderr_parts = []
+    var stderr = Fn.new { |val| stderr_parts.add(val) }
+    child(args)
+      .env(env)
+      .onStdout(stdout)
+      .onStderr(stderr)
+      .run()
+    return {
+      "stderr": stderr_parts.join(""),
+      "stdout": stdout_parts.join(""),
+    }
+  }
+
+  static child(args) { SubprocessBuilder.new(args) }
+
   foreign static cwd_
+}
+
+class SubprocessBuilder {
+  construct new(args) {
+    _args = args
+    _env = null
+    _stdio = [-1, -1, -1]
+    _stdio_fns = [null, null]
+  }
+
+  env(env_map) {
+    _env = FlattenEnv_.call(env_map)
+    return this
+  }
+
+  stdin(fd) { stdio_(fd, 0) }
+  stdout(fd) { stdio_(fd, 1) }
+  stderr(fd) { stdio_(fd, 2) }
+
+  onStdout(fn) {
+    _stdio_fns[0] = fn
+    return this
+  }
+
+  onStderr(fn) {
+    _stdio_fns[1] = fn
+    return this
+  }
+
+  spawn() { Subprocess.new_(_args, _env, _stdio[0], _stdio[1], _stdio[2], _stdio_fns[0], _stdio_fns[1]) }
+
+  run() {
+    var sp = spawn()
+    sp.wait()
+  }
+
+  stdio_(x, idx) {
+    _stdio[idx] = (Fn.new {
+      if (x == null) return -1
+      if (x is Num) return x
+      return x.fd
+    }).call()
+    return this
+  }
+}
+
+foreign class Subprocess {
+  construct new_(args, env, stdin, stdout, stderr, stdout_f, stderr_f) {}
+
+  write(x) { Scheduler.await_ { write_(x, Fiber.current) } }
+  echo(x) { write("%(x)\n") }
+  kill() { kill(Signal.TERM) }
+
+  wait() {
+    var code = waitCode()
+    if (code != 0) Fiber.abort("process pid %(pid) exited with code %(code)")
+  }
+  waitCode() { Scheduler.await_ { wait_(Fiber.current) } }
+
+  foreign kill(signum)
+  foreign pid
+  foreign done
+
+  foreign wait_(f)
+  foreign write_(x, f)
+}
+
+class Signal {
+  static HUP { 1 }
+  static INT { 2 }
+  static QUIT { 3 }
+  static ILL { 4 }
+  static FPE { 8 }
+  static KILL { 9 }
+  static SEGV { 11 }
+  static TERM { 15 }
+  static BREAK { 21 }
+  static ABRT { 22 }
+  static WINCH { 28 }
 }
 
 class Path {
@@ -161,4 +245,18 @@ class Debug {
   foreign static debug(x1, x2, x3, x4, x5, x6)
   foreign static debug(x1, x2, x3, x4, x5, x6, x7)
   foreign static debug(x1, x2, x3, x4, x5, x6, x7, x8)
+}
+
+var FlattenEnv_ = Fn.new { |env|
+  var env_flat = null
+  if (env != null) {
+    if (!(env is Map)) Fiber.abort("env must be a Map, got %(env)")
+    env_flat = List.filled(env.count, 0)
+    var i = 0
+    for (el in env) {
+      env_flat[i] = "%(el.key)=%(el.value)"
+      i = i + 1
+    }
+  }
+  return env_flat
 }

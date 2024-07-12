@@ -8,7 +8,7 @@ var ucl = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "ucl", {
     "c_srcs": b.glob("src/*.c"),
-    "flags": ["-Iinclude", "-Isrc", "-Iklib", "-Iuthash"],
+    "flags": ["-Iinclude", "-Isrc", "-Iklib", "-Iuthash"] + (b.target.abi == "android" ? ["-DNBBY=8"] : []),
     "libc": true,
   })
 

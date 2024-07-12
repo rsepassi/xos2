@@ -4,6 +4,7 @@ import "json" for JSON
 import "log" for Logger
 import "record" for Record
 
+import "build/config" for Config
 import "xos//toolchains/zig/platform" for Platform
 
 var Log = Logger.get("zig")
@@ -180,13 +181,19 @@ class Zig {
 var ZigArgs_ = Record.create("ZigArgs_", ["target", "opt", "compile", "link", "platformCompile", "platformLink"])
 class ZigArgs is ZigArgs_ {
   static create(b, opts) {
+    var opt_mode = Zig.getOpt(b.opt_mode)
     var args = {
-      "opt": ["-O", Zig.getOpt(b.opt_mode)],
+      "opt": ["-O", opt_mode],
       "target": ["-target", "%(b.target)"],
       "compile": [],
       "link": [],
       "platformCompile": [],
       "platformLink": [],
+    }
+
+    args["compile"].add("-freference-trace")
+    if (["ReleaseSmall", "ReleaseFast"].contains(opt_mode)) {
+      args["compile"].add("-fstrip")
     }
 
     var cargs = GetCArgs_.call(b, opts)
@@ -229,7 +236,6 @@ class ZigArgs is ZigArgs_ {
     args.addAll(target)
     args.addAll(opt)
     args.addAll(compile)
-    args.addAll(platformCompile)
     if (include_link) args.addAll(link)
     args.addAll(platformLink)
     return args
@@ -322,6 +328,7 @@ var GetCArgs_ = Fn.new { |b, opts|
       "-D__DATE__=",
       "-D__TIME__=",
       "-D__TIMESTAMP__=",
+      "-ffile-prefix-map=%(Config.get("repo_root"))=xos",
     ])
     args.add("--")
   }

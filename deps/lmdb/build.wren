@@ -7,6 +7,7 @@ var lmdb = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "lmdb", {
     "c_srcs": ["mdb.c", "midl.c"],
+    "flags": (b.target.abi == "android") ? ["-DMDB_USE_ROBUST=0"] : [],
     "libc": true,
   })
 

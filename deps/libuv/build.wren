@@ -182,3 +182,4 @@ var OS = {
     ],
   },
 }
+OS["ios"] = OS["macos"]

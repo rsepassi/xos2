@@ -1,3 +1,6 @@
+import "io" for File
+import "json" for JSON
+
 class PlatformOpts {
   construct new() {
     _opts = {
@@ -89,11 +92,7 @@ class Windows is Platform {
     super(b, opts)
   }
 
-  ldargs {
-    var args = super
-    args.add(["-L%(_dir.path)/sdk/x64"])
-    return args
-  }
+  ldargs { ["-L%(_dir.path)/sdk/x64"] + super }
 }
 
 class IOS is Platform {
@@ -122,6 +121,23 @@ class IOS is Platform {
   }
 }
 
+class Android is Platform {
+  construct new(b, opts) {
+    _dir = b.dep("//sdk/android")
+    _opts = opts
+    _pc = JSON.parse(File.read("%(_dir.path)/lib/pkgconfig/platform.pc.json"))
+    super(b, opts)
+  }
+
+  flags {
+    return [
+      "--libc", "%(_dir.path)/libc.txt",
+    ] + _pc["Cflags"]
+  }
+
+  ldargs { _pc["Libs"] + super }
+}
+
 var GetPlatform_ = Fn.new { |b, opts|
   opts = opts is PlatformOpts ? opts : PlatformOpts.new(opts)
   var os = b.target.os
@@ -133,6 +149,8 @@ var GetPlatform_ = Fn.new { |b, opts|
     return Windows.new(b, opts)
   } else if (os == "ios") {
     return IOS.new(b, opts)
+  } else if (os == "linux" && b.target.abi == "android") {
+    return Android.new(b, opts)
   } else {
     return Platform.new(b, opts)
   }

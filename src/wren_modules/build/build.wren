@@ -109,16 +109,17 @@ class Build {
     label = Build.Label.parse(label, this.label.srcdir)
     Log.debug("%(_label) depends on %(label)")
     var b = subbuild_({
-      "build_args": build_args,
       "label": label,
+      "build_args": build_args,
       "label_args": label_args,
     })
     var out = b.build_()
 
-    _deps["labels"]["%(label)"] = {
+    _deps["labels"].add({
+      "label": "%(label)",
       "build_args": build_args,
       "label_args": label_args,
-    }
+    })
     return out
   }
 
@@ -143,8 +144,9 @@ class Build {
     dst_dir = dst_dir.isEmpty ? "%(name)" : Path.join([dst_dir, name])
     var prefix_strip = src_dir.count + 1
 
+    var dir_files = Glob.globFiles(Path.join([src_dir, "**", "*"]))
     var promises = []
-    for (f in Glob.globFiles(Path.join([src_dir, "**", "*"]))) {
+    for (f in dir_files) {
       var frel = f[prefix_strip..-1]
       var parts = Path.split(frel)
       var fdst_dir = parts[0] ? Path.join([dst_dir, parts[0]]) : dst_dir
@@ -220,7 +222,6 @@ class Build {
   // * label_args
   static get(args) {
     // xos cache key
-    // * xos id
     // * build arguments
     // * label
     // * label arguments
@@ -229,11 +230,10 @@ class Build {
     var label_args = args["label_args"]
     var build_args = args["build_args"]
     var key = (Fn.new {
-      var xos_id = Config.get("xos_id")
       var label_str = "%(label)"
       var label_args_str = "%(label_args)"
       var build_args_str = HashStringifyMap_.call(build_args)
-      var key_inputs = "%(xos_id) %(label_str) %(label_args_str) %(build_args_str)"
+      var key_inputs = "%(label_str) %(label_args_str) %(build_args_str)"
       var key = Sha256.hashHex(key_inputs)
       return key
     }).call()
@@ -256,13 +256,20 @@ class Build {
     _key = args["key"]
 
     _cache = args["cache"] || BuildCache.new()
-    _deps = {
-      "files": {},
-      "directories": {},
-      "content": {},
-      "labels": {},
-      "imports": {},
+    _info = {
+      "label": "%(_label)",
+      "label_args": _label_args,
+      "build_args": _args,
+      "deps": {
+        "xos": Config.get("xos_id"),
+        "files": {},
+        "directories": {},
+        "content": {},
+        "labels": [],
+        "imports": {},
+      },
     }
+    _deps = _info["deps"]
 
     _cache_entry = _cache.entry(_key)
   }
@@ -324,7 +331,7 @@ class Build {
       _deps["directories"][f] = HashDir_.call(f.isEmpty ? label.srcdir : Path.join([label.srcdir, f]), _cache.fileHasher)
     }
 
-    _cache_entry.recordDeps(_deps)
+    _cache_entry.recordInfo(_info)
     _cache_entry.done()
     _needBuild = false
 
@@ -354,7 +361,15 @@ class Build {
     var need_build = false
     var need_build_reason = ""
 
-    var deps = _cache_entry.deps
+    var deps = _cache_entry.info["deps"]
+
+    if (!need_build) {
+      var xos_id = Config.get("xos_id")
+      if (deps["xos"] != xos_id) {
+        need_build = true
+        need_build_reason = "xos version has changed"
+      }
+    }
 
     // Import deps
     if (!need_build) {
@@ -426,22 +441,21 @@ class Build {
     // Labels
     if (!need_build) {
       for (f in deps["labels"]) {
-        Log.debug("checking %(f.key)")
-        var sub_label = f.key
-        var sub_args = f.value
+        Log.debug("checking %(f["label"])")
+        var sub_label = f["label"]
         var b = Build.get({
           "build_args": {
-            "target": Target.parse(sub_args["build_args"]["target"]),
-            "opt": sub_args["build_args"]["opt"],
+            "target": Target.parse(f["build_args"]["target"]),
+            "opt": f["build_args"]["opt"],
           },
           "label": Label.parse(sub_label, label.srcdir),
-          "label_args": sub_args["label_args"],
+          "label_args": f["label_args"],
         })
 
         var sub_need = b.needBuild_
         if (sub_need["need"]) {
           need_build = true
-          need_build_reason = "%(f.key) -> %(sub_need["reason"])"
+          need_build_reason = "%(sub_label) -> %(sub_need["reason"])"
           break
         }
       }

@@ -224,25 +224,26 @@ class AndroidBuilder {
       .stdout(1).stderr(2)
       .env(env)
       .run()
-    Process.child(["apksigner", "sign", "--ks", "%(env["ANDROID_HOME"])/keystore/debug.keystore", "--ks-pass", "pass:android", "app/build/outputs/apk/release/app-release-unsigned.apk"])
+    var apkdir = "app/build/outputs/apk/release"
+    var apk = Path.join([apkdir, "app-release.apk"])
+    File.rename(
+      Path.join([apkdir, "app-release-unsigned.apk"]),
+      apk)
+    Process.child(["apksigner", "sign", "--ks", "%(env["ANDROID_HOME"])/keystore/debug.keystore", "--ks-pass", "pass:android", apk])
       .stdout(1).stderr(2)
       .env(env)
       .run()
 
     return File.rename("%(tmpdir)/app-build/app/build/outputs/apk/release", "%(tmpdir)/app")
-
-
-
-    // todo: return output directory
   }
 }
 
 class androidproj {
   static call(b, args) {
     var parser = FlagParser.new("androidproj", [
-      FlagParser.Flag.new("name", {"required": true}),
-      FlagParser.Flag.new("org", {"required": true}),
-      FlagParser.Flag.new("pkg", {"required": true}),
+      FlagParser.Flag.required("name"),
+      FlagParser.Flag.required("org"),
+      FlagParser.Flag.required("pkg"),
     ])
     if (args.isEmpty) {
       parser.help()

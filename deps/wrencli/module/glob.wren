@@ -1,7 +1,3 @@
-// Glob
-// glob, globEx
-// GlobType{All,File,Directory}
-
 import "io" for Directory, File
 
 var globchars_ = "$[?]*{}"
@@ -53,14 +49,7 @@ class GlobType {
   static Directory { 2 }
 }
 
-var IsPlain_ = Fn.new { |part|
-  for (char in globchars_) {
-    if (part.contains(char)) {
-      return false
-    }
-  }
-  return true
-}
+var IsPlain_ = Fn.new { |part| !globchars_.any { |char| part.contains(char) } }
 
 var GlobFilter_ = Fn.new { |matches, config|
   var t = config["type"]
@@ -76,20 +65,34 @@ class Glob {
   static Type { GlobType }
 
   static glob(pattern) {
-    return globEx(pattern, {"type": GlobType.All})
+    return glob(pattern, {"type": GlobType.All})
   }
 
-  static globFiles(pattern) {
-    return globEx(pattern, {"type": GlobType.File})
+  static glob(pattern, config) {
+    var out = globExUnsorted(pattern, config)
+    if (config["sort"]) out.sort() { |a, b| a.bytes < b.bytes }
+    return out
   }
 
-  static globEx(pattern, config) {
+  static globFiles(pattern) { globFiles(pattern, {}) }
+  static globFiles(pattern, config) {
+    config["type"] = GlobType.File
+    return glob(pattern, config)
+  }
+
+  static globDirs(pattern) { globDirs(pattern, {}) }
+  static globDirs(pattern, config) {
+    config["type"] = GlobType.Directory
+    glob(pattern, config)
+  }
+
+  static globExUnsorted(pattern, config) {
     // Easy case: nothing to glob
     if (pattern.isEmpty) return []
 
     // If there are no directory parts, just glob directly
     var dirparts = pattern.split("/")  
-    if (dirparts.count == 1) return GlobFilter_.call(Glob.glob_(pattern), config)
+    if (dirparts.count == 1) return GlobFilter_.call(glob_(pattern), config)
 
     // Handle absolute paths so we can always add a / below
     if (pattern[0] == "/") {
@@ -120,6 +123,7 @@ class Glob {
       }
     }
 
+
     // Now we know the dynamic directory globs and the final dynamic glob
     var plain_prefix = plain_parts.join("/")
     var dirglobs = dirparts[plain_parts.count...-1]
@@ -127,6 +131,7 @@ class Glob {
     if (tailglob == "**") Fiber.abort("final part of a glob cannot be **")
 
     // We find all matching directories first
+
     var dirmatches = ExpandDirs_.call(plain_prefix, dirglobs)
 
     // For each matching directory, we glob for the last part
@@ -134,18 +139,14 @@ class Glob {
     var is_last_plain = IsPlain_.call(tailglob)
     for (dirmatch in dirmatches) {
       var pattern = "%(dirmatch)/%(tailglob)"
-      if (is_last_plain) {
-        if (File.exists(pattern) || Directory.exists(pattern)) {
-          matches.add(pattern)
-        }
+      if (is_last_plain && (File.exists(pattern) || Directory.exists(pattern))) {
+        matches.add(pattern)
       } else {
-        matches.addAll(Glob.glob_(pattern))
+        matches.addAll(glob_(pattern))
       }
     }
 
-    var out = GlobFilter_.call(matches, config)
-    out.sort() { |a, b| a.bytes < b.bytes }
-    return out
+    return GlobFilter_.call(matches, config)
   }
 
   foreign static glob_(pattern)

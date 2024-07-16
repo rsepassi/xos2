@@ -25,13 +25,12 @@ var RepoOs = {
 }
 
 var base = Fn.new { |b, args|
-  var tools = CmdLineToolsUrl[b.target.os]
-  var pkg = b.untar(b.fetch(tools["url"], tools["hash"]))
-
   var dir = b.toolCacheDir
 
   Directory.ensure("%(dir)/cmdline-tools")
   if (!Directory.exists("%(dir)/cmdline-tools/latest")) {
+    var tools = CmdLineToolsUrl[b.target.os]
+    var pkg = b.untar(b.fetch(tools["url"], tools["hash"]))
     File.rename(pkg, "%(dir)/cmdline-tools/latest")
   }
   var bindir = "%(dir)/cmdline-tools/latest/bin"
@@ -39,7 +38,14 @@ var base = Fn.new { |b, args|
   Directory.ensure("%(dir)/keystore")
   File.copy(b.src("debug.keystore"), "%(dir)/keystore/debug.keystore")
 
-  var sdk_args = ["sdkmanager", "ndk-bundle", "platforms;android-34", "platform-tools", "emulator", "system-images;android-29;google_apis;arm64-v8a"]
+  var sdk_args = [
+    "sdkmanager",
+    "ndk-bundle",
+    "platforms;android-34",
+    "platform-tools",
+    "emulator",
+    "system-images;android-29;google_apis;arm64-v8a",
+  ]
   var env = Process.env()
   env["PATH"] = Process.pathJoin([env["PATH"], bindir, Config.get("system_path")])
   env["PATH"] = Process.pathJoin([env["PATH"], bindir])

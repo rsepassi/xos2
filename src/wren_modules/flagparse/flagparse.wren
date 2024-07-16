@@ -2,15 +2,13 @@
 // configuration.
 
 class FlagParserFlag {
-  construct new(name) {
-    _name = name
-    _config = {}
-    _prefix = "--%(_name)="
-  }
-  construct new(name, config) {
-    _name = name
-    _config = config
-    _prefix = "--%(_name)="
+  static optional(name) { optional(name, {}) }
+  static optional(name, config) { FlagParserFlag.new_(name, config) }
+
+  static required(name) { required(name, {}) }
+  static required(name, config) {
+    config["required"] = true
+    return FlagParserFlag.new_(name, config)
   }
 
   default { _config.containsKey("default") ? _config["default"] : null }
@@ -25,6 +23,12 @@ class FlagParserFlag {
     var parser = _config["parser"]
     if (parser == null) return val
     return parser.parse(val)
+  }
+
+  construct new_(name, config) {
+    _name = name
+    _config = config
+    _prefix = "--%(_name)="
   }
 }
 

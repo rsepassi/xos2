@@ -116,10 +116,8 @@ foreign class File {
 
   static copy(src) { copy(src, Path.basename(src)) }
   static copy(src, dst) {
-    if (Path.isSymlink(src)) {
-      File.symlink(Path.readLink(src), dst)
-      return dst
-    }
+    if (Path.isSymlink(src)) return File.symlink(Path.readLink(src), dst)
+    if (Directory.exists(dst)) dst = Path.join([dst, Path.basename(src)])
 
     ensureString_(src)
     ensureString_(dst)

@@ -32,8 +32,8 @@ var buildInner = Fn.new { |args, install|
 xos build [<build-flags>...] <label> [-- <label-arg>...]
 "
   var flag_parser = FlagParser.new("build", [
-    FlagParser.Flag.new("target", {"default": Build.Target.host, "parser": Build.Target}),
-    FlagParser.Flag.new("opt", {"default": "Debug"}),
+    FlagParser.Flag.optional("target", {"default": Build.Target.host, "parser": Build.Target}),
+    FlagParser.Flag.optional("opt", {"default": "Debug"}),
   ])
 
   if (args.isEmpty) {

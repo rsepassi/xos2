@@ -48,7 +48,7 @@ else
   echo 'while true; do adb -d shell input keyevent mouse ; sleep 1 ; done'
   device="-d"
 fi
-adb \$device uninstall \$appid || echo
+
 adb \$device install $BUILD_OUT/apk/app-release-unsigned.apk
 adb \$device shell am start -n \$appid/android.app.NativeActivity
 adb \$device logcat | grep 'NativeActivity:'

@@ -203,7 +203,6 @@ class ZigArgs is ZigArgs_ {
     if (["ReleaseSmall", "ReleaseFast"].contains(opt_mode)) {
       args["compile"].addAll([
         "-fstrip",
-        "-flto",
       ])
     }
 

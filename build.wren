@@ -1,5 +1,8 @@
 import "os" for Process
 import "io" for File
+import "hash" for Sha256
+
+import "build/config" for Config
 
 var launcher = Fn.new { |b, args|
   b.src("src/main.wren")
@@ -29,7 +32,7 @@ var xos = Fn.new { |b, args|
   b.install("support/bin", curl.exe("curl"))
   b.install("support/bin", wren.exe("wren"))
 
-  File.write("xos_id", b.key)
+  File.write("xos_id", Sha256.hashHex(Config.get("xos_id") + b.key))
   b.install("support", "xos_id")
 }
 

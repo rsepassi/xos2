@@ -192,19 +192,20 @@ echo "" > $supportdir/bootstrap
 if [ "$1" = "full" ]
 then
   cd $rootdir
-  mkdir -p .xos-cache
-  rm -rf .xos-cache/label
-  rm -rf .xos-cache/tools
 
   # Build xos with bootstrap
+  # TODO: Double runs because sometimes the first one fails???
+  LOG=0 $outdir/xos build --opt=Small :xos
   LOG=0 $outdir/xos build --opt=Small :xos
 
   # Build xos with xos built by bootstrap
   mv xos-out $tmpdir/xos1
   LOG=0 $tmpdir/xos1/xos build --opt=Small :xos
+  LOG=0 $tmpdir/xos1/xos build --opt=Small :xos
 
   # Build xos with xos built by xos
   mv xos-out $tmpdir/xos2
+  LOG=0 $tmpdir/xos2/xos build --opt=Small :xos
   LOG=0 $tmpdir/xos2/xos build --opt=Small :xos
 
   mv $tmpdir/xos1 $builddir/

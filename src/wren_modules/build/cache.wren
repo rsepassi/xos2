@@ -84,7 +84,6 @@ class BuildCacheEntry_ {
 
   init() {
     Directory.deleteTree(_dir)
-    Directory.deleteTree(toolCacheDir)
     _tmpi = 0
     _ok = null
     _deps = null
@@ -112,18 +111,20 @@ class BuildCacheEntry_ {
     return Directory.ensure(Path.join([workDir, ".xos_tmp", "tmp%(_tmpi)"]))
   }
 
-  deps {
+  info {
     if (_deps == null) {
-      _deps = JSON.parse(File.read(Path.join([_dir, "deps.json"])))
+      _deps = JSON.parse(File.read(infoPath_))
     }
     return _deps
   }
 
-  recordDeps(deps) {
-    File.write(Path.join([_dir, "deps.json"]), JSON.stringify(deps))
+  recordInfo(info) {
+    File.write(infoPath_, JSON.stringify(info))
   }
 
   toolCacheDir { Path.join([_cache.dir, "tools", _key[0...2], _key]) }
+
+  infoPath_ { Path.join([_dir, "info.json"]) }
 }
 
 class FileHashCache_ {

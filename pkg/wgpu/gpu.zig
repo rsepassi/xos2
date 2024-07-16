@@ -6,6 +6,7 @@
 // * https://www.w3.org/TR/WGSL
 // * Built-ins: https://www.w3.org/TR/WGSL/#builtin-inputs-outputs
 
+const builtin = @import("builtin");
 const std = @import("std");
 
 pub const c = @cImport({
@@ -13,7 +14,7 @@ pub const c = @cImport({
     @cInclude("wgpu.h");
 });
 
-const log_level = .info;
+const log_level = if (builtin.mode == .Debug) .debug else .info;
 
 const log = std.log.scoped(.gpu);
 

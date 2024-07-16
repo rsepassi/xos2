@@ -48,9 +48,11 @@ class android {
         "-L%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/aarch64-linux-android/29",
       ],
     }))
-
-    File.write("env.json", JSON.stringify(sdkenv_(rootdir, b.cls.Target.host.os)))
+    var env = sdkenv_(rootdir, b.cls.Target.host.os)
+    File.write("env.json", JSON.stringify(env))
     b.install("", "env.json")
+    File.write("env.sh", env.map { |el| "%(el.key)=%(el.value)" }.toList.join("\n"))
+    b.install("", "env.sh")
   }
 
   static wrap(dir) { Android.new(dir) }
@@ -85,7 +87,7 @@ var native_app_glue = Fn.new { |b, args|
   b.installLib(lib)
   b.installHeader("%(rootdir)/ndk-bundle/sources/android/native_app_glue/android_native_app_glue.h")
   b.installLibConfig(zig.libConfig(b, "native_app_glue", {
-    "ldflags": ["-cflags", "-u", "ANativeActivity_onCreate", "--"],
+    "ldflags": ["--force_undefined", "ANativeActivity_onCreate"],
   }))
 }
 

@@ -200,7 +200,7 @@ class ZigArgs is ZigArgs_ {
     }
 
     args["compile"].add("-freference-trace")
-    if (["ReleaseSmall", "ReleaseFast"].contains(opt_mode)) {
+    if (["ReleaseSmall", "ReleaseFast"].contains(opt_mode) || b.target.abi == "android") {
       args["compile"].addAll([
         "-fstrip",
       ])

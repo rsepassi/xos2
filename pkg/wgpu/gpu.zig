@@ -337,6 +337,7 @@ pub const Instance = extern struct {
                 .sType = c.WGPUSType_InstanceExtras,
             },
             .flags = if (log_level == .debug) c.WGPUInstanceFlag_Debug else 0,
+            // .backends = if (builtin.abi == .android) c.WGPUInstanceBackend_GL else 0,
         };
         return .{ .ptr = c.wgpuCreateInstance(&.{
             .nextInChain = @ptrCast(&instance_desc),

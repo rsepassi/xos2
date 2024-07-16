@@ -85,11 +85,11 @@ static void fatal(const char* msg) {
 
 static void ctxHandleCmd(struct android_app* app, int32_t cmd) {
   Ctx* ctx = (Ctx*)app->userData;
-  ANativeWindow* window = ctx->app->window;
   switch (cmd) {
     case APP_CMD_INIT_WINDOW: {
       LOGI("APP_CMD_INIT_WINDOW");
       LOGI("init display");
+      ANativeWindow* window = app->window;
       _xos_android_provide_native_window(window, ANativeWindow_getWidth(window), ANativeWindow_getHeight(window));
     } break;
     case APP_CMD_START:
@@ -108,6 +108,7 @@ static void ctxHandleCmd(struct android_app* app, int32_t cmd) {
     case APP_CMD_WINDOW_REDRAW_NEEDED:
     case APP_CMD_CONTENT_RECT_CHANGED: {
       LOGI("APP_CMD_ resize %d", cmd);
+      ANativeWindow* window = app->window;
       _xos_android_handle_resize(ANativeWindow_getWidth(window), ANativeWindow_getHeight(window));
     } break;
     case APP_CMD_INPUT_CHANGED:
@@ -125,6 +126,7 @@ static void ctxHandleCmd(struct android_app* app, int32_t cmd) {
   }
 }
 
+// https://developer.android.com/reference/games/game-activity/struct/android-app
 void android_main(struct android_app* app) {
   LOGI("hello world!");
   LOGI("android_main");
@@ -135,6 +137,12 @@ void android_main(struct android_app* app) {
   app->onInputEvent = ctxHandleInput;
 
   if (app->savedState != NULL) LOGE("saved state, ignoring");
+
+  // https://developer.android.com/ndk/reference/struct/a-native-activity
+  ANativeActivity* activity = app->activity;
+  AAssetManager* asset_manager = activity->assetManager;
+  JNIEnv* jni = activity->env;
+  const char* data_path = activity->internalDataPath;
 
   LOGI("android_main loop");
   while (!app->destroyRequested) {

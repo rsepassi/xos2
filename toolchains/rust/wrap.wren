@@ -74,7 +74,7 @@ class Rust {
     var rustup = cargoExe_(base.build, "rustup")
     var rustup_env = Process.env()
     rustup_env["HOME"] = rust_home
-    Process.spawn([rustup, "target", "add", rust_target], rustup_env)
+    b.spawn([rustup, "target", "add", rust_target], rustup_env)
 
     var cargo = cargoExe_(base.build, "cargo")
     if (!File.exists("Cargo.lock")) Fiber.abort("Cargo.lock missing")
@@ -112,7 +112,7 @@ class Rust {
     env[RustTriples["%(b.target)"]["linker"]] = "rustcc"
 
     var stdio = Log.level == Log.DEBUG ? [null, 1, 2] : null
-    Process.spawn(args, env, stdio)
+    b.spawn(args, env, stdio)
 
     var artifact_dir = Path.join(["target", rust_target, opt == 0 ? "debug" : "release"])
 

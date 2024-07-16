@@ -195,15 +195,21 @@ class Build {
   mktmp() { _cache_entry.mktmp() }
   mktmpdir() { _cache_entry.mktmpdir() }
 
+  spawn(args) { spawn(args, null, null) }
+  spawn(args, env) { spawn(args, env, null) }
+  spawn(args, env, stdio) {
+    Log.debug("running command: %(args)")
+    stdio = NormalizeStdio_.call(stdio)
+    Process.spawn(args, env, stdio)
+  }
+
   system(args) { system(args, null, null) }
   system(args, env) { system(args, env, null) }
   system(args, env, stdio) {
     if (!Path.isAbs(args[0])) {
       args[0] = WhichExe_.call(args[0], Config.get("system_path"))
     }
-    Log.debug("running system command: %(args)")
-    stdio = NormalizeStdio_.call(stdio)
-    Process.spawn(args, env, stdio)
+    spawn(args, env, stdio)
   }
 
   systemExport(args) { systemExport(args, null, null) }

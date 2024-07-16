@@ -90,19 +90,20 @@ pub fn init(self: *App, appctx: *app.Ctx) !void {
     const ft = try text.FreeType.init();
     errdefer ft.deinit();
 
-    const resources = appctx.resources().?;
-    var font_path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const font_path = try resources.dir.realpath("CourierPrime-Regular.ttf", &font_path_buf);
-    font_path_buf[font_path.len] = 0;
+    // TODO: re-enable
+    // const resources = appctx.resources().?;
+    // var font_path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    // const font_path = try resources.dir.realpath("CourierPrime-Regular.ttf", &font_path_buf);
+    // font_path_buf[font_path.len] = 0;
 
-    const font = try ft.font(.{
-        .path = @ptrCast(font_path),
-        .pxsize = 40,
-    });
-    errdefer font.deinit();
-    log.debug("ascii atlas", .{});
-    const atlas = try text.buildAsciiAtlas(allocator, font);
-    errdefer atlas.deinit();
+    // const font = try ft.font(.{
+    //     .path = @ptrCast(font_path),
+    //     .pxsize = 40,
+    // });
+    // errdefer font.deinit();
+    // log.debug("ascii atlas", .{});
+    // const atlas = try text.buildAsciiAtlas(allocator, font);
+    // errdefer atlas.deinit();
 
     self.* = .{
         .appctx = appctx,
@@ -114,8 +115,11 @@ pub fn init(self: *App, appctx: *app.Ctx) !void {
         .vg_pipeline = vg_pipeline,
         .vg_backend = self.vg_backend,
         .ft = ft,
-        .font = font,
-        .atlas = atlas,
+        // TODO: re-enable
+        // .font = font,
+        // .atlas = atlas,
+        .font = undefined,
+        .atlas = undefined,
     };
 }
 
@@ -183,25 +187,26 @@ fn render(self: *App) !void {
     const sprite_args = self.sprite_pipeline.makeArgs(pipeline_spritesheet, &sprite_locs);
     defer sprite_args.deinit();
 
-    log.debug("glyphs", .{});
-    const pipeline_atlas = try GlyphPipeline.Atlas.init(self.pipectx.gfx, .{ .data = self.atlas.data, .size = self.atlas.size });
-    defer pipeline_atlas.deinit();
-    var glyph_locs = try GlyphPipeline.GlyphLocs.init(self.pipectx, 100);
-    defer glyph_locs.deinit();
-    {
-        const colors = twod.color(twod.RGBf);
-        const xinfo = self.atlas.info.get(self.font.glyphIdx('x')).?;
-        const xbox = xinfo.quad;
-        const abox = self.atlas.info.get(self.font.glyphIdx('a')).?.quad;
-        const box = twod.Rect.fromSize(xbox.size());
+    // TODO: re-enable
+    // log.debug("glyphs", .{});
+    // const pipeline_atlas = try GlyphPipeline.Atlas.init(self.pipectx.gfx, .{ .data = self.atlas.data, .size = self.atlas.size });
+    // defer pipeline_atlas.deinit();
+    // var glyph_locs = try GlyphPipeline.GlyphLocs.init(self.pipectx, 100);
+    // defer glyph_locs.deinit();
+    // {
+    //     const colors = twod.color(twod.RGBf);
+    //     const xinfo = self.atlas.info.get(self.font.glyphIdx('x')).?;
+    //     const xbox = xinfo.quad;
+    //     const abox = self.atlas.info.get(self.font.glyphIdx('a')).?.quad;
+    //     const box = twod.Rect.fromSize(xbox.size());
 
-        try glyph_locs.write(&.{
-            .{ .pos = box, .uv = xbox, .color = colors.green() },
-            .{ .pos = box.right(@floatFromInt(xinfo.info.advance_width)), .uv = abox, .color = colors.red() },
-        });
-    }
-    const glyph_args = self.glyph_pipeline.makeArgs(pipeline_atlas, &glyph_locs);
-    defer glyph_args.deinit();
+    //     try glyph_locs.write(&.{
+    //         .{ .pos = box, .uv = xbox, .color = colors.green() },
+    //         .{ .pos = box.right(@floatFromInt(xinfo.info.advance_width)), .uv = abox, .color = colors.red() },
+    //     });
+    // }
+    // const glyph_args = self.glyph_pipeline.makeArgs(pipeline_atlas, &glyph_locs);
+    // defer glyph_args.deinit();
 
     log.debug("vg", .{});
 
@@ -251,7 +256,8 @@ fn render(self: *App) !void {
             Run.init(&self.image_pipeline, &image_argsA, ImagePipeline.run),
             Run.init(&self.image_pipeline, &image_argsB, ImagePipeline.run),
             Run.init(&self.sprite_pipeline, &sprite_args, SpritePipeline.run),
-            Run.init(&self.glyph_pipeline, &glyph_args, GlyphPipeline.run),
+            // TODO: re-enable
+            // Run.init(&self.glyph_pipeline, &glyph_args, GlyphPipeline.run),
             Run.init(&self.vg_pipeline, &self.vg_backend.args, VgPipeline.run),
         },
     });

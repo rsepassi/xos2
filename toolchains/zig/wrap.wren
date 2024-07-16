@@ -91,6 +91,14 @@ class Zig {
     return "%(Process.cwd)/%(b.target.libName(name))"
   }
 
+  buildDylib(b, name, opts) {
+    var args = [_exe, "build-lib", "-dynamic", "--name", name]
+    args.addAll(buildArgs(b, opts).allExe)
+    exec_(b, args)
+    return "%(Process.cwd)/%(b.target.dylibName(name))"
+  }
+
+
   // zig build-exe
   buildExe(b, name, opts) {
     var args = [_exe, "build-exe", "--name", name]
@@ -193,7 +201,10 @@ class ZigArgs is ZigArgs_ {
 
     args["compile"].add("-freference-trace")
     if (["ReleaseSmall", "ReleaseFast"].contains(opt_mode)) {
-      args["compile"].add("-fstrip")
+      args["compile"].addAll([
+        "-fstrip",
+        "-flto",
+      ])
     }
 
     var cargs = GetCArgs_.call(b, opts)
@@ -265,6 +276,8 @@ var GetModules_ = Fn.new { |b, modules|
       var m = root_module
       root_module_key = m.key
       ldargs.addAll(m.libs)
+      var platform = Platform.get(b, m.platformOpts)
+      module_args.addAll(platform.flags)
       module_args.addAll(m.cflags)
       for (el in modules_wrapped) {
         module_args.addAll(["--dep", "%(el.key)=%(el.value.key)"])
@@ -278,6 +291,8 @@ var GetModules_ = Fn.new { |b, modules|
     var m = el.value
     if (m.key == root_module_key) continue
     ldargs.addAll(m.libs)
+    var platform = Platform.get(b, m.platformOpts)
+    module_args.addAll(platform.flags)
     module_args.addAll(m.cflags)
     for (el2 in m.modules) {
       var dep_key = el2.value.key

@@ -38,6 +38,7 @@ var BuiltinModules_ = {
 }
 
 class Build {
+  cls { Build }
   static Target { Target }
   static Label { Label }
 

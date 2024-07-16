@@ -9,16 +9,25 @@ var wgpu_header = Fn.new { |b, args|
 }
 
 var wgpu_platform = {
-  "macos": {
+  "macos-none": {
     "ldflags": ["-framework", "Metal", "-framework", "QuartzCore"]
   },
-  "windows": {
-    "ldflags": "-lunwind -lopengl32 -ldxgi -ld3d11 -lkernel32 -luser32 -ld3dcompiler".split(" "),
+  "windows-gnu": {
+    "ldflags": "-lopengl32 -ldxgi -ld3d11 -lkernel32 -luser32 -ld3dcompiler".split(" "),
   },
-  "linux": {
+  "linux-musl": {
     "ldflags": ["-lunwind"],
   },
-  "ios": {
+  "linux-gnu": {
+    "ldflags": ["-lunwind"],
+  },
+  "linux-android": {
+    "ldflags": [],
+  },
+  "ios-none": {
+    "ldflags": ["-framework", "Foundation", "-framework", "UIKit", "-framework", "Metal", "-framework", "MetalKit"],
+  },
+  "ios-simulator": {
     "ldflags": ["-framework", "Foundation", "-framework", "UIKit", "-framework", "Metal", "-framework", "MetalKit"],
   },
 }
@@ -38,12 +47,17 @@ var wgpu = Fn.new { |b, args|
   var rust = b.deptool("//toolchains/rust")
   var lib = rust.buildLib(b, "wgpu_native", {})
 
+  var platform_str = "%(b.target.os)-%(b.target.abi)"
+  var is_android = platform_str == "linux-android"
+  var c_deps = is_android ? [b.dep("//pkg/unwind_dummy")] : []
+
   b.installHeader("ffi/wgpu.h")
   b.installHeader("ffi/webgpu-headers/webgpu.h")
   b.installLib(lib)
   b.installLibConfig(rust.libConfig(b, "wgpu_native", {
-    "ldflags": wgpu_platform[b.target.os]["ldflags"],
+    "ldflags": wgpu_platform[platform_str]["ldflags"],
     "sdk": true,
+    "deps": c_deps,
     "libc": true,
   }))
 }

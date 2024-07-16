@@ -123,19 +123,24 @@ class IOS is Platform {
 
 class Android is Platform {
   construct new(b, opts) {
-    _dir = b.dep("//sdk/android")
+    _droid = b.dep("//sdk/android")
     _opts = opts
-    _pc = JSON.parse(File.read("%(_dir.path)/lib/pkgconfig/platform.pc.json"))
+    _pc = JSON.parse(File.read("%(_droid.installDir.path)/sdk.pc.json"))
     super(b, opts)
   }
 
   flags {
     return [
-      "--libc", "%(_dir.path)/libc.txt",
+      "--libc", "%(_droid.installDir.path)/libc.txt",
     ] + _pc["Cflags"]
   }
 
-  ldargs { _pc["Libs"] + super }
+  ldargs {
+    var args = []
+    args.addAll(_pc["Libs"])
+    args.addAll(super)
+    return args
+  }
 }
 
 var GetPlatform_ = Fn.new { |b, opts|

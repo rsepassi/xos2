@@ -129,10 +129,10 @@ void android_main(struct android_app* app) {
   LOGI("hello world!");
   LOGI("android_main");
   Ctx ctx = {0};
+  ctx.app = app;
   app->userData = &ctx;
   app->onAppCmd = ctxHandleCmd;
   app->onInputEvent = ctxHandleInput;
-  ctx.app = app;
 
   if (app->savedState != NULL) LOGE("saved state, ignoring");
 

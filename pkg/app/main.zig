@@ -372,11 +372,15 @@ const androidApp = struct {
 
     fn provideNativeWindow(window: *anyopaque, width: i32, height: i32) callconv(.C) void {
         log.debug("provideNativeWindow ({d}, {d})", .{ width, height });
-        gctx = .{
+        gctx = Ctx.init() catch |err| {
+            log.err("Ctx init failed: {any}", .{err});
+            @panic("Ctx init failed");
+        };
+        gctx.platform = .{
             .native_window = window,
             .window_size = .{ width, height },
         };
-        gapp = App.init(&gctx) catch |err| {
+        gapp = App.init(gctx) catch |err| {
             log.err("App init failed: {any}", .{err});
             @panic("App init failed");
         };
@@ -385,7 +389,7 @@ const androidApp = struct {
 
     fn handleResize(width: i32, height: i32) callconv(.C) void {
         log.debug("handleResize ({d}, {d})", .{ width, height });
-        gctx.window_size = .{ width, height };
+        gctx.platform.window_size = .{ width, height };
         gapp.onEvent(.{ .resize = {} });
     }
 

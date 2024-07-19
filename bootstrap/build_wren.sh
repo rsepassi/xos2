@@ -7,7 +7,7 @@ set -e
 src=$SRCDIR
 cd $src
 
-zig build-exe -O ReleaseSafe wren_to_c_string.c -lc
+zig build-exe -target $HOST -O ReleaseSafe wren_to_c_string.c -lc
 < src/optional/wren_opt_meta.wren ./wren_to_c_string wren_opt_meta > src/optional/wren_opt_meta.wren.inc
 < src/vm/wren_core.wren ./wren_to_c_string wren_core > src/vm/wren_core.wren.inc
 

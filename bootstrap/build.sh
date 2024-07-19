@@ -2,12 +2,12 @@
 
 set -ex
 
-get_target() {
+get_host() {
   case $(uname -m) in
     x86_64)
       arch=x86_64
       ;;
-    arm64)
+    arm64|aarch64)
       arch=aarch64
       ;;
     *)
@@ -16,7 +16,7 @@ get_target() {
       ;;
   esac
   case $(uname -o) in
-    Linux)
+    *Linux)
       os=linux
       abi=musl
       ;;
@@ -32,7 +32,8 @@ get_target() {
   echo $arch-$os-$abi
 }
 
-target=${TARGET:-"$(get_target)"}
+host=${HOST:-$(get_host)}
+target=${TARGET:-$host}
 target_os=$(echo $target | cut -d'-' -f2)
 opt=ReleaseSmall
 
@@ -93,6 +94,7 @@ then
     XOS_BOOTSTRAP=1 \
     XOS_BOOTSTRAP_ROOT=$rootdir \
     PATH="$toolsdir" \
+    HOST="$host" \
     TARGET="$target" \
     HOME="$HOME" \
     $bootstrapdir/build.sh "$@"
@@ -110,6 +112,7 @@ cp busybox/xos/bin/busybox $supportdir/bin
 
 mkdir -p libuv/xos
 tar xf $depsdir/libuv/libuv-1.48.0.tar.gz -C libuv --strip-components=1
+HOST=$host \
 TARGET=$target \
 TARGET_OS=$target_os \
 OPT=$opt \
@@ -119,6 +122,7 @@ BUILD_OUT=$PWD/libuv/xos \
 
 mkdir -p wren/xos
 cp -r $depsdir/wren/* wren/
+HOST=$host \
 TARGET=$target \
 TARGET_OS=$target_os \
 OPT=$opt \
@@ -128,6 +132,7 @@ BUILD_OUT=$PWD/wren/xos \
 
 mkdir -p ucl/xos
 tar xf $depsdir/ucl/ucl-0.9.2.tar.gz -C ucl --strip-components=1
+HOST=$host \
 TARGET=$target \
 TARGET_OS=$target_os \
 OPT=$opt \
@@ -137,6 +142,7 @@ BUILD_OUT=$PWD/ucl/xos \
 
 mkdir -p lmdb/xos
 tar xf $depsdir/lmdb/lmdb-0.9.31.tar.gz -C lmdb --strip-components=1
+HOST=$host \
 TARGET=$target \
 TARGET_OS=$target_os \
 OPT=$opt \
@@ -146,6 +152,7 @@ BUILD_OUT=$PWD/lmdb/xos \
 
 mkdir -p libglob/xos
 cp -r $depsdir/libglob/* libglob/
+HOST=$host \
 TARGET=$target \
 TARGET_OS=$target_os \
 OPT=$opt \
@@ -156,6 +163,7 @@ BUILD_OUT=$PWD/libglob/xos \
 # Wren CLI
 mkdir -p wrencli/xos
 cp -r $depsdir/wrencli/* wrencli/
+HOST=$host \
 TARGET=$target \
 TARGET_OS=$target_os \
 OPT=$opt \

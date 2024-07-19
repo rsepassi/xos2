@@ -37,7 +37,7 @@ class Label {
     var parts = Label.parseLabel_(label)
     var repo = parts[0] || "local"
     var path = parts[1]
-    var target = parts[2] || Path.basename(path)
+    var target = parts[2] || Path.basename(path).replace("-", "_")
 
     if (path.startsWith("//")) {
       path = path[2..-1]

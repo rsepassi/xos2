@@ -81,7 +81,7 @@ fn getRepoRoot(alloc: std.mem.Allocator, path: []const u8) ![]u8 {
         };
         return try std.fs.realpathAlloc(alloc, c);
     }
-    return "";
+    return try std.fs.realpathAlloc(alloc, ".");
 }
 
 fn getHostTriple() []const u8 {

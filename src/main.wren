@@ -148,21 +148,28 @@ xos run [<build-flags>...] [--bin=<binname>] [--binargs <bin-arg>... --] <label>
   return f.error == null
 }
 
-var env = Fn.new { |args|
-    var vars = [
-      "XOS_ROOT",
-      "XOS_REPO_ROOT",
-      "XOS_SYSTEM_PATH",
-      "XOS_HOST",
-      "XOS_ID",
-      "WREN_MODULES",
-      "PATH",
-      "LOG",
-      "LOG_SCOPES",
-    ]
+var readenv = Fn.new {
+  var vars = [
+    "XOS_ROOT",
+    "XOS_REPO_ROOT",
+    "XOS_SYSTEM_PATH",
+    "XOS_SYSTEM_HOME",
+    "XOS_HOST",
+    "XOS_ID",
+    "WREN_MODULES",
+    "PATH",
+    "LOG",
+    "LOG_SCOPES",
+  ]
+  var env = {}
+  for (v in vars) env[v] = Process.env(v)
+  return env
+}
 
-  for (v in vars) {
-    System.print("%(v)=%(Process.env(v))")
+var env_cmd = Fn.new { |args|
+  var env = readenv.call()
+  for (v in env) {
+    System.print("%(v.key)=%(v.value)")
   }
   return true
 }
@@ -212,21 +219,24 @@ CMDS = {
   "help": help,
   "build": build,
   "run": run,
-  "env": env,
+  "env": env_cmd,
   "cache": cache,
 }
 
 var initConfig = Fn.new {
+  var env = readenv.call()
   var config = {
-    "repo_root": Process.env("XOS_REPO_ROOT"),
-    "system_path": Process.env("XOS_SYSTEM_PATH"),
-    "system_home": Process.env("XOS_SYSTEM_HOME"),
-    "host_target": Build.Target.parse(Process.env("XOS_HOST")),
-    "xos_id": Process.env("XOS_ID"),
-    "no_cache": Process.env("NO_CACHE") == "1",
+    "repo_root": env["XOS_REPO_ROOT"],
+    "system_path": env["XOS_SYSTEM_PATH"],
+    "system_home": env["XOS_SYSTEM_HOME"],
+    "host_target": Build.Target.parse(env["XOS_HOST"]),
+    "xos_id": env["XOS_ID"],
+    "no_cache": env["NO_CACHE"] == "1",
     "cwd": Process.cwd,
-    "bootstrap": File.exists("%(Process.env("XOS_ROOT"))/support/bootstrap"),
+    "bootstrap": File.exists("%(env["XOS_ROOT"])/support/bootstrap"),
   }
+  Log.debug("Config")
+  Log.debug(config)
   Config.init(config)
 }
 

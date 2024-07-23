@@ -9,14 +9,22 @@ var getSrc_ = Fn.new { |b|
 var plum = Fn.new { |b, args|
   getSrc_.call(b)
   var zig = b.deptool("//toolchains/zig")
+
+  var ldflags = b.target.os == "windows" ?
+    ["-lws2_32", "-lbcrypt", "-liphlpapi"] :
+    []
+
   var lib = zig.buildLib(b, "plum", {
-    "flags": ["-Iinclude/plum"],
+    "flags": ["-Iinclude/plum", "-DPLUM_STATIC=1"],
     "c_srcs": b.glob("src/*.c"),
     "libc": true,
   })
   b.installLib(lib)
   b.installHeaderDir("include")
-  b.installLibConfig(zig.libConfig(b))
+  b.installLibConfig(zig.libConfig(b, "plum", {
+    "cflags": ["-DPLUM_STATIC=1"],
+    "ldflags": ldflags,
+  }))
 }
 
 var example = Fn.new { |b, args|

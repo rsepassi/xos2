@@ -28,6 +28,19 @@ var libuv = Fn.new { |b, args|
   b.install("include/uv", headers)
   b.installLibConfig(zig.libConfig(b, "uv", {
     "ldflags": os["ldflags"] || [],
+    "libc": true,
+  }))
+}
+
+var zig = Fn.new { |b, args|
+  var zig = b.deptool("//toolchains/zig")
+  b.srcGlob("zig/*.zig")
+  b.install("zig", zig.moduleConfig(b, {
+    "root": b.src("zig/uv.zig"),
+    "modules": {
+      "zigcoro": b.dep("//deps/zigcoro"),
+    },
+    "c_deps": [zig.cDep(b.dep(":libuv"), "uv")],
   }))
 }
 

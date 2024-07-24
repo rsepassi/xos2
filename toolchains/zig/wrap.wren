@@ -372,9 +372,10 @@ var CollectModules_ = Fn.new { |all, modules|
     } else {
       var m = el.value
       m = m is ModuleDep ? m : ModuleDep.create(m)
+      wrapped[el.key] = m
+
       if (all.containsKey(m.key)) continue
       all[m.key] = m
-      wrapped[el.key] = m
       CollectModules_.call(all, m.modules)
     }
   }

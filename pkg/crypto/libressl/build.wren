@@ -1,8 +1,7 @@
 import "os" for Process
 import "io" for File
 
-var Url = "https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.9.2.tar.gz"
-var Hash = "7b031dac64a59eb6ee3304f7ffb75dad33ab8c9d279c847f92c89fb846068f97"
+import "xos//pkg/crypto/libressl/shared" for FetchSrc
 
 var libressl = Fn.new { |b, args|
   var libcrypto = b.dep("crypto")
@@ -23,7 +22,7 @@ var libressl = Fn.new { |b, args|
     ],
   }))
 
-  Process.chdir(b.untar(b.fetch(Url, Hash)))
+  Process.chdir(FetchSrc.call(b))
   File.delete("include/openssl/Makefile.am")
   File.delete("include/openssl/Makefile.in")
   b.installHeader("include/tls.h")

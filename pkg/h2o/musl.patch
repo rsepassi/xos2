@@ -1,0 +1,39 @@
+diff --git a/deps/hiredis/hiredis.h b/deps/hiredis/hiredis.h
+index 77d5797..43b7350 100644
+--- a/deps/hiredis/hiredis.h
++++ b/deps/hiredis/hiredis.h
+@@ -83,7 +83,7 @@
+ /* strerror_r has two completely different prototypes and behaviors
+  * depending on system issues, so we need to operate on the error buffer
+  * differently depending on which strerror_r we're using. */
+-#ifndef _GNU_SOURCE
++#if !defined(_GNU_SOURCE) || defined(_MUSL_LIB)
+ /* "regular" POSIX strerror_r that does the right thing. */
+ #define __redis_strerror_r(errno, buf, len)                                    \
+     do {                                                                       \
+diff --git a/include/h2o/memory.h b/include/h2o/memory.h
+index e706002..9883188 100644
+--- a/include/h2o/memory.h
++++ b/include/h2o/memory.h
+@@ -54,7 +54,7 @@ extern "C" {
+ #define H2O_GNUC_VERSION 0
+ #endif
+ 
+-#if __STDC_VERSION__ >= 201112L
++#if __STDC_VERSION__ >= 201112L && !defined(_MUSL_LIB)
+ #define H2O_NORETURN _Noreturn
+ #elif defined(__clang__) || defined(__GNUC__) && H2O_GNUC_VERSION >= 0x20500
+ // noreturn was not defined before gcc 2.5
+diff --git a/lib/common/memory.c b/lib/common/memory.c
+index 327440b..ca75b70 100644
+--- a/lib/common/memory.c
++++ b/lib/common/memory.c
+@@ -604,7 +604,7 @@ void h2o_append_to_null_terminated_list(void ***list, void *element)
+ 
+ char *h2o_strerror_r(int err, char *buf, size_t len)
+ {
+-#if !(defined(_GNU_SOURCE) && defined(__gnu_linux__))
++#if (!(defined(_GNU_SOURCE) && defined(__gnu_linux__))) || defined(_MUSL_LIB)
+     strerror_r(err, buf, len);
+     return buf;
+ #else

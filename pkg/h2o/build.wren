@@ -13,6 +13,78 @@ var os_flags = {
   ],
 }
 
+var picohttpparser = Fn.new { |b, args|
+  Process.chdir(b.untar(b.fetch(Url, Hash)))
+  var zig = b.deptool("//toolchains/zig")
+  var lib = zig.buildLib(b, "picohttpparser", {
+    "c_srcs": [
+      "deps/picohttpparser/picohttpparser.c",
+    ],
+    "flags": ["-Ideps/picohttpparser"] + (os_flags[b.target.os] || []),
+    "libc": true,
+  })
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
+  b.installHeader(b.glob("deps/picohttpparser/*.h"))
+}
+
+var hiredis = Fn.new { |b, args|
+  Process.chdir(b.untar(b.fetch(Url, Hash)))
+  Patch.read(b.src("musl.patch")).apply()
+  var zig = b.deptool("//toolchains/zig")
+  var lib = zig.buildLib(b, "hiredis", {
+    "c_srcs": [
+      "deps/hiredis/async.c",
+      "deps/hiredis/hiredis.c",
+      "deps/hiredis/net.c",
+      "deps/hiredis/read.c",
+      "deps/hiredis/sds.c",
+    ],
+    "flags": ["-Ideps/hiredis"] + (os_flags[b.target.os] || []),
+    "libc": true,
+  })
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
+  b.installHeader(b.glob("deps/hiredis/*.h"))
+}
+
+var yrmcds = Fn.new { |b, args|
+  Process.chdir(b.untar(b.fetch(Url, Hash)))
+  var zig = b.deptool("//toolchains/zig")
+  var lib = zig.buildLib(b, "yrmcds", {
+    "c_srcs": [
+      "deps/libyrmcds/close.c",
+      "deps/libyrmcds/connect.c",
+      "deps/libyrmcds/counter.c",
+      "deps/libyrmcds/recv.c",
+      "deps/libyrmcds/send.c",
+      "deps/libyrmcds/send_text.c",
+      "deps/libyrmcds/set_compression.c",
+      "deps/libyrmcds/socket.c",
+      "deps/libyrmcds/strerror.c",
+      "deps/libyrmcds/text_mode.c",
+    ],
+    "flags": ["-Ideps/libyrmcds"],
+    "libc": true,
+  })
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
+  b.installHeader(b.glob("deps/libyrmcds/*.h"))
+}
+
+var yaml = Fn.new { |b, args|
+  Process.chdir(b.untar(b.fetch(Url, Hash)))
+  var zig = b.deptool("//toolchains/zig")
+  var lib = zig.buildLib(b, "yaml", {
+    "c_srcs": b.glob("deps/yaml/src/*.c"),
+    "flags": ["-Ideps/yaml/src", "-Ideps/yaml/include"],
+    "libc": true,
+  })
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
+  b.installHeaderDir("deps/yaml/include")
+}
+
 var libh2o = Fn.new { |b, args|
   Process.chdir(b.untar(b.fetch(Url, Hash)))
 
@@ -25,6 +97,10 @@ var libh2o = Fn.new { |b, args|
 
   var zig = b.deptool("//toolchains/zig")
   var deps = [
+    b.dep(":yaml"),
+    b.dep(":yrmcds"),
+    b.dep(":hiredis"),
+    b.dep(":picohttpparser"),
     b.dep("//pkg/quicly"),
     zig.cDep(b.dep("//deps/zlib"), "z"),
     zig.cDep(b.dep("//deps/libuv"), "uv"),
@@ -32,52 +108,15 @@ var libh2o = Fn.new { |b, args|
   var lib = zig.buildLib(b, "h2o", {
     "c_srcs": b.glob("lib/**/*.c") + [
       "deps/cloexec/cloexec.c",
-      "deps/hiredis/async.c",
-      "deps/hiredis/hiredis.c",
-      "deps/hiredis/net.c",
-      "deps/hiredis/read.c",
-      "deps/hiredis/sds.c",
       "deps/libgkc/gkc.c",
-      "deps/libyrmcds/close.c",
-      "deps/libyrmcds/connect.c",
-      "deps/libyrmcds/recv.c",
-      "deps/libyrmcds/send.c",
-      "deps/libyrmcds/send_text.c",
-      "deps/libyrmcds/socket.c",
-      "deps/libyrmcds/strerror.c",
-      "deps/libyrmcds/text_mode.c",
-      "deps/picohttpparser/picohttpparser.c",
-    ] + b.glob("deps/yaml/src/*.c"),
-    "c_flags": [
-      "-std=c99",
-      "-Wall",
-      "-Wno-unused-value",
-      "-Wno-unused-function",
-      "-Wno-nullability-completeness",
-      "-Wno-expansion-to-defined",
-      "-Werror=implicit-function-declaration",
-      "-Werror=incompatible-pointer-types",
     ],
     "flags": [
       "-DH2O_USE_LIBUV=0",
       "-DH2O_USE_BROTLI=1",
       "-Iinclude",
       "-Ideps/cloexec",
-      "-Ideps/brotli/c/include",
       "-Ideps/golombset",
-      "-Ideps/hiredis",
       "-Ideps/libgkc",
-      "-Ideps/libyrmcds",
-      "-Ideps/klib",
-      "-Ideps/neverbleed",
-      "-Ideps/picohttpparser",
-      "-Ideps/picotest",
-      "-Ideps/picotls/deps/cifra/src/ext",
-      "-Ideps/picotls/deps/cifra/src",
-      "-Ideps/picotls/deps/micro-ecc",
-      "-Ideps/picotls/include",
-      "-Ideps/quicly/include",
-      "-Ideps/yaml/include",
       "-Ideps/yoml",
     ] + (os_flags[b.target.os] || []),
     "c_deps": deps,
@@ -101,11 +140,8 @@ var h2o = Fn.new { |b, args|
       "-DH2O_USE_LIBUV=0",
       "-DH2O_USE_BROTLI=1",
       "-Ideps/cloexec",
-      "-Ideps/hiredis",
       "-Ideps/yoml",
-      "-Ideps/yaml/include",
       "-Ideps/neverbleed",
-      "-Ideps/libyrmcds",
     ] + (os_flags[b.target.os] || []),
     "c_deps": [zig.cDep(b.dep(":libh2o"), "h2o")],
     "libc": true,

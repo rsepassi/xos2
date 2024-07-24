@@ -113,10 +113,18 @@ var h2o = Fn.new { |b, args|
   b.installExe(exe)
 }
 
-// todo: exe
-// src/httpclient.c
-//
-// todo: exe
-// src/main.c
-// src/ssl.c
-// "deps/neverbleed/neverbleed.c",
+var httpclient = Fn.new { |b, args|
+  Process.chdir(b.untar(b.fetch(Url, Hash)))
+
+  var zig = b.deptool("//toolchains/zig")
+  var exe = zig.buildExe(b, "httpclient", {
+    "c_srcs": ["src/httpclient.c"],
+    "flags": [
+      "-DH2O_USE_LIBUV=0",
+      "-DH2O_USE_BROTLI=1",
+    ] + (os_flags[b.target.os] || []),
+    "c_deps": [zig.cDep(b.dep(":libh2o"), "h2o")],
+    "libc": true,
+  })
+  b.installExe(exe)
+}

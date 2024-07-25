@@ -11,7 +11,7 @@ var Cflags = [
 ]
 
 var Defines = [
-  "-DHAS_GNU_WARNING_LONG=2",
+  "-DHAS_GNU_WARNING_LONG=1",
   "-DHAVE_ACCEPT4=1",
   "-DHAVE_ARPA_NAMESER_H=1",
   "-DHAVE_ASPRINTF=1",
@@ -23,7 +23,6 @@ var Defines = [
   "-DHAVE_EXPLICIT_BZERO=1",
   "-DHAVE_GETAUXVAL=1",
   "-DHAVE_GETAUXVAL=1",
-  "-DHAVE_GETOPT=1",
   "-DHAVE_GNU_STACK",
   "-DHAVE_INTTYPES_H=1",
   "-DHAVE_MEMMEM=1",
@@ -38,7 +37,6 @@ var Defines = [
   "-DHAVE_STDINT_H=1",
   "-DHAVE_STDIO_H=1",
   "-DHAVE_STDLIB_H=1",
-  "-DHAVE_STRCASECMP=1",
   "-DHAVE_STRINGS_H=1",
   "-DHAVE_STRING_H=1",
   "-DHAVE_STRLCAT=1",
@@ -58,18 +56,18 @@ var Defines = [
   "-DLIBRESSL_CRYPTO_INTERNAL",
   "-DLIBRESSL_INTERNAL",
   "-DOPENSSLDIR=\"/etc/ssl\"",
+  "-DOPENSSL_NO_ASM",
   "-DOPENSSL_NO_HW_PADLOCK",
   "-DPACKAGE=\"libressl\"",
   "-DPACKAGE_BUGREPORT=\"\"",
   "-DPACKAGE_NAME=\"libressl\"",
-  "-DPACKAGE_STRING=\"libressl 3.9.2\"",
+  "-DPACKAGE_STRING=\"libressl 3.7.3\"",
   "-DPACKAGE_TARNAME=\"libressl\"",
   "-DPACKAGE_URL=\"\"",
-  "-DPACKAGE_VERSION=\"3.9.2\"",
+  "-DPACKAGE_VERSION=\"3.7.3\"",
   "-DSIZEOF_TIME_T=8",
   "-DSTDC_HEADERS=1",
-  "-DTLS_DEFAULT_CA_FILE=\"/etc/ssl/cert.pem\"",
-  "-DVERSION=\"3.9.2\"",
+  "-DVERSION=\"3.7.3\"",
   "-D_BSD_SOURCE",
   "-D_DEFAULT_SOURCE",
   "-D_FORTIFY_SOURCE=2",
@@ -78,3 +76,13 @@ var Defines = [
   "-D__BEGIN_HIDDEN_DECLS=",
   "-D__END_HIDDEN_DECLS=",
 ]
+
+// CC="zig cc -target x86_64-linux-musl -lc" ./configure \
+// --prefix=$PWD/xos \
+// --host=x86_64-pc-linux-musl \
+// --disable-asm \
+// --disable-nc \
+// --disable-tests \
+// --disable-shared \
+// --disable-dependency-tracking \
+// --disable-silent-rules

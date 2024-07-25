@@ -49,8 +49,7 @@ var CryptoIncludes = [
 var CryptoArch = {
   "aarch64": {
     "flags": [
-      "-Icrypto/bn-arch/aarch64",
-      "-DOPENSSL_NO_ASM",
+      "-Icrypto/bn/arch/aarch64",
       "-D__ARM_ARCH_8A__=1",
     ],
     "srcs": [
@@ -59,8 +58,7 @@ var CryptoArch = {
   },
   "x86_64": {
     "flags": [
-      "-Icrypto/bn-arch/amd64",
-      "-DOPENSSL_NO_ASM",
+      "-Icrypto/bn/arch/amd64",
     ],
     "srcs": [
     ],
@@ -69,27 +67,33 @@ var CryptoArch = {
 
 var CryptoCompatSrcs = Fn.new { |b|
   var unix_srcs = [
-    "crypto/crypto_lock.c",
     "crypto/bio/b_posix.c",
     "crypto/bio/bss_log.c",
+    "crypto/crypto_lock.c",
     "crypto/ui/ui_openssl.c",
   ]
 
   var linux_srcs = [
+    "crypto/compat/getentropy_linux.c",
     "crypto/compat/getprogname_linux.c",
   ]
 
-  var win_srcs = [
-    "crypto/compat/crypto_lock_win.c",
-    "crypto/compat/getprogname_windows.c",
-    "crypto/bio/b_win.c",
-    "crypto/ui/ui_openssl_win.c",
-    "crypto/compat/posix_win.c",
+  var mac_srcs = [
+    "crypto/compat/getentropy_osx.c",
+  ]
 
+  var win_srcs = [
+    "crypto/bio/b_win.c",
+    "crypto/compat/crypto_lock_win.c",
+    "crypto/compat/getentropy_win.c",
+    "crypto/compat/getprogname_windows.c",
+    "crypto/compat/posix_win.c",
+    "crypto/ui/ui_openssl_win.c",
   ]
 
   if (b.target.os == "windows") return win_srcs
   if (b.target.os == "linux") return unix_srcs + linux_srcs
+  if (b.target.os == "macos") return unix_srcs + mac_srcs
 
   Fiber.abort("platform unimpl")
 }
@@ -193,7 +197,6 @@ var CryptoSrcs = [
   "crypto/bio/bss_mem.c",
   "crypto/bio/bss_null.c",
   "crypto/bio/bss_sock.c",
-  "crypto/bn/arch/amd64/bn_arch.c",
   "crypto/bn/bn_add.c",
   "crypto/bn/bn_blind.c",
   "crypto/bn/bn_bpsw.c",
@@ -263,8 +266,11 @@ var CryptoSrcs = [
   "crypto/comp/comp_err.c",
   "crypto/comp/comp_lib.c",
   "crypto/compat/arc4random.c",
+  "crypto/compat/arc4random_uniform.c",
   "crypto/compat/freezero.c",
+  "crypto/compat/getpagesize.c",
   "crypto/compat/recallocarray.c",
+  "crypto/compat/strcasecmp.c",
   "crypto/compat/strtonum.c",
   "crypto/compat/syslog_r.c",
   "crypto/compat/timingsafe_bcmp.c",

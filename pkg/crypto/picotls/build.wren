@@ -1,8 +1,8 @@
 import "os" for Process
 import "io" for File
 
-var Url = "https://api.github.com/repos/h2o/picotls/tarball/096fc5c"
-var Hash = "46cd4aa4d3c6c00cd85168daa17dc44daf766dd665ac5fb21cdaeb7b82602844"
+var Url = "https://api.github.com/repos/h2o/picotls/tarball/703553c"
+var Hash = "f117836d8efe7146b60bbc9e19ce8e273c1208fde2cb025c2713083421ab2944"
 
 var cifra = Fn.new { |b, args|
   Process.chdir(b.untar(b.fetch(Url, Hash)))

@@ -60,9 +60,16 @@ pub fn main() !void {
     try child.spawn();
     switch (try child.wait()) {
         .Exited => |code| {
+            if (code != 0)
+                std.debug.print("xos failed (code={d})\n", .{code});
             std.process.exit(code);
         },
+        .Signal => |signal| {
+            std.debug.print("xos killed by signal {d}\n", .{signal});
+            std.process.exit(1);
+        },
         else => {
+            std.debug.print("xos failed\n", .{});
             std.process.exit(1);
         },
     }

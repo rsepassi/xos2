@@ -9,10 +9,11 @@ var crypto = Fn.new { |b, args|
   var c_srcs = CryptoSrcs
 
   var libcrypto = zig.buildLib(b, "crypto", {
-    "flags": Defines + CryptoIncludes + CryptoArch[b.target.arch]["flags"],
+    "flags": Defines.call(b) + CryptoIncludes + CryptoArch[b.target.arch]["flags"],
     "c_flags": Cflags,
-    "c_srcs": c_srcs + CryptoArch[b.target.arch]["srcs"] + CryptoCompatSrcs.call(b),
+    "c_srcs": c_srcs + CryptoCompatSrcs.call(b),
     "libc": true,
+    "sdk": b.target.os == "macos",
   })
 
   b.installLib(libcrypto)
@@ -52,15 +53,10 @@ var CryptoArch = {
       "-Icrypto/bn/arch/aarch64",
       "-D__ARM_ARCH_8A__=1",
     ],
-    "srcs": [
-      "crypto/armcap.c",
-    ],
   },
   "x86_64": {
     "flags": [
       "-Icrypto/bn/arch/amd64",
-    ],
-    "srcs": [
     ],
   },
 }
@@ -80,6 +76,8 @@ var CryptoCompatSrcs = Fn.new { |b|
 
   var mac_srcs = [
     "crypto/compat/getentropy_osx.c",
+    "crypto/compat/explicit_bzero.c",
+    "crypto/compat/reallocarray.c",
   ]
 
   var win_srcs = [
@@ -88,6 +86,7 @@ var CryptoCompatSrcs = Fn.new { |b|
     "crypto/compat/getentropy_win.c",
     "crypto/compat/getprogname_windows.c",
     "crypto/compat/posix_win.c",
+    "crypto/compat/explicit_bzero_win.c",
     "crypto/ui/ui_openssl_win.c",
   ]
 

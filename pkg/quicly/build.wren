@@ -58,6 +58,7 @@ var cli = Fn.new { |b, args|
       b.dep(":quicly"),
     ],
     "libc": true,
+    "sdk": b.target.os == "macos",
   })
 
   b.installExe(exe)

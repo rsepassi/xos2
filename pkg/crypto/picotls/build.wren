@@ -44,6 +44,7 @@ var picotls = Fn.new { |b, args|
     ] + b.glob("lib/cifra/*.c"),
     "c_deps": deps,
     "libc": true,
+    "sdk": b.target.os == "macos",
   })
 
   b.installLib(lib)

@@ -8,7 +8,7 @@ var tls = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
 
   var lib = zig.buildLib(b, "tls", {
-    "flags": Defines + Includes + CryptoArch[b.target.arch]["flags"],
+    "flags": Defines.call(b) + Includes + CryptoArch[b.target.arch]["flags"],
     "c_flags": Cflags,
     "c_srcs": [
       "tls/tls.c",

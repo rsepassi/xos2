@@ -9,7 +9,7 @@ var ssl = Fn.new { |b, args|
   var c_srcs = b.glob("ssl/*.c")
 
   var lib = zig.buildLib(b, "ssl", {
-    "flags": Defines + Includes + CryptoArch[b.target.arch]["flags"],
+    "flags": Defines.call(b) + Includes + CryptoArch[b.target.arch]["flags"],
     "c_flags": Cflags,
     "c_srcs": c_srcs + CryptoArch[b.target.arch]["srcs"],
     "libc": true,

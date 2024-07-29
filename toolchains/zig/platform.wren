@@ -12,7 +12,7 @@ class PlatformOpts {
   construct new(opts) { _opts = opts }
   sdk { _opts["sdk"] }
   libc { _opts["libc"] }
-  libcpp { _opts["libcpp"] }
+  libcpp { _opts["libc++"] }
   union(other) {
     other = other is PlatformOpts ? other : PlatformOpts.new(other)
     var opts = {}

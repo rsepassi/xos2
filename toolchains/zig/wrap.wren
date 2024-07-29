@@ -475,7 +475,7 @@ class ModuleDep {
     _platform_opts = Platform.Opts.new({
       "sdk": config["sdk"] == true,
       "libc": config["libc"] == true,
-      "libc++": config["libcpp"] == true,
+      "libc++": config["libc++"] == true,
     })
   }
 

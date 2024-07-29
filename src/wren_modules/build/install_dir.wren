@@ -35,6 +35,12 @@ class InstallDir {
     return out
   }
 
+  header(name) {
+    var out = Path.join([path, "include", name])
+    if (!File.exists(out)) Fiber.abort("%(_b.label) does not contain header %(name)")
+    return out
+  }
+
   artifact(name) {
     var out = Path.join([path, "share", name])
     if (!File.exists(out)) Fiber.abort("%(_b.label) does not contain artifact %(name)")

@@ -37,7 +37,12 @@ class Patch {
 
     dst_lines.addAll(src_lines[i..-1])
 
-    File.write(diff["dst"], dst_lines.join("\n"))
+    File.create(diff["dst"]) { |f|
+      for (line in dst_lines) {
+        f.writeBytes(line)
+        f.writeBytes("\n")
+      }
+    }
   }
 
   construct new_(diffs) { _diffs = diffs }

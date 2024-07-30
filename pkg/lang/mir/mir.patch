@@ -1,0 +1,71 @@
+diff --git a/mir-hash.h b/mir-hash.h
+index 1b5ae668..af722db4 100644
+--- a/mir-hash.h
++++ b/mir-hash.h
+@@ -16,7 +16,7 @@
+ 
+ #if defined(__x86_64__) || defined(__i386__) || defined(__PPC64__) || defined(__s390__) \
+   || defined(__m32c__) || defined(cris) || defined(__CR16__) || defined(__vax__)        \
+-  || defined(__m68k__) || defined(__aarch64__) || defined(_M_AMD64) || defined(_M_IX86)
++  || defined(__m68k__) || defined(_M_AMD64) || defined(_M_IX86)
+ #define MIR_HASH_UNALIGNED_ACCESS 1
+ #else
+ #define MIR_HASH_UNALIGNED_ACCESS 0
+diff --git a/mir-utils/b2ctab.c b/mir-utils/b2ctab.c
+index 3a63c8bb..cd152364 100644
+--- a/mir-utils/b2ctab.c
++++ b/mir-utils/b2ctab.c
+@@ -30,10 +30,12 @@ int main (int argc, char *argv[]) {
+   }
+   MIR_read (ctx, stdin);
+   output_mir_code_file = stdout;
+-  fprintf (output_mir_code_file, "static const uint8_t mir_code[] = {\n");
++  fprintf (output_mir_code_file, "#include <stdint.h>\n");
++  fprintf (output_mir_code_file, "const uint8_t mir_code[] = {\n");
+   output_mir_code_byte_num = 0;
+   MIR_write_with_func (ctx, output_mir_code_byte);
+   fprintf (output_mir_code_file, "};\n");
++  fprintf (output_mir_code_file, "int32_t mir_code_size = %d;\n", output_mir_code_byte_num);
+   MIR_finish (ctx);
+   return ferror (output_mir_code_file);
+ }
+diff --git a/mir.h b/mir.h
+index 95c365c0..1997f1c1 100644
+--- a/mir.h
++++ b/mir.h
+@@ -14,9 +14,13 @@ extern "C" {
+ #error "MIR does not work on 32-bit Windows"
+ #endif
+ 
+ #include <stdio.h>
+ #include <stdint.h>
+ #include <assert.h>
++#ifdef _WIN32
++#include <malloc.h>
++#endif
++
+ #include "mir-dlist.h"
+ #include "mir-varr.h"
+ #include "mir-htab.h"
+diff --git a/mir2c/mir2c.c b/mir2c/mir2c.c
+index 9e27cc9e..a26b79d9 100644
+--- a/mir2c/mir2c.c
++++ b/mir2c/mir2c.c
+@@ -341,7 +341,7 @@ static void out_insn (MIR_context_t ctx, FILE *f, MIR_insn_t insn) {
+   case MIR_LDBGE: out_bfcmp (ctx, f, ops, ">="); break;
+   case MIR_ALLOCA:
+     out_op (ctx, f, ops[0]);
+-    fprintf (f, " = alloca (");
++    fprintf (f, " = (int64_t)alloca (");
+     out_op (ctx, f, ops[1]);
+     fprintf (f, ");\n");
+     break;
+@@ -778,7 +778,7 @@ static void out_item (MIR_context_t ctx, FILE *f, MIR_item_t item) {
+ }
+ 
+ void MIR_module2c (MIR_context_t ctx, FILE *f, MIR_module_t m) {
+-  fprintf (f, "#include <stdint.h>\n#include <stdarg.h>\n");
++  fprintf (f, "#include <stdint.h>\n#include <stdarg.h>\n#include <stdlib.h>\n");
+   for (MIR_item_t item = DLIST_HEAD (MIR_item_t, m->items); item != NULL;
+        item = DLIST_NEXT (MIR_item_t, item))
+     out_item (ctx, f, item);

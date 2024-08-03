@@ -1,0 +1,56 @@
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdio.h>
+
+typedef enum {
+@@TokenType@@
+} TokenType;
+
+#define ERR_LEN 2048
+
+typedef struct {
+  TokenType type;
+  const char* start;
+  const char* end;
+
+  // If type == TOKEN_NUMBER
+  union {
+    double number;
+  } data;
+} Token;
+
+// Per-lexer state
+typedef struct {
+  const char* mar;
+  int state;
+} LexerState;
+
+// Top-level lexer/parser state
+typedef struct {
+  // Lexer state
+  const char* cur;
+  const char* lim;
+  const char* tok;
+  const char* bol;
+  const char* lastline;
+  unsigned int lno;
+  bool done;
+  LexerState lexers[8];
+
+  // Last lexed token
+  Token last;
+
+  // Error
+  bool has_err;
+  char err[ERR_LEN];
+} State;
+
+typedef enum {LEX_ERR, LEX_OK, LEX_FILL} Status;
+State state_init(const char* s);
+Status lex(State* state);
+Status lex_err(State* state);
+
+void* ParseAlloc(void*(*malloc)(size_t), State* state);
+void ParseFree(void *pParser, void(*free)(void*));
+void Parse(void *pParser, int tokenCode, Token token);
+void ParseTrace(FILE *stream, char *zPrefix);

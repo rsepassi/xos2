@@ -1,6 +1,8 @@
 import "io" for File
 import "os" for Process
 
+import "build/patch" for Patch
+
 var wgpu_header = Fn.new { |b, args|
   var header = b.fetch("https://raw.githubusercontent.com/webgpu-native/webgpu-headers/aef5e428a1fdab2ea770581ae7c95d8779984e0a/webgpu.h",
     "defb965756966d04186f80fb193994cfa70b375247da7a34d20608662216a50f")
@@ -39,10 +41,9 @@ var wgpu = Fn.new { |b, args|
 
   var header = b.dep(":wgpu_header")
   File.copy("%(header.path)/include/webgpu.h", "ffi/webgpu-headers/webgpu.h")
+  File.copy(b.src("bindings.rs"), "ffi/bindings.rs")
 
-  var toml = File.read("Cargo.toml")
-  toml = toml.replace("\"cdylib\",", "")
-  File.write("Cargo.toml", toml)
+  Patch.read(b.src("wgpu.patch")).apply()
 
   var rust = b.deptool("//toolchains/rust")
   var lib = rust.buildLib(b, "wgpu_native", {})

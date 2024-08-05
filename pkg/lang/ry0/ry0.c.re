@@ -197,6 +197,7 @@ static Status lexi(State* state, int lex_id) {
     "*"   { TOK(STAR); }
     "?"   { TOK(QUESTION); }
     ","   { TOK(COMMA); }
+    "."   { TOK(DOT); }
 
     // Keywords
     "pub" / delim { TOK(PUB); }

@@ -85,7 +85,6 @@ var gpu = Fn.new { |b, args|
     "root": b.src("appgpu.zig"),
     "modules": {
       "gpu": zig.moduleDep(b.dep("//pkg/wgpu:zig"), "gpu"),
-      "twod": b.dep(":twod"),
     },
     "c_deps": b.target.isDesktop ? [b.dep(":glfw_wgpu_glue")] : null,
   }))
@@ -110,7 +109,11 @@ class AppBuilder {
 
       var appdir = Directory.create(Path.join([b.mktmpdir(), "app"]))
       File.rename(exe, Path.join([appdir, Path.basename(exe)]))
-      if (opts["resources"]) Directory.copy(opts["resources"], Path.join([appdir, "xos-resources"]))
+      var resources = opts["resources"]
+      if (resources) {
+        if (!(resources is String)) resources = resources.path
+        Directory.copy(resources, Path.join([appdir, "xos-resources"]))
+      }
       return appdir
     } else if (b.target.os == "ios") {
       var lib_opts = {
@@ -211,10 +214,7 @@ class AndroidBuilder {
 
     if (resource_dir) {
       Directory.copy(resource_dir, "app/src/main/assets")
-    } else {
-      Directory.create("xos-app/xos-app/xos-resources")
     }
-
 
     var droid = b.dep("//sdk/android")
 

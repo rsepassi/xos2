@@ -5,7 +5,7 @@ const userlib = @import("userlib");
 const log = std.log.scoped(.approot);
 
 pub const std_options = .{
-    .log_level = userlib.std_options.log_level,
+    .log_level = if (@hasDecl(userlib, "std_options")) userlib.std_options.log_level else .err,
     .logFn = switch (platform) {
         .ios => iosApp.logFn,
         .android => androidApp.logFn,
@@ -134,9 +134,19 @@ fn PlatformCtxMixin(comptime T: type) type {
 
 const App = AppUser(userlib.App);
 pub const Event = union(enum) {
+    const MouseEvent = struct {
+        const MouseButton = enum { left, middle, right, other };
+        x: f32,
+        y: f32,
+        button: MouseButton,
+    };
+
     start: void,
     char: u32,
     resize: void,
+    mouse_up: MouseEvent,
+    mouse_down: MouseEvent,
+    quit: void,
 };
 
 fn AppUser(comptime T: type) type {
@@ -159,8 +169,10 @@ fn AppUser(comptime T: type) type {
         }
 
         fn deinit(self: @This()) void {
-            if (@hasDecl(T, "deinit")) self.app.deinit();
             defer std.heap.c_allocator.destroy(self.app);
+
+            self.onEvent(.{ .quit = {} });
+            if (@hasDecl(T, "deinit")) self.app.deinit();
         }
 
         fn start(self: @This()) void {
@@ -169,10 +181,14 @@ fn AppUser(comptime T: type) type {
 
         fn onEvent(self: @This(), event: Event) void {
             log.debug("event {s}", .{@tagName(event)});
-            self.app.onEvent(event) catch |err| {
-                log.err("event handling failed: {any}", .{err});
-                @panic("event handling failed");
-            };
+            if (@hasDecl(T, "onEvent")) {
+                self.app.onEvent(event) catch |err| {
+                    log.err("event handling failed: {any}", .{err});
+                    @panic("event handling failed");
+                };
+            } else {
+                return;
+            }
         }
     };
 }
@@ -229,6 +245,35 @@ pub const glfw = struct {
         app.onEvent(.{ .resize = {} });
     }
 
+    fn onClick(window: ?*c.GLFWwindow, cbutton: c_int, action: c_int, mods: c_int) callconv(.C) void {
+        const app = getApp(window);
+        var xpos: f64 = 0;
+        var ypos: f64 = 0;
+        c.glfwGetCursorPos(window, &xpos, &ypos);
+
+        _ = mods; // https://www.glfw.org/docs/3.3/group__mods.html
+
+        const button: Event.MouseEvent.MouseButton = switch (cbutton) {
+            c.GLFW_MOUSE_BUTTON_LEFT => .left,
+            c.GLFW_MOUSE_BUTTON_RIGHT => .right,
+            c.GLFW_MOUSE_BUTTON_MIDDLE => .middle,
+            else => .other,
+        };
+        if (action == c.GLFW_PRESS) {
+            app.onEvent(.{ .mouse_down = .{
+                .x = @floatCast(xpos),
+                .y = @floatCast(ypos),
+                .button = button,
+            } });
+        } else if (action == c.GLFW_RELEASE) {
+            app.onEvent(.{ .mouse_up = .{
+                .x = @floatCast(xpos),
+                .y = @floatCast(ypos),
+                .button = button,
+            } });
+        } else unreachable;
+    }
+
     fn getApp(window: ?*c.GLFWwindow) *App {
         return @ptrCast(@alignCast(c.glfwGetWindowUserPointer(window)));
     }
@@ -255,12 +300,12 @@ pub const glfw = struct {
 
         _ = glfw.c.glfwSetCharCallback(app.window, glfw.onChar);
         _ = glfw.c.glfwSetFramebufferSizeCallback(app.window, glfw.onFbSize);
+        _ = glfw.c.glfwSetMouseButtonCallback(app.window, glfw.onClick);
 
         glfw.c.glfwSetWindowUserPointer(app.window, @ptrCast(&userapp));
         // _ = glfw.c.glfwSetKeyCallback(app.window, AppGlfw.onKey);
         // _ = glfw.c.glfwSetCursorPosCallback(window, AppGlfw.onCursorMove);
         // _ = glfw.c.glfwSetCursorEnterCallback(window, AppGlfw.onCursorEnter);
-        // _ = glfw.c.glfwSetMouseButtonCallback(window, AppGlfw.onClick);
         // _ = glfw.c.glfwSetScrollCallback(window, AppGlfw.onScroll);
         // _ = glfw.c.glfwSetDropCallback(window, AppGlfw.onDrop);
 

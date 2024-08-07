@@ -1,7 +1,6 @@
 const std = @import("std");
 const app = @import("root");
-const gpu = @import("gpu");
-const twod = @import("twod");
+pub const gpu = @import("gpu");
 
 const log = std.log.scoped(.appgpu);
 
@@ -90,7 +89,7 @@ pub const Gfx = struct {
         log.debug("create screen size buffer", .{});
         const ssize_buf = try device.createBuffer(&.{
             .label = "screen size",
-            .size = @sizeOf(twod.Size),
+            .size = @sizeOf([2]f32),
             .usage = @intFromEnum(gpu.BufferUsage.CopyDst) | @intFromEnum(gpu.BufferUsage.Uniform),
             .mappedAtCreation = 0,
         });
@@ -98,10 +97,10 @@ pub const Gfx = struct {
 
         {
             const ssize = ctx.getWindowSize();
-            queue.writeBuffer(ssize_buf, 0, &@as([2]f32, @bitCast(twod.Size.init(
+            queue.writeBuffer(ssize_buf, 0, &@as([2]f32, .{
                 @floatFromInt(ssize.width),
                 @floatFromInt(ssize.height),
-            ))));
+            }));
         }
 
         log.debug("Gfx initialized", .{});
@@ -153,46 +152,65 @@ pub const Gfx = struct {
         }
     };
 
-    const RenderOpts = struct {
+    pub const RenderFrame = struct {
+        gfx: *const Gfx,
+        texture: gpu.Texture,
+        view: gpu.Texture.View,
+        cmd_encoder: gpu.CommandEncoder,
+        pass: gpu.RenderPassEncoder,
+
+        pub fn endFrame(self: *const @This()) !void {
+            defer self.texture.release();
+            defer self.view.deinit();
+            defer self.cmd_encoder.deinit();
+            defer self.pass.deinit();
+
+            self.pass.end();
+
+            const command_buffer = try self.cmd_encoder.finish(null);
+            defer command_buffer.deinit();
+
+            self.gfx.queue.submit(&.{command_buffer});
+            self.gfx.surface.present();
+        }
+    };
+
+    pub const RenderOpts = struct {
         load: union(gpu.LoadOp) {
             Clear: gpu.c.WGPUColor,
             Load: void,
         },
-        piperuns: []const PipelineRun,
     };
-    pub fn render(self: @This(), opts: RenderOpts) !void {
+    pub fn beginFrame(self: *const @This(), opts: RenderOpts) !RenderFrame {
         const texture = try self.surface.getCurrentTexture();
-        defer texture.release();
+        errdefer texture.release();
 
         const view = try texture.createView(null);
-        defer view.deinit();
+        errdefer view.deinit();
 
         const command_encoder = try self.device.createCommandEncoder(null);
-        defer command_encoder.deinit();
+        errdefer command_encoder.deinit();
 
-        const pass = try command_encoder.beginRenderPass(
-            &.{
-                .label = "render_pass_encoder",
-                .colorAttachmentCount = 1,
-                .colorAttachments = &.{
-                    .view = view.ptr,
-                    .loadOp = @intFromEnum(opts.load),
-                    .storeOp = @intFromEnum(gpu.StoreOp.Store),
-                    .depthSlice = gpu.DepthSliceUndefined,
-                    .clearValue = if (opts.load == .Clear) opts.load.Clear else .{},
-                },
+        const pass = try command_encoder.beginRenderPass(&.{
+            .label = "render_pass_encoder",
+            .colorAttachmentCount = 1,
+            .colorAttachments = &.{
+                .view = view.ptr,
+                .loadOp = @intFromEnum(opts.load),
+                .storeOp = @intFromEnum(gpu.StoreOp.Store),
+                .depthSlice = gpu.DepthSliceUndefined,
+                .clearValue = if (opts.load == .Clear) opts.load.Clear else .{},
             },
-        );
-        defer pass.deinit();
+        });
+        errdefer pass.deinit();
 
-        for (opts.piperuns) |piperun| try piperun.run(pass);
-        pass.end();
-
-        const command_buffer = try command_encoder.finish(null);
-        defer command_buffer.deinit();
-
-        self.queue.submit(&.{command_buffer});
-        self.surface.present();
+        return .{
+            .gfx = self,
+            .texture = texture,
+            .view = view,
+            .cmd_encoder = command_encoder,
+            .pass = pass,
+        };
     }
 
     pub fn updateWindowSize(self: *@This()) void {
@@ -200,10 +218,10 @@ pub const Gfx = struct {
         self.surface_config.width = window_size.width;
         self.surface_config.height = window_size.height;
         self.surface.configure(&self.surface_config);
-        self.queue.writeBuffer(self.screen_size_buf, 0, &@as([2]f32, @bitCast(twod.Size.init(
+        self.queue.writeBuffer(self.screen_size_buf, 0, &@as([2]f32, .{
             @floatFromInt(window_size.width),
             @floatFromInt(window_size.height),
-        ))));
+        }));
     }
 };
 

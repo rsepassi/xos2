@@ -1,5 +1,5 @@
 import "io" for File, Directory
-import "os" for Process
+import "os" for Process, Path
 import "json" for JSON
 
 import "build/config" for Config
@@ -34,18 +34,25 @@ class android {
     var base = b.deptool("base")
     var rootdir = base.build.toolCacheDir
 
-    File.write("libc.txt", GetLibc_.call(rootdir))
+    var os
+    if (b.target.os == "macos") {
+      os = "darwin"
+    } else if (b.target.os == "linux") {
+      os = "linux"
+    }
+
+    File.write("libc.txt", GetLibc_.call(rootdir, os))
     b.install("", "libc.txt")
 
     var zig = b.deptool("//toolchains/zig")
     b.install("", zig.libConfig(b, "sdk", {
       "nostdopts": true,
       "cflags": [
-        "-I%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include",
-        "-I%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android",
+        "-I%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(os)-x86_64/sysroot/usr/include",
+        "-I%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(os)-x86_64/sysroot/usr/include/aarch64-linux-android",
       ],
       "ldflags": [
-        "-L%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/aarch64-linux-android/29",
+        "-L%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(os)-x86_64/sysroot/usr/lib/aarch64-linux-android/29",
       ],
     }))
     var env = sdkenv_(rootdir, b.cls.Target.host.os)
@@ -70,7 +77,15 @@ class android {
     env["ANDROID_SDK_ROOT"] = dir
     env["ANDROID_AVD_HOME"] = "%(dir)/avd"
     env["REPO_OS_OVERRIDE"] = RepoOs[os]
-    env["JAVA_HOME"] = Process.spawnCapture(["/usr/libexec/java_home"])["stdout"].trim()
+    if (os == "macos") {
+      env["JAVA_HOME"] = Process.spawnCapture(["/usr/libexec/java_home"])["stdout"].trim()
+    } else if (os == "linux") {
+      var link = Path.readLink("/usr/lib/jvm/default-jvm")
+      if (!Path.isAbs(link)) link = Path.join(["/usr/lib/jvm", link])
+      env["JAVA_HOME"] = link
+    } else {
+      Fiber.abort("finding JAVA_HOME is unimplemented on this OS")
+    }
     env["GRADLE_USER_HOME"] = "%(dir)/gradle"
     return env
   }
@@ -91,21 +106,21 @@ var native_app_glue = Fn.new { |b, args|
   }))
 }
 
-var GetLibc_ = Fn.new { |root|
+var GetLibc_ = Fn.new { |root, os|
     var template = """
 # The directory that contains `stdlib.h`.
 # On POSIX-like systems, include directories be found with: `cc -E -Wp,-v -xc /dev/null`
-include_dir={{root}}/ndk-bundle/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include
+include_dir={{root}}/ndk-bundle/toolchains/llvm/prebuilt/{{os}}-x86_64/sysroot/usr/include
 
 # The system-specific include directory. May be the same as `include_dir`.
 # On Windows it's the directory that includes `vcruntime.h`.
 # On POSIX it's the directory that includes `sys/errno.h`.
-sys_include_dir={{root}}/ndk-bundle/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include
+sys_include_dir={{root}}/ndk-bundle/toolchains/llvm/prebuilt/{{os}}-x86_64/sysroot/usr/include
 
 # The directory that contains `crt1.o` or `crt2.o`.
 # On POSIX, can be found with `cc -print-file-name=crt1.o`.
 # Not needed when targeting MacOS.
-crt_dir={{root}}/ndk-bundle/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/aarch64-linux-android/30
+crt_dir={{root}}/ndk-bundle/toolchains/llvm/prebuilt/{{os}}-x86_64/sysroot/usr/lib/aarch64-linux-android/30
 
 # The directory that contains `vcruntime.lib`.
 # Only needed when targeting MSVC on Windows.
@@ -119,5 +134,5 @@ kernel32_lib_dir=
 # Only needed when targeting Haiku.
 gcc_dir=
     """
-    return template.replace("{{root}}", root)
+    return template.replace("{{root}}", root).replace("{{os}}", os)
 }

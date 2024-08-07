@@ -1,5 +1,5 @@
 import "io" for File, Directory
-import "os" for Process
+import "os" for Process, Path
 
 import "build/config" for Config
 
@@ -53,7 +53,15 @@ var base = Fn.new { |b, args|
   env["ANDROID_SDK_ROOT"] = dir
   env["ANDROID_AVD_HOME"] = "%(dir)/avd"
   env["REPO_OS_OVERRIDE"] = RepoOs[b.target.os]
-  env["JAVA_HOME"] = Process.spawnCapture(["/usr/libexec/java_home"])["stdout"].trim()
+  if (b.target.os == "macos") {
+    env["JAVA_HOME"] = Process.spawnCapture(["/usr/libexec/java_home"])["stdout"].trim()
+  } else if (b.target.os == "linux") {
+    var link = Path.readLink("/usr/lib/jvm/default-jvm")
+    if (!Path.isAbs(link)) link = Path.join(["/usr/lib/jvm", link])
+    env["JAVA_HOME"] = link
+  } else {
+    Fiber.abort("finding JAVA_HOME is unimplemented on this OS")
+  }
 
   var sdk_process = Process.child(sdk_args).env(env)
     .stdout(1).stderr(2)

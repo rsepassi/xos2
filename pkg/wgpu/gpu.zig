@@ -590,6 +590,24 @@ pub const CommandEncoder = extern struct {
         return .{ .ptr = c.wgpuCommandEncoderBeginRenderPass(self.ptr, options) orelse return error.RenderPassEncoderFail };
     }
 
+    pub fn copyBufferToBuffer(
+        self: @This(),
+        source: Buffer,
+        source_offset: usize,
+        destination: Buffer,
+        destination_offset: usize,
+        size: usize,
+    ) void {
+        c.wgpuCommandEncoderCopyBufferToBuffer(
+            self.ptr,
+            source.ptr,
+            source_offset,
+            destination.ptr,
+            destination_offset,
+            size,
+        );
+    }
+
     pub fn finish(self: @This(), options: ?*const c.WGPUCommandBufferDescriptor) !CommandBuffer {
         return .{ .ptr = c.wgpuCommandEncoderFinish(self.ptr, options) orelse return error.CommandBufferFail };
     }

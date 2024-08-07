@@ -2,7 +2,7 @@ const std = @import("std");
 const c = @cImport(@cInclude("wren.h"));
 
 const Sha256 = std.crypto.hash.sha2.Sha256;
-const Blake3 = std.crypto.hash.blake3.Blake3;
+const Blake3 = std.crypto.hash.Blake3;
 
 fn WrenHash(comptime T: type) type {
     return struct {
@@ -11,13 +11,21 @@ fn WrenHash(comptime T: type) type {
             hash.* = T.init(.{});
         }
 
-        fn hashHex(vm: ?*c.WrenVM) callconv(.C) void {
+        fn update(vm: ?*c.WrenVM) callconv(.C) void {
+            var hasher: *T = @ptrCast(@alignCast(c.wrenGetSlotForeign(vm, 0)));
+
             var bytes_len: c_int = 0;
             var bytes_ptr = c.wrenGetSlotBytes(vm, 1, &bytes_len);
             const bytes = bytes_ptr[0..@intCast(bytes_len)];
 
+            hasher.update(bytes);
+        }
+
+        fn finalHex(vm: ?*c.WrenVM) callconv(.C) void {
+            var hasher: *T = @ptrCast(@alignCast(c.wrenGetSlotForeign(vm, 0)));
+
             var digest: [T.digest_length]u8 = undefined;
-            T.hash(bytes, &digest, .{});
+            hasher.final(&digest);
 
             const digest_hex = std.fmt.bytesToHex(digest, .lower);
             var cdigest_hex: [digest_hex.len + 1]u8 = undefined;
@@ -29,8 +37,9 @@ fn WrenHash(comptime T: type) type {
         }
 
         fn bindMethod(isStatic: bool, sig: []const u8) c.WrenForeignMethodFn {
-            if (isStatic) {
-                if (std.mem.eql(u8, sig, "hashHex(_)")) return hashHex;
+            if (!isStatic) {
+                if (std.mem.eql(u8, sig, "update(_)")) return update;
+                if (std.mem.eql(u8, sig, "finalHex()")) return finalHex;
             }
             return null;
         }
@@ -55,6 +64,9 @@ export fn wrenHashBindForeignMethod(
     if (std.mem.eql(u8, className, "Sha256")) {
         return WrenHash(Sha256).bindMethod(isStatic, sig);
     }
+    if (std.mem.eql(u8, className, "Blake3")) {
+        return WrenHash(Blake3).bindMethod(isStatic, sig);
+    }
 
     return null;
 }
@@ -71,6 +83,9 @@ export fn wrenHashBindForeignClass(
 
     if (std.mem.eql(u8, className, "Sha256")) {
         return .{ .allocate = WrenHash(Sha256).alloc };
+    }
+    if (std.mem.eql(u8, className, "Blake3")) {
+        return .{ .allocate = WrenHash(Blake3).alloc };
     }
 
     return .{};

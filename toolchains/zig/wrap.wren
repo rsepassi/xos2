@@ -9,6 +9,44 @@ import "xos//toolchains/zig/platform" for Platform
 
 var Log = Logger.get("zig")
 
+var ZigOptMap = {
+  0: "Debug",
+  1: "Debug",
+  2: "ReleaseSafe",
+  3: "ReleaseFast",
+  "0": "Debug",
+  "1": "Debug",
+  "2": "ReleaseSafe",
+  "3": "ReleaseFast",
+  "s": "ReleaseSmall",
+  "z": "ReleaseSmall",
+  "Debug": "Debug",
+  "Safe": "ReleaseSafe",
+  "Small": "ReleaseSmall",
+  "Fast": "ReleaseFast",
+  "ReleaseSafe": "ReleaseSafe",
+  "ReleaseFast": "ReleaseFast",
+}
+
+var CCOptMap = {
+  0: 0,
+  1: 1,
+  2: 2,
+  3: 3,
+  "0": 0,
+  "1": 1,
+  "2": 2,
+  "3": 3,
+  "s": "s",
+  "z": "z",
+  "Debug": 0,
+  "Safe": 2,
+  "Small": "s",
+  "Fast": 3,
+  "ReleaseSafe": 2,
+  "ReleaseFast": 3,
+}
+
 // Install wrapper
 class Zig {
   construct new(dir) {
@@ -22,44 +60,14 @@ class Zig {
 
   getOpt(opt) { Zig.getOpt(opt) }
   static getOpt(opt) {
-    var opts = {
-      0: "Debug",
-      1: "Debug",
-      2: "ReleaseSafe",
-      3: "ReleaseFast",
-      "0": "Debug",
-      "1": "Debug",
-      "2": "ReleaseSafe",
-      "3": "ReleaseFast",
-      "s": "ReleaseSmall",
-      "z": "ReleaseSmall",
-      "Debug": "Debug",
-      "Safe": "ReleaseSafe",
-      "Small": "ReleaseSmall",
-      "Fast": "ReleaseFast",
-      "ReleaseSafe": "ReleaseSafe",
-      "ReleaseFast": "ReleaseFast",
-    }
+    var opts = ZigOptMap 
     if (!opts.containsKey(opt)) Fiber.abort("unrecognized optimization mode %(opt)")
     return opts[opt]
   }
 
   getCCOpt(opt) { Zig.getCCOpt(opt) }
   static getCCOpt(opt) {
-    var opts = {
-      0: 0,
-      1: 1,
-      2: 2,
-      3: 3,
-      "s": "s",
-      "z": "z",
-      "Debug": 0,
-      "Safe": 2,
-      "Small": "s",
-      "Fast": 3,
-      "ReleaseSafe": 2,
-      "ReleaseFast": 3,
-    }
+    var opts = CCOptMap
     if (!opts.containsKey(opt)) Fiber.abort("unrecognized optimization mode %(opt)")
     return opts[opt]
   }
@@ -79,7 +87,7 @@ class Zig {
     if (!opts["nostdopts"]) args.addAll(defaults)
     if (opts["args"]) args.addAll(opts["args"])
     if (opts["sysroot"]) {
-      var platform = Platform.get(b, {"sdk": true})
+      var platform = getPlatform(b, {"sdk": true})
       args.add("-Dsysroot=%(platform.sysroot)")
     }
 
@@ -95,13 +103,13 @@ class Zig {
     return "%(Process.cwd)/%(b.target.libName(name))"
   }
 
+  // zig build-lib -dynamic
   buildDylib(b, name, opts) {
     var args = [_exe, "build-lib", "-dynamic", "--name", name]
     args.addAll(buildArgs(b, opts).allExe)
     exec_(b, args)
     return "%(Process.cwd)/%(b.target.dylibName(name))"
   }
-
 
   // zig build-exe
   buildExe(b, name, opts) {
@@ -217,7 +225,7 @@ class ZigArgs is ZigArgs_ {
     if (opts["root"]) module_opts["__xosroot__"] = opts["root"]
     var modules = GetModules_.call(b, module_opts)
 
-    var platform = Platform.get(b, cargs["platform_opts"].union(modules["platform_opts"]))
+    var platform = getPlatform(b, cargs["platform_opts"].union(modules["platform_opts"]))
     args["platformCompile"].addAll(platform.flags)
     args["compile"].addAll(modules["module_args"])
 
@@ -279,7 +287,7 @@ var GetModules_ = Fn.new { |b, modules|
       var m = root_module
       root_module_key = m.key
       ldargs.addAll(m.libs)
-      var platform = Platform.get(b, m.platformOpts)
+      var platform = getPlatform(b, m.platformOpts)
       module_args.addAll(platform.flags)
       module_args.addAll(m.cflags)
       for (el in modules_wrapped) {
@@ -294,7 +302,7 @@ var GetModules_ = Fn.new { |b, modules|
     var m = el.value
     if (m.key == root_module_key) continue
     ldargs.addAll(m.libs)
-    var platform = Platform.get(b, m.platformOpts)
+    var platform = getPlatform(b, m.platformOpts)
     module_args.addAll(platform.flags)
     module_args.addAll(m.cflags)
     for (el2 in m.modules) {
@@ -326,7 +334,7 @@ var GetCArgs_ = Fn.new { |b, opts|
     platform_opts = platform_opts.union(dep.platformOpts)
   }
 
-  var platform = Platform.get(b, platform_opts)
+  var platform = getPlatform(b, platform_opts)
 
   var args = []
 

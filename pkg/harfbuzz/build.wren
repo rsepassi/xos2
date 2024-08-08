@@ -8,6 +8,7 @@ var harfbuzz = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "harfbuzz", {
     "flags": ["-DHAVE_FREETYPE"],
+    "c_flags": ["-fno-exceptions"],
     "c_srcs": ["src/harfbuzz.cc"],
     "c_deps": [b.dep("//pkg/freetype")],
     "libc++": true,

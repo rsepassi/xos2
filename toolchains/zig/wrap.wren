@@ -225,7 +225,7 @@ class ZigArgs is ZigArgs_ {
     if (opts["root"]) module_opts["__xosroot__"] = opts["root"]
     var modules = GetModules_.call(b, module_opts)
 
-    var platform = getPlatform(b, cargs["platform_opts"].union(modules["platform_opts"]))
+    var platform = Platform.get(b, cargs["platform_opts"].union(modules["platform_opts"]))
     args["platformCompile"].addAll(platform.flags)
     args["compile"].addAll(modules["module_args"])
 
@@ -287,7 +287,7 @@ var GetModules_ = Fn.new { |b, modules|
       var m = root_module
       root_module_key = m.key
       ldargs.addAll(m.libs)
-      var platform = getPlatform(b, m.platformOpts)
+      var platform = Platform.get(b, m.platformOpts)
       module_args.addAll(platform.flags)
       module_args.addAll(m.cflags)
       for (el in modules_wrapped) {
@@ -302,7 +302,7 @@ var GetModules_ = Fn.new { |b, modules|
     var m = el.value
     if (m.key == root_module_key) continue
     ldargs.addAll(m.libs)
-    var platform = getPlatform(b, m.platformOpts)
+    var platform = Platform.get(b, m.platformOpts)
     module_args.addAll(platform.flags)
     module_args.addAll(m.cflags)
     for (el2 in m.modules) {
@@ -334,7 +334,7 @@ var GetCArgs_ = Fn.new { |b, opts|
     platform_opts = platform_opts.union(dep.platformOpts)
   }
 
-  var platform = getPlatform(b, platform_opts)
+  var platform = Platform.get(b, platform_opts)
 
   var args = []
 

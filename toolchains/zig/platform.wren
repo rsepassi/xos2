@@ -21,6 +21,7 @@ class PlatformOpts {
     opts["libc++"] = libcpp || other.libcpp
     return PlatformOpts.new(opts)
   }
+  toString { "PlatformOpts(%(_opts))" }
 }
 
 class Platform {

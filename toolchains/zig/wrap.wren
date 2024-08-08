@@ -145,6 +145,7 @@ class Zig {
       "Requires": cdeps,
       "sdk": opts["sdk"],
       "libc": opts["libc"],
+      "libc++": opts["libc++"],
       "Modules": modules,
     }
     var fname = "%(module_name).pc.json"
@@ -175,6 +176,7 @@ class Zig {
       "Requires": deps,
       "sdk": opts["sdk"],
       "libc": opts["libc"],
+      "libc++": opts["libc++"],
     }
 
     var fname = "%(libname).pc.json"
@@ -463,10 +465,17 @@ class ModuleDep {
   construct new_(b, config, name) {
     var cflags = config["Cflags"] || []
     var libs = config["Libs"] || []
+    var platform_opts = Platform.Opts.new({
+      "sdk": config["sdk"] == true,
+      "libc": config["libc"] == true,
+      "libc++": config["libc++"] == true,
+    })
+
     var requires = (config["Requires"] || []).map { |x| CDep.fromJSON(b, x) }
     for (req in requires) {
       cflags.addAll(req.cflags)
       libs.addAll(req.libs)
+      platform_opts = platform_opts.union(req.platformOpts)
     }
 
     var modules = {}
@@ -480,11 +489,7 @@ class ModuleDep {
     _modules = modules
     _cflags = cflags
     _libs = libs
-    _platform_opts = Platform.Opts.new({
-      "sdk": config["sdk"] == true,
-      "libc": config["libc"] == true,
-      "libc++": config["libc++"] == true,
-    })
+    _platform_opts = platform_opts
   }
 
   name { _name }

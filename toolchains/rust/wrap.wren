@@ -95,6 +95,7 @@ class Rust {
     var env = Process.env()
     env["RUSTUP_HOME"] = Path.join([rust_home, ".rustup"])
     env["CARGO_HOME"] = Path.join([rust_home, ".cargo"])
+    env["CARGO_TARGET_DIR"] = b.toolCacheDir
     env["CC"] = "rustcc"
     env["RUSTFLAGS"] = "-C panic=abort"
     env["PATH"] = Process.pathJoin([Path.join([_b.installDir, "tools"]), env["PATH"]])
@@ -114,7 +115,7 @@ class Rust {
     var stdio = Log.level == Log.DEBUG ? [null, 1, 2] : null
     b.spawn(args, env, stdio)
 
-    var artifact_dir = Path.join(["target", rust_target, opt == 0 ? "debug" : "release"])
+    var artifact_dir = Path.join([b.toolCacheDir, rust_target, opt == 0 ? "debug" : "release"])
 
     var output_path = Path.join([artifact_dir, artifact_name])
 

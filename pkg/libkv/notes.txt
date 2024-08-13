@@ -1,0 +1,68 @@
+Notes
+
+Retrieval
+Traverse btree to find record
+
+Insertion
+Traverse btree to find insertion point
+If there is room in the leaf page, add it in that page
+If not, split the page and ripple up
+
+Deletion
+Traverse btree to find record
+If removal leaves leaf empty, combine parent+sibling and ripple up
+If not, remove it from that page
+
+Features I'd like (ZFS-inspired):
+* Cheap snapshots
+* Copy-on-write
+* Writers do not block readers
+* Concurrent writers with MVCC
+* Data integrity checks
+* Configurable replication, distributed replication
+* Replicated recovery of corrupted pages
+* Smart send/receive
+* Easy merkle-tree of db
+* Zero/minimal copy
+* Stable portable (endian/arch-agnostic) file format
+
+?:
+* Variable size keys? Mini-heap, keys become pointers to tail of page.
+* Values that overflow page? Chain value data pages
+* Endianness - wrap read/write to swap byte order if endianness is different
+* Multiple threads, locking
+* Duplicate keys in leaves?
+* Cursor: get/put/del current
+* Seek: first, last, key/prefix, next, prev
+* Flags (put/del): nooverwrite, reserve, append
+* kv_buf refcounts?
+
+* O_DIRECT, F_NOCACHE + alignment
+  memory buffers must be aligned to FS block size
+  size of IO operation must be a multiple of FS block size
+  offset must be aligned to FS block size
+  FS block size = 4096 (typically)
+  To have file format be stable, need to always write this way
+* Checksums: per page? per record? SHA1, Blake3, configurable?
+* Key length restriction? Page size (or half of)
+* Reducing mallocs for async - coroutines? Intrusive ds? Object pool? Arena?
+* OOM errors
+* Crash recovery: checksum metadata page, if bad, use old one
+  Atomic swap of 2 metadata pages: always keep which pages were modified on
+  last swap so that consistency check can look at them on startup and
+  determine whether to use the old metadata page.
+  At startup, read both metadata pages, start with the one with higher id,
+  if valid, use that, if not, use the old one.
+* Cheap snapshots, time travel, backups, replication, ...
+* Compression (zstd), encryption (a block-based cipher...)
+* Bloom filter, kv_get_probablynot
+* Cross-thread concurrency, cross-process concurrency
+* truncate? compaction?
+* Adaptive cache: recency + frequency
+  prefix scans should readahead
+  Can also keep statistics on next pages read (esp for frequently accessed)
+* Shared key prefixes should be compressed
+* Jemalloc, mimalloc, other custom for fixed size pages?
+
+* Counted B-Tree, keeping counts of elements in each subtree
+  Allow for numeric indexing, and keeping stats like count, median, percentile, ...

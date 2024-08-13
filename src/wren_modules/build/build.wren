@@ -46,6 +46,7 @@ class Build {
   opt_mode { _args["opt"] }
   label { _label }
   key { _key }
+  srcDir { label.srcdir }
   workDir { _cache_entry.workDir }
   installDir { _cache_entry.outDir }
   toolCacheDir { Directory.ensure(_cache_entry.toolCacheDir) }

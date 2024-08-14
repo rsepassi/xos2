@@ -176,7 +176,12 @@ void* myrealloc(void* user_data, void* p, size_t align, size_t n) {
   }
 }
 
-void myfree(void* user_data, void* p) {
+kv_iter_cb_ctrl iter_cb(void* user_data, kv_result res, kv_buf key, kv_buf val) {
+  appctx* ctx = (appctx*)user_data;
+  KV_CHECK(res);
+
+  LOG("iter key %.*s", key.len, key.buf);
+  LOG("iter val %.*s", val.len, val.buf);
 }
 
 void run(appctx* myctx) {
@@ -207,13 +212,19 @@ void run(appctx* myctx) {
     .len = 3,
   };
 
-  LOG("kv size %llu", kv_nrecords(kv));
+  LOG("kv size %lu", kv_nrecords(kv));
   KV_CHECK(kv_put(kv, key, val));
-  LOG("kv size %llu", kv_nrecords(kv));
+  LOG("kv size %lu", kv_nrecords(kv));
   KV_CHECK(kv_get(kv, key, &val));
-  LOG("kv size %llu", kv_nrecords(kv));
+  LOG("kv size %lu", kv_nrecords(kv));
+
+  kv_iter(kv, key, (kv_iter_cb){
+      .cb = iter_cb,
+      .user_data = myctx,
+  });
+
   KV_CHECK(kv_del(kv, key));
-  LOG("kv size %llu", kv_nrecords(kv));
+  LOG("kv size %lu", kv_nrecords(kv));
 
   KV_CHECK(kv_deinit(kv));
 }

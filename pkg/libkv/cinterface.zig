@@ -46,6 +46,12 @@ pub fn KV(opts: Opts) type {
             return c.KV_OK;
         }
 
+        fn kv_iter(ctx: c.kv_ctx, prefix: c.kv_buf, cb: c.kv_iter_cb) callconv(.C) void {
+            iterWrap(ctx, prefix, cb) catch |err| {
+                _ = cb.cb.?(cb.user_data, errors.convertErr(err), .{}, .{});
+            };
+        }
+
         fn kv_result_str(res: c.kv_result) callconv(.C) [*:0]const u8 {
             return errors.kv_result_strs[res].ptr;
         }
@@ -57,6 +63,7 @@ pub fn KV(opts: Opts) type {
             @export(kv_put, .{ .name = "kv_put", .linkage = .strong });
             @export(kv_get, .{ .name = "kv_get", .linkage = .strong });
             @export(kv_del, .{ .name = "kv_del", .linkage = .strong });
+            @export(kv_iter, .{ .name = "kv_iter", .linkage = .strong });
             @export(kv_result_str, .{ .name = "kv_result_str", .linkage = .strong });
         }
     };
@@ -69,4 +76,24 @@ fn getKV(ctx: c.kv_ctx) *impl.KV {
 fn fromBuf(buf: c.kv_buf) []u8 {
     var p: [*]u8 = @ptrCast(buf.buf);
     return p[0..buf.len];
+}
+
+fn iterWrap(ctx: c.kv_ctx, prefix: c.kv_buf, cb: c.kv_iter_cb) !void {
+    const kv = getKV(ctx);
+    const txn = try kv.txn(.{ .readonly = true });
+    defer txn.close();
+
+    var iter = try txn.iterator();
+    try iter.seek(fromBuf(prefix));
+
+    var key: c.kv_buf = undefined;
+    var val: c.kv_buf = undefined;
+    while (try iter.next()) |record| {
+        key.buf = @constCast(record.key.ptr);
+        key.len = record.key.len;
+        val.buf = @constCast(record.val.ptr);
+        val.len = record.val.len;
+        const res = cb.cb.?(cb.user_data, c.KV_OK, key, val);
+        if (res == c.KV_ITER_STOP) break;
+    }
 }

@@ -75,7 +75,7 @@ typedef enum {
 } kv_iter_cb_ctrl;
 
 typedef struct {
-  kv_iter_cb_ctrl (*cb)(void* user_data, kv_buf key, kv_buf val);
+  kv_iter_cb_ctrl (*cb)(void* user_data, kv_result res, kv_buf key, kv_buf val);
   void* user_data;
 } kv_iter_cb;
 

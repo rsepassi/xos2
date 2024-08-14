@@ -33,6 +33,8 @@ pub const Page = struct {
         };
     }
 
+    pub const Generic = PageT(extern struct {});
+
     pub fn bytes(page_t: anytype) *[page_size_reserved]u8 {
         if (@sizeOf(@typeInfo(@TypeOf(page_t)).Pointer.child) != page_size_reserved) @compileError("bad page type");
         return @ptrCast(page_t);

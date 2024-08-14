@@ -1,9 +1,9 @@
 #ifndef KV_H_
 #define KV_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
+#include <stdint.h>   // uint64_t
+#include <stdbool.h>  // bool
+#include <stdlib.h>   // size_t
 
 typedef struct kv_ctx* kv_ctx;
 typedef struct kv_txn* kv_txn;

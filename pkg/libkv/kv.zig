@@ -1,22 +1,19 @@
 const std = @import("std");
 const builtin = @import("builtin");
-
+const c = @cImport(@cInclude("kv.h"));
+const checksum = @import("checksum.zig");
+const filedata = @import("filedata.zig");
+const Allocator = @import("Allocator.zig");
+const Metadata = @import("Metadata.zig");
+const File = @import("File.zig");
+const BTree = @import("BTree.zig");
 const log = std.log.scoped(.kv);
 
-const c = @cImport(@cInclude("kv.h"));
-const errors = @import("errors.zig");
-const filedata = @import("filedata.zig");
-
 pub const KV = struct {
-    vfd: UserFD,
-    mem: UserAllocator,
+    vfd: File,
+    mem: Allocator,
     readonly: bool,
-    metadata: KVMetadata,
-
-    const KVMetadata = struct {
-        current: Metadata,
-        next: Metadata,
-    };
+    metadata: Metadata.Pair,
 
     pub fn init(opts: c.kv_init_opts) !*KV {
         log.debug("kv_init", .{});
@@ -25,11 +22,12 @@ pub const KV = struct {
         if (opts.vfd.user_data == null) return error.VfdMissing;
 
         const flags: InitFlags = .{ .flags = opts.flags };
-        var mem: UserAllocator = .{ .mem = opts.mem };
+        var mem: Allocator = .{ .mem = opts.mem };
         const allocator = mem.allocator();
 
         const kv: *KV = try allocator.create(KV);
         errdefer allocator.destroy(kv);
+
         kv.* = .{
             .vfd = .{ .vfd = opts.vfd },
             .mem = mem,
@@ -37,14 +35,14 @@ pub const KV = struct {
             .metadata = undefined,
         };
 
-        kv.metadata = try initMetadata(kv, flags);
+        kv.metadata = try Metadata.Pair.init(&kv.mem, &kv.vfd, flags.allowcreate());
         return kv;
     }
 
     pub fn deinit(self: *@This()) void {
+        log.debug("kv_deinit", .{});
         const allocator = self.mem.allocator();
-        allocator.destroy(self.metadata.current.page);
-        allocator.destroy(self.metadata.next.page);
+        self.metadata.deinit();
         allocator.destroy(self);
     }
 
@@ -84,6 +82,16 @@ pub const KV = struct {
         }
         try txn.commit();
     }
+
+    const InitFlags = struct {
+        flags: u64,
+        inline fn readonly(self: @This()) bool {
+            return self.flags & c.KV_INIT_READONLY == c.KV_INIT_READONLY;
+        }
+        inline fn allowcreate(self: @This()) bool {
+            return self.flags & c.KV_INIT_ALLOWCREATE == c.KV_INIT_ALLOWCREATE;
+        }
+    };
 };
 
 pub const Txn = struct {
@@ -92,8 +100,9 @@ pub const Txn = struct {
     arena: std.heap.ArenaAllocator,
     pages: PageList,
     metadata: filedata.metadata_t,
+    btree: BTree,
 
-    const PageList = std.ArrayListAligned([filedata.page_size]u8, filedata.page_size);
+    const PageList = std.ArrayListAligned([filedata.page_size_reserved]u8, filedata.page_size_reserved);
     const Opts = struct {
         readonly: bool = false,
     };
@@ -104,6 +113,16 @@ pub const Txn = struct {
         self.arena = std.heap.ArenaAllocator.init(kv.mem.allocator());
         self.pages = PageList.init(self.arena.allocator());
         self.metadata = kv.metadata.current.page.contents.metadata;
+        self.btree = .{
+            .tree = self.metadata.btree,
+            .file = &kv.vfd,
+            .allocator = self.arena.allocator(),
+        };
+
+        self.btree.doThing() catch |err| {
+            log.debug("err {any}", .{err});
+            @panic("bad btree thing");
+        };
     }
 
     pub fn internalDeinit(self: *@This()) void {
@@ -111,19 +130,19 @@ pub const Txn = struct {
     }
 
     pub fn get(self: *@This(), key: []const u8, val: *[]u8) !void {
-        if (key.len < 1 or key.len > filedata.max_key_len) return error.BadKey;
+        if (key.len < 1) return error.BadKey;
         _ = self;
         _ = val;
     }
 
     pub fn put(self: *@This(), key: []const u8, val: []const u8) !void {
-        if (key.len < 1 or key.len > filedata.max_key_len) return error.BadKey;
+        if (key.len < 1) return error.BadKey;
         _ = self;
         _ = val;
     }
 
     pub fn del(self: *@This(), key: []const u8) !void {
-        if (key.len < 1 or key.len > filedata.max_key_len) return error.BadKey;
+        if (key.len < 1) return error.BadKey;
         _ = self;
     }
 
@@ -132,8 +151,6 @@ pub const Txn = struct {
 
         if (self.kv.readonly) return error.KvRO;
         if (self.opts.readonly) return error.TxnRO;
-
-
     }
 
     pub fn abort(self: *@This()) void {
@@ -171,7 +188,7 @@ const BTreeDataPageCursor = struct {
 
     inline fn atEnd(self: @This()) bool {
         const min_record_size = @sizeOf(filedata.record_header_t) + 1;
-        return (self.i + min_record_size) >= filedata.page_size;
+        return (self.i + min_record_size) >= filedata.page_size_usable;
     }
 
     fn current(self: @This()) ?Record {
@@ -205,7 +222,7 @@ const BTreeDataPageCursor = struct {
         if (self.atEnd()) return null;
         const header: *filedata.record_header_t = @ptrCast(@alignCast(self.cur()));
         var base = self.cur() + @sizeOf(filedata.record_header_t);
-        const nrem = filedata.page_size - self.i - @sizeOf(filedata.record_header_t);
+        const nrem = filedata.page_size_usable - self.i - @sizeOf(filedata.record_header_t);
         return .{
             .header = header,
             .data = base[0..nrem],
@@ -267,7 +284,7 @@ const BTreeDataPageCursor = struct {
 //
 
 const Txn2 = struct {
-    const PageList = std.ArrayListAligned([filedata.page_size]u8, filedata.page_size);
+    const PageList = std.ArrayListAligned([filedata.page_size_reserved]u8, filedata.page_size_reserved);
     kv: *KV,
     arena: std.heap.ArenaAllocator,
     pages: PageList,
@@ -371,280 +388,3 @@ const Txn2 = struct {
     //     }
     // }
 };
-
-const Metadata = struct {
-    page: *filedata.Page.Metadata,
-
-    fn isEmpty(self: @This()) bool {
-        for (filedata.Page.bytes(self.page)) |b| {
-            if (b > 0) return false;
-        }
-        return true;
-    }
-
-    fn setNew(self: *@This()) void {
-        std.mem.copyForwards(u8, &self.page.contents.header.magic, filedata.magic_bytes);
-
-        const m = &self.page.contents.metadata;
-        m.* = std.mem.zeroes(filedata.metadata_t);
-        m.version = filedata.kv_version;
-        m.npages = 1;
-
-        self.page.contents.header.checksum = Checksummer.checksum(self.page.contents.metadata);
-    }
-
-    fn hasValidHeader(self: @This()) bool {
-        if (!std.mem.eql(u8, &self.page.contents.header.magic, filedata.magic_bytes)) return false;
-        if (self.page.contents.metadata.version != filedata.kv_version) return false;
-
-        const ck = Checksummer.checksum(self.page.contents.metadata);
-        if (!Checksummer.checksumEqual(self.page.contents.header.checksum, ck)) return false;
-
-        return true;
-    }
-};
-
-const Checksummer = struct {
-    const Hash = std.crypto.hash.Sha1;
-
-    fn checksum(x: anytype) filedata.checksum_t {
-        if (Hash.digest_length > filedata.checksum_size) @compileError("hash has too large of a digest");
-        var ck: filedata.checksum_t = undefined;
-        Hash.hash(&@as([@sizeOf(@TypeOf(x))]u8, @bitCast(x)), ck.data[0..Hash.digest_length], .{});
-        return ck;
-    }
-
-    fn checksumEqual(a: filedata.checksum_t, b: filedata.checksum_t) bool {
-        return std.mem.eql(u8, a.data[0..Hash.digest_length], b.data[0..Hash.digest_length]);
-    }
-};
-
-const UserFD = struct {
-    vfd: c.kv_vfd,
-
-    fn readPtrBuf(self: @This(), pagep: filedata.pageptr_t, page_t: anytype) !void {
-        try self.readBuf(pagep.idx, page_t);
-        if (!Checksummer.checksumEqual(pagep.checksum, Checksummer.checksum(page_t.*))) return error.CorruptData;
-    }
-
-    fn readBuf(self: @This(), pagei: filedata.pageidx_t, page_t: anytype) !void {
-        log.debug("read page {d}", .{pagei});
-
-        if (@sizeOf(@typeInfo(@TypeOf(page_t)).Pointer.child) != filedata.page_size) {
-            @compileError("bad page type");
-        }
-
-        var buf: c.kv_buf = .{
-            .buf = filedata.Page.bytes(page_t),
-            .len = filedata.page_size,
-        };
-
-        const bufs: c.kv_bufs = .{
-            .bufs = &buf,
-            .len = 1,
-        };
-
-        var n: u64 = 0;
-        try errors.convertResult(self.vfd.read.?(self.vfd.user_data, pagei * filedata.page_size, bufs, &n));
-    }
-
-    fn write(self: @This(), pagei: filedata.pageidx_t, page_t: anytype) !void {
-        log.debug("write page {d}", .{pagei});
-
-        if (@sizeOf(@typeInfo(@TypeOf(page_t)).Pointer.child) != filedata.page_size) {
-            @compileError("bad page type");
-        }
-
-        var buf: c.kv_buf = .{
-            .buf = filedata.Page.bytes(page_t),
-            .len = filedata.page_size,
-        };
-
-        const bufs: c.kv_bufs = .{
-            .bufs = &buf,
-            .len = 1,
-        };
-
-        var n: u64 = 0;
-        try errors.convertResult(self.vfd.write.?(self.vfd.user_data, pagei * filedata.page_size, bufs, &n));
-    }
-
-    fn sync(self: @This()) !void {
-        log.debug("sync", .{});
-        if (self.vfd.sync) |f| return errors.convertResult(f(self.vfd.user_data));
-    }
-};
-
-const UserAllocator = struct {
-    mem: c.kv_mem,
-
-    fn allocPage(self: *@This(), comptime T: type) !*T {
-        if (@sizeOf(T) != filedata.page_size) @compileError("bad page type");
-        const buf = try self.allocator().alignedAlloc(T, filedata.page_size, 1);
-        const res: *T = @ptrCast(buf.ptr);
-        self.zeroPage(res);
-        return res;
-    }
-
-    fn zeroPage(self: @This(), page_t: anytype) void {
-        _ = self;
-        @memset(filedata.Page.bytes(page_t), 0);
-    }
-
-    fn allocator(self: *@This()) std.mem.Allocator {
-        return .{
-            .ptr = self,
-            .vtable = &.{
-                .alloc = std_alloc,
-                .resize = std_resize,
-                .free = std_free,
-            },
-        };
-    }
-
-    fn std_alloc(ctx: *anyopaque, len: usize, log2_ptr_align: u8, ret_addr: usize) ?[*]u8 {
-        _ = ret_addr;
-        const self: *@This() = @ptrCast(@alignCast(ctx));
-        if (self.mem.realloc.?(self.mem.user_data, null, @as(usize, 1) << @intCast(log2_ptr_align), len)) |p| {
-            return @ptrCast(@alignCast(p));
-        } else return null;
-    }
-
-    fn std_free(
-        ctx: *anyopaque,
-        old_mem: []u8,
-        log2_old_align_u8: u8,
-        ret_addr: usize,
-    ) void {
-        _ = log2_old_align_u8;
-        _ = ret_addr;
-        const self: *@This() = @ptrCast(@alignCast(ctx));
-        _ = self.mem.realloc.?(self.mem.user_data, old_mem.ptr, 0, 0);
-    }
-
-    fn std_resize(
-        ctx: *anyopaque,
-        old_mem: []u8,
-        log2_old_align_u8: u8,
-        new_size: usize,
-        ret_addr: usize,
-    ) bool {
-        _ = ret_addr;
-        const self: *@This() = @ptrCast(@alignCast(ctx));
-        const p = self.mem.realloc.?(self.mem.user_data, old_mem.ptr, @as(usize, 1) << @intCast(log2_old_align_u8), new_size);
-        if (p == null) return false;
-        std.debug.assert(@as([*]u8, @ptrCast(@alignCast(p))) == old_mem.ptr);
-        return true;
-    }
-};
-
-const InitFlags = struct {
-    flags: u64,
-
-    inline fn readonly(self: @This()) bool {
-        return self.flags & c.KV_INIT_READONLY == c.KV_INIT_READONLY;
-    }
-    inline fn allowcreate(self: @This()) bool {
-        return self.flags & c.KV_INIT_ALLOWCREATE == c.KV_INIT_ALLOWCREATE;
-    }
-};
-
-fn initMetadata(kv: *KV, flags: InitFlags) !KV.KVMetadata {
-    const allocator = kv.mem.allocator();
-
-    var m0: Metadata = .{ .page = try kv.mem.allocPage(filedata.Page.Metadata) };
-    errdefer allocator.destroy(m0.page);
-    var m1: Metadata = .{ .page = try kv.mem.allocPage(filedata.Page.Metadata) };
-    errdefer allocator.destroy(m1.page);
-
-    try kv.vfd.readBuf(0, m0.page);
-    try kv.vfd.readBuf(1, m1.page);
-
-    // Initialize new metadata
-    if (m0.isEmpty() and m1.isEmpty()) {
-        if (!flags.allowcreate()) return error.EmptyMetadata;
-        log.debug("initializing new kv", .{});
-        m0.setNew();
-        m1.setNew();
-        try kv.vfd.write(0, m0.page);
-        try kv.vfd.sync();
-        return .{
-            .current = m0,
-            .next = m1,
-        };
-    }
-
-    // Determine valid metadata
-    var candidate: ?Metadata = null;
-    var fallback: ?Metadata = null;
-
-    if (m0.isEmpty() and m1.hasValidHeader()) {
-        candidate = m1;
-        fallback = null;
-    } else if (m0.hasValidHeader() and m1.isEmpty()) {
-        candidate = m0;
-        fallback = null;
-    } else if (m0.hasValidHeader() and !m1.hasValidHeader()) {
-        candidate = m0;
-        fallback = null;
-    } else if (!m0.hasValidHeader() and m1.hasValidHeader()) {
-        candidate = m1;
-        fallback = null;
-    } else if (m0.hasValidHeader() and m1.hasValidHeader()) {
-        const m0_txn = m0.page.contents.metadata.txn_id;
-        const m1_txn = m1.page.contents.metadata.txn_id;
-        if (m0_txn == m1_txn) return error.BadMetadata;
-        if (m0_txn > m1_txn) {
-            candidate = m0;
-            fallback = m1;
-        } else {
-            candidate = m1;
-            fallback = m0;
-        }
-    }
-    if (candidate == null) return error.BadMetadata;
-
-    const cand = candidate.?;
-    // In order to determine whether to use the candidate or the fallback,
-    // we must check the validity of the txnpagelist pointers. If they
-    // are valid, then the candidate is current. Otherwise, use the
-    // fallback.
-
-    const valid = metadataHasValidTxnpages(kv, cand) catch |err| blk: {
-        if (err == error.CorruptData) break :blk false;
-        return err;
-    };
-    if (valid) return .{
-        .current = cand,
-        .next = if (cand.page == m0.page) m1 else m0,
-    };
-    if (fallback == null) return error.BadMetadata;
-
-    return .{
-        .current = fallback.?,
-        .next = cand,
-    };
-}
-
-fn metadataHasValidTxnpages(kv: *KV, m: Metadata) !bool {
-    const pl = m.page.contents.metadata.txnpagelist;
-    if (pl.npages == 0) return true;
-
-    const pagelist = try kv.mem.allocPage(filedata.Page.Txnlist);
-    defer kv.mem.allocator().destroy(pagelist);
-    try kv.vfd.readPtrBuf(pl.first, pagelist);
-
-    var n: u64 = 0;
-    outer: while (true) {
-        const pages = pagelist.contents.pages;
-        const next = pagelist.contents.next;
-        for (pages) |p| {
-            try kv.vfd.readPtrBuf(p, pagelist);
-            n += 1;
-            if (n >= pl.npages) break :outer;
-        }
-        try kv.vfd.readPtrBuf(next, pagelist);
-    }
-
-    return true;
-}

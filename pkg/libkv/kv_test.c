@@ -1,9 +1,6 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include "kv.h"
 
 #include "uv.h"
-#include "kv.h"
 #include "log.h"
 
 #define MINICORO_IMPL
@@ -20,20 +17,17 @@
   CHECK(res == MCO_SUCCESS, "Error in minicoro\n"); \
   } while (0)
 
-
-#define CREATE(T, n) T* n = (T*)malloc(sizeof(T));
-
 #define UV_CHECK(x) do { \
     const int rc = (x); \
-    if (rc < 0) { fprintf(stderr, "Error in UV: %s\n", uv_strerror(rc)); exit(1); } \
+    CHECK(rc >= 0, "Error in UV: %s\n", uv_strerror(rc)); \
   } while (0)
 
-#define MAX_WAITERS 128
 
 // Lock for coroutines
 // On lock, if already locked, coroutine is added to waiters and suspends.
 // On unlock, if there are waiters, a waiter is marked ready.
 // Ready waiters are resumed from the top-level event loop.
+#define MAX_WAITERS 128
 typedef struct {
   mco_coro* locked;
   mco_coro* ready;
@@ -257,14 +251,19 @@ int main(int argc, char** argv) {
   MCO_CHECK(mco_resume(co));
 
   while (true) {
-    uv_run(loop, UV_RUN_DEFAULT);
-    if (myctx.lock.ready == NULL) break;
-    corolock_ready(&myctx.lock);
+    int live = uv_run(loop, UV_RUN_ONCE);
+    if (myctx.lock.ready) {
+      corolock_ready(&myctx.lock);
+      continue;
+    }
+    if (!live) break;
   }
 
   MCO_CHECK(mco_destroy(co));
   UV_CHECK(uv_fs_close(loop, &fs_req, myctx.fd, NULL));
   uv_fs_req_cleanup(&fs_req);
   uv_loop_close(loop);
+
+  LOG("ok");
   return 0;
 }

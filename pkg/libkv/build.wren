@@ -8,6 +8,7 @@ var test = Fn.new { |b, args|
   var impl = zig.buildLib(b, "kv", {
     "root": b.src("interface.zig"),
     "flags": ["-I", b.srcDir],
+    "libc": true,
   })
 
   var exe = zig.buildExe(b, "test", {

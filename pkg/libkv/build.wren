@@ -6,7 +6,7 @@ var test = Fn.new { |b, args|
   b.srcGlob("*.zig")
 
   var impl = zig.buildLib(b, "kv", {
-    "root": b.src("interface.zig"),
+    "root": b.src("cinterface.zig"),
     "flags": ["-I", b.srcDir],
     "libc": true,
   })

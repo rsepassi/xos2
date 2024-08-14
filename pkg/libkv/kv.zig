@@ -46,7 +46,7 @@ pub const KV = struct {
         allocator.destroy(self);
     }
 
-    pub fn get(kv: *KV, key: []const u8, val: *[]u8) !void {
+    pub fn get(kv: *KV, key: []const u8) !?[]u8 {
         log.debug("kv_get", .{});
 
         var txn: Txn = undefined;
@@ -55,7 +55,7 @@ pub const KV = struct {
         });
         defer txn.close();
 
-        try txn.get(key, val);
+        return try txn.get(key);
     }
 
     pub fn put(kv: *KV, key: []const u8, val: []const u8) !void {
@@ -118,39 +118,30 @@ pub const Txn = struct {
             .file = &kv.vfd,
             .allocator = self.arena.allocator(),
         };
-
-        self.btree.doThing() catch |err| {
-            log.debug("err {any}", .{err});
-            @panic("bad btree thing");
-        };
     }
 
-    pub fn internalDeinit(self: *@This()) void {
+    fn internalDeinit(self: *@This()) void {
         self.arena.deinit();
     }
 
-    pub fn get(self: *@This(), key: []const u8, val: *[]u8) !void {
+    pub fn get(self: *@This(), key: []const u8) !?[]u8 {
         if (key.len < 1) return error.BadKey;
-        _ = self;
-        _ = val;
+        return try self.btree.get(key, self.kv.mem.allocator());
     }
 
     pub fn put(self: *@This(), key: []const u8, val: []const u8) !void {
         if (key.len < 1) return error.BadKey;
-        _ = self;
+        try self.assertWritable();
         _ = val;
     }
 
     pub fn del(self: *@This(), key: []const u8) !void {
         if (key.len < 1) return error.BadKey;
-        _ = self;
+        try self.assertWritable();
     }
 
     pub fn commit(self: *@This()) !void {
         defer self.internalDeinit();
-
-        if (self.kv.readonly) return error.KvRO;
-        if (self.opts.readonly) return error.TxnRO;
     }
 
     pub fn abort(self: *@This()) void {
@@ -159,6 +150,12 @@ pub const Txn = struct {
 
     pub fn close(self: *@This()) void {
         defer self.internalDeinit();
+        if (!self.opts.readonly) @panic("close can only be called on a readonly txn");
+    }
+
+    inline fn assertWritable(self: @This()) !void {
+        if (self.kv.readonly) return error.KvRO;
+        if (self.opts.readonly) return error.TxnRO;
     }
 };
 

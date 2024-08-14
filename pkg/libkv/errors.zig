@@ -26,13 +26,18 @@ pub const kv_result_strs = [_][:0]const u8{
     // KV_ERR_CORRUPT_DATA,
     "checksum mismatch, data has been corrupted",
     // KV_ERR_DB_RO,
-    "kv is readonly but tried to commit",
+    "kv is readonly but tried to write",
     // KV_ERR_TXN_RO,
-    "txn is readonly but tried to commit",
+    "txn is readonly but tried to write",
+    // KV_ERR_BAD_KEY,
+    "key must be at least length 1",
 };
 
+comptime {
+    if (kv_result_strs.len != c.KV__RESULT_SENTINEL) @compileError("bad kv_result_strs length");
+}
+
 pub const KVError = error{
-    KeyNotFound,
     Err,
     VfdMissing,
     MemMissing,
@@ -51,7 +56,6 @@ pub const KVError = error{
 pub fn convertResult(res: c.kv_result) KVError!void {
     return switch (res) {
         c.KV_OK => void{},
-        c.KV_KEY_NOT_FOUND => error.KeyNotFound,
         c.KV_ERR => error.Err,
         c.KV_ERR_VFD_MISSING => error.VfdMissing,
         c.KV_ERR_MEM_MISSING => error.MemMissing,
@@ -72,7 +76,6 @@ pub fn convertResult(res: c.kv_result) KVError!void {
 pub fn convertErr(maybe_err: KVError!void) c.kv_result {
     maybe_err catch |err| {
         return switch (err) {
-            error.KeyNotFound => c.KV_KEY_NOT_FOUND,
             error.Err => c.KV_ERR,
             error.VfdMissing => c.KV_ERR_VFD_MISSING,
             error.MemMissing => c.KV_ERR_MEM_MISSING,

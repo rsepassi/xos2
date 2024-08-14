@@ -33,9 +33,11 @@ pub fn KV(opts: Opts) type {
         }
 
         fn kv_get(ctx: c.kv_ctx, key: c.kv_buf, val: *c.kv_buf) callconv(.C) c.kv_result {
-            var zval: []u8 = @as([*]u8, @ptrCast(val.buf))[0..val.len];
-            getKV(ctx).get(fromBuf(key), &zval) catch |err| return errors.convertErr(err);
-            val.len = zval.len;
+            const maybe = getKV(ctx).get(fromBuf(key)) catch |err| return errors.convertErr(err);
+            if (maybe) |out| {
+                val.buf = out.ptr;
+                val.len = out.len;
+            } else return c.KV_KEY_NOT_FOUND;
             return c.KV_OK;
         }
 

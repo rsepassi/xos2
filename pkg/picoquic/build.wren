@@ -18,7 +18,8 @@ var picoquic = Fn.new { |b, args|
   ]
   var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "picoquic", {
-    "c_srcs": b.glob("picoquic/*.c") + b.glob("picoquic_mbedtls/*.c"),
+    "c_srcs": b.glob("picoquic/*.c") +
+    b.glob("picoquic_mbedtls/*.c"),
     "flags": [
       "-Ipicoquic_mbedtls",
       "-DPTLS_WITHOUT_OPENSSL",
@@ -46,18 +47,29 @@ var picoquic = Fn.new { |b, args|
   ])
 }
 
-var demo = Fn.new { |b, args|
+var loglib = Fn.new { |b, args|
   getSrc.call(b)
-
   var zig = b.deptool("//toolchains/zig")
-  var exe = zig.buildExe(b, "demo", {
-    "c_srcs": ["picoquicfirst/picoquicdemo.c"] +
-      b.glob("picohttp/*.c") +
-      b.glob("loglib/*.c"),
+  var lib = zig.buildLib(b, "loglib", {
+    "c_srcs": b.glob("loglib/*.c"),
     "flags": [
       "-Ipicoquic",
-      "-Iloglib",
-      "-Ipicohttp",
+    ],
+    "libc": true,
+  })
+
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
+  b.installHeader(b.glob("loglib/*.h"))
+}
+
+var picohttp = Fn.new { |b, args|
+  getSrc.call(b)
+  var zig = b.deptool("//toolchains/zig")
+  var lib = zig.buildLib(b, "picohttp", {
+    "c_srcs": b.glob("picohttp/*.c"),
+    "flags": [
+      "-Ipicoquic",
     ],
     "c_deps": [
       b.dep(":picoquic"),
@@ -65,7 +77,43 @@ var demo = Fn.new { |b, args|
     "libc": true,
   })
 
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
+  b.installHeader(b.glob("picohttp/*.h"))
+}
+
+var h3demo = Fn.new { |b, args|
+  getSrc.call(b)
+
+  var zig = b.deptool("//toolchains/zig")
+  var exe = zig.buildExe(b, "demo", {
+    "c_srcs": ["picoquicfirst/picoquicdemo.c"],
+    "flags": [
+      "-Ipicoquic",
+    ],
+    "c_deps": [
+      b.dep(":picoquic"),
+      b.dep(":picohttp"),
+      b.dep(":loglib"),
+    ],
+    "libc": true,
+  })
+
   b.installExe(exe)
 }
 
+var demo = Fn.new { |b, args|
+  getSrc.call(b)
 
+  var zig = b.deptool("//toolchains/zig")
+  var exe = zig.buildExe(b, "demo", {
+    "c_srcs": b.glob("sample/*.c"),
+    "c_deps": [
+      b.dep(":picoquic"),
+      b.dep(":loglib"),
+    ],
+    "libc": true,
+  })
+
+  b.installExe(exe)
+}

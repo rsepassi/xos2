@@ -1,8 +1,8 @@
 import "os" for Process
 import "io" for File
 
-var Url = "https://api.github.com/repos/h2o/picotls/tarball/703553c"
-var Hash = "f117836d8efe7146b60bbc9e19ce8e273c1208fde2cb025c2713083421ab2944"
+var Url = "https://api.github.com/repos/h2o/picotls/tarball/5a4461"
+var Hash = "09efd2e3059f60d9369b5b64aece2c39303ba3e1c0c30e9101028dbc51d62997"
 
 var cifra = Fn.new { |b, args|
   Process.chdir(b.untar(b.fetch(Url, Hash)))
@@ -23,24 +23,37 @@ var picotls = Fn.new { |b, args|
   Process.chdir(b.untar(b.fetch(Url, Hash)))
   File.delete("lib/cifra/libaegis.c")
 
+  var zig = b.deptool("//toolchains/zig")
+  var mbedtls = b.dep("//deps/mbedtls")
   var deps = [
     b.dep(":cifra"),
-    b.dep("//pkg/crypto/libressl"),
     b.dep("//deps/brotli"),
+    zig.cDep(mbedtls, "mbedtls"),
+    zig.cDep(mbedtls, "mbedcrypto"),
+    zig.cDep(mbedtls, "mbedx509"),
   ]
 
-  var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "picotls", {
-    "flags": ["-Iinclude", "-Ilib"],
+    "flags": [
+      "-Iinclude",
+      "-Ilib",
+      "-Ideps/micro-ecc",
+      "-DPICOTLS_USE_BROTLI=1",
+      "-DPTLS_HAVE_MBEDTLS=1",
+    ],
     "c_srcs": [
+      "deps/micro-ecc/uECC.c",
       "lib/asn1.c",
       "lib/certificate_compression.c",
       "lib/ffx.c",
       "lib/hpke.c",
-      "lib/openssl.c",
       "lib/pembase64.c",
       "lib/picotls.c",
       "lib/ptlsbcrypt.c",
+      "lib/uecc.c",
+      "lib/minicrypto-pem.c",
+      "lib/mbedtls.c",
+      "lib/mbedtls_sign.c",
     ] + b.glob("lib/cifra/*.c"),
     "c_deps": deps,
     "libc": true,

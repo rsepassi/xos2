@@ -25,6 +25,7 @@ var picoquic = Fn.new { |b, args|
       "-DPTLS_WITHOUT_OPENSSL",
       "-DPTLS_WITHOUT_FUSION",
       "-DPICOQUIC_WITH_MBEDTLS",
+      "-DPICOQUIC_WITHOUT_SSLKEYLOG",
     ],
     "c_deps": deps,
     "libc": true,
@@ -44,6 +45,7 @@ var picoquic = Fn.new { |b, args|
     "picoquic/picoquic_binlog.h",
     "picoquic/picoquic_config.h",
     "picoquic/picoquic_lb.h",
+    "picoquic_mbedtls/ptls_mbedtls.h",
   ])
 }
 
@@ -114,6 +116,29 @@ var demo = Fn.new { |b, args|
     ],
     "libc": true,
   })
-
   b.installExe(exe)
+}
+
+var uvdemo = Fn.new { |b, args|
+  var zig = b.deptool("//toolchains/zig")
+
+  var deps = [
+    b.dep(":picoquic"),
+    b.dep("//pkg/cbase"),
+    zig.cDep(b.dep("//deps/libuv"), "uv"),
+  ]
+
+  var client = zig.buildExe(b, "client", {
+    "c_srcs": [b.src("uvdemo/client.c")],
+    "c_deps": deps,
+    "libc": true,
+  })
+  var server = zig.buildExe(b, "server", {
+    "c_srcs": [b.src("uvdemo/server.c")],
+    "c_deps": deps,
+    "libc": true,
+  })
+
+  b.installExe(client)
+  b.installExe(server)
 }

@@ -1,0 +1,85 @@
+Notes
+
+Poll for multiple messages at a time?
+Clear out all sends, or all recvs?
+
+Multiple stream management
+Connection migration?
+
+Ping-pong
+Client (ping) sequence: almost_ready, prepare_to_send, ready, data, close
+Server (pong) sequence: almost_ready, ready, data, prepare_to_send, close
+
+Server:
+  quic init: cert+key, tick timer
+  udp: bind+recv_start
+  quic_send: pq_prepare_next_packet+udp_send
+    called on quic tick
+    called interleaved with recv
+  server_callback
+      case picoquic_callback_stream_data:
+      case picoquic_callback_stream_fin:
+        Data received
+
+      case picoquic_callback_prepare_to_send:
+        We arrive here when picoquic_mark_active_stream has been called
+        We call picoquic_provide_stream_data_buffer to send data
+
+      case picoquic_callback_datagram:
+        Datagram received
+      case picoquic_callback_prepare_datagram:
+        We arrive here when picoquic_mark_datagram_ready has been called
+        We call picoquic_provide_datagram_buffer_ex to send data
+
+      case picoquic_callback_datagram_acked:
+      case picoquic_callback_datagram_lost:
+      case picoquic_callback_datagram_spurious:
+        Datagram related messages
+
+      case picoquic_callback_stream_reset:
+      case picoquic_callback_stop_sending:
+        Stop sending received from peer on stream N; bytes=NULL, len = 0
+
+      Note: these are not stream-specific, but connection-wide
+        callback_close+callback_application_close are arrived at via picoquic_close
+      case picoquic_callback_close:
+        Graceful connection close. Stream=0, bytes=NULL, len=0
+      case picoquic_callback_application_close:
+        Application-specific graceful connection closed by peer. Stream=0, bytes=NULL, len=0
+      case picoquic_callback_stateless_reset:
+        Connection lost. Stateless reset received from peer, error message. Stream=0, bytes=NULL, len=0
+
+  malloc
+    quic_send: send_state_t, freed in on_uv_send
+    uv_recv_start on_uv_alloc: malloc(suggested_size), freed in on_uv_read
+  data
+    picoquic_quic_t
+    picoquic_cnx_t, stream_id
+    uv_loop_t, uv_udp_t, uv_timer_t, uv_udp_send_t, uv_buf_t
+
+
+Client:
+  quic+timer
+  picoquic_create_client_cnx, picoquic_mark_active_stream, picoquic_get_next_local_stream_id
+  udp init, recv start
+  picoquic_cnx_t
+
+Questions:
+* malloc -> stack allocations? buffer pool?
+* How to mark end of stream, how to detect it
+* Detecting connection close reason: picoquic_get_close_reasons
+* How to get public key of connection
+* Forcing client to have cert+key doesn't seem to work with picoquic_set_client_authentication
+* picoquic_set_tls_key, picoquic_set_tls_root_certificates, picoquic_set_tls_certificate_chain
+* saving/restoring tickets+tokens on app exit to speed connections next time
+* Shutdown: picoquic_close (graceful), picoquic_close_immediate (abrupt)
+* How do I deliver UDP errors to QUIC?
+  picoquic_notify_destination_unreachable
+* Do I need to reinitialize the UDP socket on network migrations?
+* picoquic_discard_stream, picoquic_stop_sending, picoquic_reset_stream
+* Setup mbedtls cert stuff
+* Should the client just be returning -1 (non-zero) from the callback? That's what the demo does.
+
+Call reset_stream on errors in server callback, and on stream_reset and stop_sending events
+picoquic_close when client is done
+Maybe call picoquic_set_callback on error/close cases

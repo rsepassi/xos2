@@ -331,3 +331,15 @@ pub const File = struct {
         pub const IXUSR = c.S_IXUSR;
     };
 };
+
+fn debugPrintHandle(handle: [*c]c.uv_handle_t, arg: ?*anyopaque) callconv(.C) void {
+    _ = arg;
+    log.debug("live handle: {s} {*}", .{
+        c.uv_handle_type_name(handle.*.type),
+        handle,
+    });
+}
+
+pub fn debugWalk(loop: *c.uv_loop_t) void {
+    c.uv_walk(loop, debugPrintHandle, null);
+}

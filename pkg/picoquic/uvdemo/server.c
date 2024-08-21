@@ -124,7 +124,7 @@ static int server_callback(
     picoquic_call_back_event_t fin_or_event,
     void* callback_ctx,
     void* stream_ctx) {
-  DLOG("server_callback %d", fin_or_event);
+  DLOG("server_callback %d %p", fin_or_event, bytes);
   server_ctx_t* server_ctx = (server_ctx_t*)callback_ctx;
   // stream_ctx never set, will be NULL
   // can set with
@@ -253,7 +253,7 @@ static void on_uv_read(
   server_ctx_t* ctx = (server_ctx_t*)handle->data;
 
   if (addr != NULL) {
-    DLOG("udp recv %lu bytes", nread);
+    DLOG("udp recv %lu bytes %p(%ul)", nread, buf->base, buf->len);
     // Push received buffer into quic
     PQ_CHECK(picoquic_incoming_packet(
         ctx->quic,

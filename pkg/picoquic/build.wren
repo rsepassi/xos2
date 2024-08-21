@@ -34,6 +34,7 @@ var picoquic = Fn.new { |b, args|
   b.installLib(lib)
   b.installLibConfig(zig.libConfig(b, "picoquic", {
     "deps": deps,
+    "libc": true,
   }))
   b.installHeader([
     "picoquic/picoquic.h",
@@ -141,4 +142,28 @@ var uvdemo = Fn.new { |b, args|
 
   b.installExe(client)
   b.installExe(server)
+}
+
+var zig = Fn.new { |b, args|
+  var zig = b.deptool("//toolchains/zig")
+  b.install("zig", zig.moduleConfig(b, {
+    "root": b.src("zig/Quic.zig"),
+    "modules": {
+      "coro": b.dep("//deps/zigcoro"),
+    },
+    "c_deps": [b.dep(":picoquic")],
+  }))
+}
+
+var zigdemo = Fn.new { |b, args|
+  var zig = b.deptool("//toolchains/zig")
+  var exe = zig.buildExe(b, "demo", {
+    "root": b.src("zig/demo.zig"),
+    "modules": {
+      "Quic": b.dep(":zig"),
+      "coro": b.dep("//deps/zigcoro"),
+      "uv": b.dep("//deps/libuv:zig"),
+    },
+  })
+  b.installExe(exe)
 }

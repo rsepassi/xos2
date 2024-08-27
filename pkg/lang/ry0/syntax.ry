@@ -1,0 +1,157 @@
+// Test file for ry parsing
+
+// Struct fields
+a: bool;
+a: void;
+a: type;
+
+uint0: u8;
+uint1: u16;
+uint2: u32;
+uint3: u64 = 1010;
+uint4: u128;
+
+int0: i8;
+int1: i16;
+int2: i32;
+int3: i64;
+int4: i128;
+
+f0: f16;
+f1: f32;
+f2: f64;
+f3: f128;
+
+a: Foo;
+a: foo.Bar;
+a: foo.bar.Baz;
+a: foo.bar.baz();
+a: foo.bar.baz(a, b);
+a: foo.bar.baz[3];
+
+a: ?u32;
+a: const u32;
+a: ?const u32;
+a: (u32);
+a: *u32;
+
+a: import("Foo.ry");
+
+a: if (true) { void; } else { bool; };
+x: switch (boo) { true: void, false: bool, default: u32 };
+
+a: foo(.[ 1, 2, 3]);
+a: foo(.{ .x = 1, .y = 2, .z = 3});
+
+s0: struct {};
+s1: union {};
+s2: enum { a, b, c = 3 };
+s3: [3]u32;
+s4: [3]const u32;
+s5: signature {};
+s6: union(tag) {};
+s7: :blk { break :blk void; };
+s8: enum(u8) { a, b, c };
+
+
+let a = 3;
+let a: u32 = 3;
+var a = 3;
+var a: u32 = 3;
+pub let a: u32 = 3;
+pub var a: u32 = 3;
+pub threadlocal let a: u32 = 3;
+
+let a = true;
+let a = false;
+let a = undefined;
+let a = null;
+
+let f = fn() void;
+let f = fn() void {};
+let f = fn() void { return; };
+let f = fn() void { return 3; };
+let f = fn(a: i32, b: i32) void;
+let f = *const fn() void;
+
+let f = fn(x: u32) void {
+  if (x == 7) {
+  } else if (x == 8) {
+  } else if (x == 9) {
+  } else {
+  }
+};
+
+let f = fn(x: u32) void {
+  while (x) {}
+  while (x) |y| {}
+  :blk while (x) {}
+  :blk while (x) |y| {}
+  while (x > 3) {}
+  while (x) |y| : (y = y + 1;) {}
+};
+
+let f = fn(x: u32) void {
+  let a = 1;
+  let a = 0x01;
+  let a = 0b01;
+  let a = 0o01;
+  let a = "hi";
+  let a = .hi;
+};
+
+let f = extern fn(x: u32) void;
+let f = ccall fn(x: u32) void;
+
+let f = fn(x: u32) void {
+  {}
+  {}
+  :blk {};
+  ;;
+};
+
+let f = fn() void {
+  let x = 1;
+  x += 1;
+  x -= 1;
+  x <<= 1;
+  x >>= 1;
+  x = x.?;
+  x = !x;
+  x = *x;
+  let y = async x();
+  await y;
+  x = x + 1;
+  x = x - 1;
+  x = x * 1;
+  x = x < 1;
+};
+
+let f = fn() void {
+  switch (x) {
+    .a, .b: {},
+    .c,: :blk {},
+    default: 88,
+  }
+
+  let x = switch (y) {
+    7: 8,
+  };
+  let x = switch (y) {};
+};
+
+let f = fn(x: u32) void {
+  for (x) |y| {}
+  :blk for (x) |y| {}
+  :blk for (x, y) |a, b| {}
+  for (0..10) |i| {}
+};
+
+let f = fn() void {
+  if (a <= b && a > 0) {}
+  let y = x + 1 * ~z;
+  let x = a == b != c;
+  let x = a && b && c || d;
+  let x = 2..3 + 5;
+  let x = x <= 5 && y > 9 || !z;
+};

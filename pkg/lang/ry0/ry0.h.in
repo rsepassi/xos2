@@ -1,23 +1,357 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
+
+typedef struct Node Node;
+typedef uint32_t NodeHandle;
 
 typedef enum {
 @@TokenType@@
+  TokenType__Sentinel,
 } TokenType;
 
 #define ERR_LEN 2048
 
 typedef struct {
-  TokenType type;
   const char* start;
-  const char* end;
+  uint16_t len;
+  TokenType type;
 
   // If type == TOKEN_NUMBER
   union {
     double number;
   } data;
 } Token;
+
+typedef enum {
+  Node__InvalidType,
+  NodeStructBody,
+  NodeStructField,
+  NodeDecl,
+  NodeName,
+  NodeTypeSpec,
+  NodeLiteral,
+  NodeLiteralStructField,
+  NodeImport,
+  NodeBlock,
+  NodeStmtCtrl,
+  NodeAssign,
+  NodeIf,
+  NodeWhile,
+  NodeFor,
+  NodeFnArg,
+  NodeEnumField,
+  NodeSwitch,
+  NodeFieldAccess,
+  NodeFnCall,
+  NodeArrayAccess,
+  NodeExprPrefix,
+  NodeCase,
+  NodeOptional,
+  NodeNoop,
+  NodeCapture,
+  NodeStmt,
+  NodeExpr,
+  NodeInfix,
+  NodeInfixAssign,
+  Node__Sentinel,
+} NodeType;
+
+extern char* node_type_strs[Node__Sentinel];
+
+#define DeclQual_PUB         1 << 0
+#define DeclQual_THREADLOCAL 1 << 1
+typedef uint8_t DeclQual;
+
+#define FnQual_EXTERN 1 << 0
+#define FnQual_CCALL  1 << 1
+typedef uint8_t FnQual;
+
+typedef enum {
+  I8,
+  I16,
+  I32,
+  I64,
+  I128,
+  U8,
+  U16,
+  U32,
+  U64,
+  U128,
+  F16,
+  F32,
+  F64,
+  F128,
+  NumType__Sentinel,
+} NumType;
+
+extern char* numtype_strs[NumType__Sentinel];
+
+typedef enum {
+  Type2__Invalid,
+  Type2_type,
+  Type2_bool,
+  Type2_void,
+  Type2_fndef,
+  Type2_num,
+  Type2_array,
+  Type2_struct,
+  Type2_signature,
+  Type2_enum,
+  Type2_union,
+  Type2_optional,
+  Type2__Sentinel,
+} Type2;
+
+extern char* type2_strs[Type2__Sentinel];
+
+typedef struct {
+  Type2 type;
+  union {
+    NumType num;
+    struct {
+      FnQual quals;
+      NodeHandle args;
+      NodeHandle ret_type;
+      NodeHandle body;
+    } fndef;
+    struct {
+      NodeHandle count;
+      NodeHandle type;
+    } array;
+    NodeHandle xstruct;
+    struct {
+      NodeHandle backing_type;
+      NodeHandle elements;
+    } xenum;
+    struct {
+      NodeHandle tag_type;
+      NodeHandle body;
+    } xunion;
+    NodeHandle expr;
+  } data;
+} TypeSpec;
+
+typedef enum {
+  Literal__Invalid,
+  Literal_num,
+  Literal_str,
+  Literal_true,
+  Literal_false,
+  Literal_null,
+  Literal_undefined,
+  Literal_enum,
+  Literal_struct,
+  Literal_array,
+  Literal__Sentinel,
+} LiteralType;
+
+extern char* literal_type_strs[Literal__Sentinel];
+
+typedef enum {
+  Infix__Invalid,
+  Infix_STAR,
+  Infix_SLASH,
+  Infix_PERCENT,
+  Infix_LTLT,
+  Infix_GTGT,
+  Infix_PLUS,
+  Infix_MINUS,
+  Infix_PIPE,
+  Infix_CARAT,
+  Infix_AMP,
+  Infix_DOT2,
+  Infix_AMP2,
+  Infix_PIPE2,
+  Infix_EQEQ,
+  Infix_NEQ,
+  Infix_LT,
+  Infix_LTE,
+  Infix_GT,
+  Infix_GTE,
+  Infix__Sentinel,
+} InfixOp;
+
+extern char* infixop_strs[Infix__Sentinel];
+
+typedef struct {
+  LiteralType type;
+  union {
+    Token tok;  // num, str, enum
+    NodeHandle struct_field;
+    NodeHandle array_entry;
+  } data;
+} Literal;
+
+typedef enum {
+  StmtCtrl_continue,
+  StmtCtrl_break,
+  StmtCtrl_defer,
+  StmtCtrl_errdefer,
+  StmtCtrl_yield,
+  StmtCtrl_resume,
+  StmtCtrl_return,
+  StmtCtrl__Sentinel
+} StmtCtrlKeyword;
+
+extern char* stmtctrl_strs[StmtCtrl__Sentinel];
+
+typedef enum {
+  ExprPrefix_amp,
+  ExprPrefix_minus,
+  ExprPrefix_bang,
+  ExprPrefix_tilde,
+  ExprPrefix_star,
+  ExprPrefix_async,
+  ExprPrefix_await,
+  ExprPrefix_const,
+  ExprPrefix_try,
+  ExprPrefix__Sentinel,
+} ExprPrefix;
+
+extern char* exprprefix_strs[ExprPrefix__Sentinel];
+
+typedef struct {
+  NodeHandle next;
+  NodeHandle tail;
+} NodeList;
+
+// Our AST Node is a tagged union
+typedef struct Node {
+  NodeType type;
+
+  union {
+    struct {
+      NodeHandle fields;
+      NodeHandle decls;
+    } struct_body;
+    struct {
+      Token name;
+      NodeHandle type;
+      NodeList list;
+      NodeHandle xdefault;
+    } struct_field;
+    struct {
+      Token name;
+      DeclQual quals;
+      bool var;
+      NodeHandle type;
+      NodeHandle expr;
+      NodeList list;
+    } decl;
+    Token name;
+    Literal literal;
+    struct {
+      Token name;
+      NodeHandle expr;
+      NodeList list;
+    } literal_struct_field;
+    TypeSpec type;
+    struct {
+      Token label;
+      NodeHandle stmts;
+    } block;
+    struct {
+      NodeHandle expr;
+      NodeList list;
+    } expr;
+    struct {
+      NodeHandle stmt;
+      NodeList list;
+    } stmt;
+    struct {
+      Token label;
+      StmtCtrlKeyword keyword;
+      NodeHandle body;
+    } stmt_ctrl;
+    struct {
+      NodeHandle lhs;
+      NodeHandle rhs;
+    } assign;
+    struct {
+      NodeHandle cond;
+      NodeHandle body;
+      NodeList list;
+    } xif;
+    struct {
+      NodeHandle body;
+    } xelse;
+    struct {
+      NodeHandle cond;
+      NodeHandle capture;
+      NodeHandle xcontinue;
+      NodeHandle body;
+      NodeHandle label;
+    } xwhile;
+    struct {
+      Token label;
+      NodeHandle expr;
+      NodeHandle capture;
+      NodeHandle body;
+    } xfor;
+    struct {
+      Token name;
+      NodeHandle type;
+      NodeList list;
+    } fnarg;
+    struct {
+      Token name;
+      NodeHandle value;
+      NodeList list;
+    } enumfield;
+    struct {
+      NodeHandle expr;
+      NodeHandle body;
+    } xswitch;
+    struct {
+      NodeHandle base;
+      Token field;
+    } expr_field;
+    struct {
+      NodeHandle fn;
+      NodeHandle args;
+    } fncall;
+    struct {
+      NodeHandle base;
+      NodeHandle idx;
+    } expr_array;
+    struct {
+      NodeHandle base;
+      ExprPrefix prefix;
+    } expr_prefix;
+    struct {
+      NodeHandle cases;
+      NodeHandle body;
+      NodeList list;
+    } xcase;
+    struct {
+      Token name;
+      NodeList list;
+    } capture;
+    struct {
+      InfixOp op;
+      NodeHandle lhs;
+      NodeHandle rhs;
+    } infix;
+  } data;
+} Node;
+
+// All Nodes are allocated in a contiguous array.
+// A NodeHandle is an opaque handle into the array.
+// NodeHandle = 0 is a null node.
+typedef struct {
+  Node* base;
+  size_t cap;
+  size_t len;
+} NodeCtx;
+
+NodeCtx node_ctx_init();
+void node_ctx_deinit(NodeCtx);
+NodeHandle node_init(NodeCtx*, NodeType);
+inline Node* node_get(NodeCtx*, NodeHandle);
+inline NodeHandle node_get_handle(NodeCtx*, Node*);
+void node_print(NodeCtx*, NodeHandle);
 
 // Per-lexer state
 typedef struct {
@@ -40,6 +374,10 @@ typedef struct {
   // Last lexed token
   Token last;
 
+  // Parse root
+  NodeHandle root;
+  NodeCtx ctx;
+
   // Error
   bool has_err;
   char err[ERR_LEN];
@@ -54,3 +392,4 @@ void* ParseAlloc(void*(*malloc)(size_t), State* state);
 void ParseFree(void *pParser, void(*free)(void*));
 void Parse(void *pParser, int tokenCode, Token token);
 void ParseTrace(FILE *stream, char *zPrefix);
+int ParseCoverage(FILE *stream);

@@ -48,8 +48,9 @@ var ry0 = Fn.new { |b, args|
   var exe = zig.buildExe(b, "test", {
     "flags": ["-I", parse.includeDir],
     "c_srcs": [b.src("test.c")],
-    "c_deps": [lex, parse],
+    "c_deps": [lex, parse, b.dep("//pkg/cbase")],
     "libc": true,
   })
   b.installExe(exe)
+  b.install("bin", b.src("syntax.ry"))
 }

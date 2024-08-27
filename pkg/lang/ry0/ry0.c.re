@@ -118,13 +118,13 @@ static Status parse_oct(State* state, double* num) {
 #define TOK(name) do { \
     state->last.type = TOKEN_##name; \
     state->last.start = state->tok; \
-    state->last.end = state->cur - 1; \
+    state->last.len = state->cur - state->tok; \
     return LEX_OK; \
   } while (0)
 #define TOK_NUM(val) do { \
     state->last.type = TOKEN_NUMBER; \
     state->last.start = state->tok; \
-    state->last.end = state->cur - 1; \
+    state->last.len = state->cur - state->tok; \
     state->last.data.number = val; \
     return LEX_OK; \
   } while (0)
@@ -192,21 +192,44 @@ static Status lexi(State* state, int lex_id) {
     "]"   { TOK(RBRACE); }
     "("   { TOK(LPAREN); }
     ")"   { TOK(RPAREN); }
+    "|"   { TOK(PIPE); }
     ";"   { TOK(SEMICOLON); }
     ":"   { TOK(COLON); }
     "*"   { TOK(STAR); }
     "?"   { TOK(QUESTION); }
     ","   { TOK(COMMA); }
     "."   { TOK(DOT); }
+    "+"   { TOK(PLUS); }
+    "-"   { TOK(MINUS); }
+    "<"   { TOK(LT); }
+    ">"   { TOK(GT); }
+    "^"   { TOK(CARAT); }
+    "&"   { TOK(AMP); }
+    "/"   { TOK(SLASH); }
+    "%"   { TOK(PERCENT); }
+    "!"   { TOK(BANG); }
+    "~"   { TOK(TILDE); }
+    "&&"   { TOK(AMP2); }
+    "||"   { TOK(PIPE2); }
+    "=="   { TOK(EQEQ); }
+    "!="   { TOK(NEQ); }
+    "<="   { TOK(LTE); }
+    ">="   { TOK(GTE); }
+    ".."   { TOK(DOT2); }
+    "<<"   { TOK(LTLT); }
+    ">>"   { TOK(GTGT); }
+    ".?"   { TOK(DOTQ); }
 
     // Keywords
     "pub" / delim { TOK(PUB); }
+    "threadlocal" / delim { TOK(TLS); }
     "extern" / delim { TOK(EXTERN); }
     "import" / delim { TOK(IMPORT); }
     "let" / delim { TOK(LET); }
     "var"  / delim { TOK(VAR); }
     "const" / delim { TOK(CONST); }
     "struct" / delim { TOK(STRUCT); }
+    "signature" / delim { TOK(SIGNATURE); }
     "fn" / delim { TOK(FN); }
     "enum" / delim { TOK(ENUM); }
     "union" / delim { TOK(UNION); }
@@ -225,6 +248,11 @@ static Status lexi(State* state, int lex_id) {
     "switch" / delim { TOK(SWITCH); }
     "for" / delim { TOK(FOR); }
     "while" / delim { TOK(WHILE); }
+    "default" / delim { TOK(DEFAULT); }
+    "try" / delim { TOK(TRY); }
+    "async" / delim { TOK(ASYNC); }
+    "await" / delim { TOK(AWAIT); }
+    "ccall" / delim { TOK(CCALL); }
 
     "i8" / delim { TOK(I8); }
     "i16" / delim { TOK(I16); }

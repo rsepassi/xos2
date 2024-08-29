@@ -3,8 +3,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
-#include <sys/time.h>
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -23,19 +21,6 @@
   } while (0)
 #define CHECK(x, ...) CHECK2(x, "check failed: " __VA_ARGS__);
 
-char* log_get_current_time() {
-  static char time_str[13];
-  struct timeval tv;
-  struct tm* tm_info;
-
-  gettimeofday(&tv, NULL);
-  tm_info = gmtime(&tv.tv_sec);
-
-  snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d.%03ld",
-           tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec, tv.tv_usec / 1000);
-
-  return time_str;
-}
-
+char* log_get_current_time();
 
 #endif  // LOG_H_

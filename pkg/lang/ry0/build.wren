@@ -41,14 +41,40 @@ var lex = Fn.new { |b, args|
   b.installLibConfig(zig.libConfig(b))
 }
 
+var codegen = Fn.new { |b, args|
+  var zig = b.deptool("//toolchains/zig")
+  var parse = b.dep(":parse")
+  var lib = zig.buildLib(b, "codegen", {
+    "flags": ["-I", b.srcDir, "-I", parse.includeDir],
+    "c_srcs": [b.src("codegen.c")],
+    "c_deps": [
+      b.dep("//pkg/cbase"),
+      b.dep("//pkg/lang/mir"),
+    ],
+    "libc": true,
+  })
+  b.installLib(lib)
+  b.installLibConfig(zig.libConfig(b))
+}
+
 var ry0 = Fn.new { |b, args|
   var lex = b.dep(":lex")
   var parse = b.dep(":parse")
   var zig = b.deptool("//toolchains/zig")
   var exe = zig.buildExe(b, "test", {
-    "flags": ["-I", parse.includeDir],
-    "c_srcs": [b.src("test.c")],
-    "c_deps": [lex, parse, b.dep("//pkg/cbase")],
+    "flags": [
+      "-I", parse.includeDir,
+    ],
+    "c_srcs": [
+      b.src("test.c"),
+    ],
+    "c_deps": [
+      lex,
+      parse,
+      b.dep(":codegen"),
+      b.dep("//pkg/cbase"),
+      b.dep("//pkg/lang/mir"),
+    ],
     "libc": true,
   })
   b.installExe(exe)

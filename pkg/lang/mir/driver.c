@@ -31,7 +31,7 @@ static void *import_resolver (const char *name) {
   return sym;
 }
 
-MIR_item_t load_main(MIR_context_t ctx, const char* fname) {
+static MIR_item_t load_main(MIR_context_t ctx, const char* fname) {
   str_t contents;
   CHECK_OK(read_file(fname, &contents), "could not read file");
   mir_code = &contents;
@@ -57,10 +57,19 @@ MIR_item_t load_main(MIR_context_t ctx, const char* fname) {
   return main_func;
 }
 
-bool debug_enabled() {
+static bool debug_enabled() {
   char* v = getenv("MIR_DEBUG");
   if (v == NULL) return false;
   return strcmp(v, "1") == 0;
+}
+
+static unsigned int opt_level() {
+  char* v = getenv("MIR_OPT");
+  if (v == NULL) return 2;
+  if (strcmp(v, "1") == 0) return 1;
+  if (strcmp(v, "2") == 0) return 2;
+  if (strcmp(v, "3") == 0) return 3;
+  CHECK(false, "invalid MIR_OPT level");
 }
 
 typedef uint64_t (*mir_func)(int argc, char *argv[], char *env[]);
@@ -76,6 +85,7 @@ int main(int argc, char *argv[], char *env[]) {
     MIR_gen_set_debug_file(ctx, stderr);
     MIR_gen_set_debug_level(ctx, 2);
   }
+  MIR_gen_set_optimize_level(ctx, opt_level());
   MIR_link(ctx, MIR_set_gen_interface, import_resolver);
   mir_func func_addr = MIR_gen(ctx, main_func);
   int exit_code = func_addr(argc - 1, argv + 1, env);

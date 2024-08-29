@@ -124,6 +124,8 @@ type_spec2(L) ::= BOOL.
   { L = NODE_INIT(NodeTypeSpec); L->data.type.type = Type2_bool; }
 type_spec2(L) ::= VOID.
   { L = NODE_INIT(NodeTypeSpec); L->data.type.type = Type2_void; }
+type_spec2(L) ::= BYTES.
+  { L = NODE_INIT(NodeTypeSpec); L->data.type.type = Type2_bytes; }
 type_spec2(L) ::= type_number(R).
   { L = NODE_INIT(NodeTypeSpec);
     L->data.type.type = Type2_num;
@@ -131,6 +133,7 @@ type_spec2(L) ::= type_number(R).
 
 type_spec2(L) ::= type_fn(R).        { L = R; }
 type_spec2(L) ::= type_array(R).     { L = R; }
+type_spec2(L) ::= type_slice(R).     { L = R; }
 type_spec2(L) ::= type_struct(R).    { L = R; }
 type_spec2(L) ::= type_signature(R). { L = R; }
 type_spec2(L) ::= type_enum(R).      { L = R; }
@@ -148,7 +151,12 @@ type_array(L) ::= LBRACE expr(R1) RBRACE expr(R2).
     L->data.type.type = Type2_array;
     L->data.type.data.array.count = NH(R1);
     L->data.type.data.array.type = NH(R2); }
-    
+
+type_slice(L) ::= LBRACE RBRACE expr(R2).
+  { L = NODE_INIT(NodeTypeSpec);
+    L->data.type.type = Type2_slice;
+    L->data.type.data.array.type = NH(R2); }
+
 type_struct(L) ::= STRUCT LBRACK struct_body(R) RBRACK.
   { L = NODE_INIT(NodeTypeSpec);
     L->data.type.type = Type2_struct;
@@ -195,16 +203,13 @@ type_int(L) ::= I8.   { L = I8; }
 type_int(L) ::= I16.  { L = I16; }
 type_int(L) ::= I32.  { L = I32; }
 type_int(L) ::= I64.  { L = I64; }
-type_int(L) ::= I128. { L = I128; }
 type_int(L) ::= U8.   { L = U8; }
 type_int(L) ::= U16.  { L = U16; }
 type_int(L) ::= U32.  { L = U32; }
 type_int(L) ::= U64.  { L = U64; }
-type_int(L) ::= U128. { L = U128; }
 type_flt(L) ::= F16.  { L = F16; }
 type_flt(L) ::= F32.  { L = F32; }
 type_flt(L) ::= F64.  { L = F64; }
-type_flt(L) ::= F128. { L = F128; }
 
 literal(L) ::= NUMBER(R).
   { L = NODE_INIT(NodeLiteral);
@@ -273,6 +278,7 @@ fn_quals(L) ::= .                         { L = 0; }
 fn_quals(L) ::= fn_quals(R1) fn_qual(R2). { L = R1 | R2; }
 fn_qual(L) ::= EXTERN.                    { L = FnQual_EXTERN; }
 fn_qual(L) ::= CCALL.                     { L = FnQual_CCALL; }
+fn_qual(L) ::= INLINE.                    { L = FnQual_INLINE; }
 
 fn_def(L) ::= LPAREN fn_args(R1) RPAREN expr(R2) block(R3).
   { L = NODE_INIT(NodeTypeSpec);
@@ -598,18 +604,33 @@ switch_clause_body(L) ::= block(R). { L = R; }
 %nonassoc EXPR_CTRLF_EXPR.
 %nonassoc EXPR_CTRLF_STMT.
 
+// Our precendence rules
+// =================================
 %left ASYNC AWAIT CONST TRY.
-%left AMP2.
-%left PIPE2.
+
+// Here's the meat of it.
+// Should we just make everything a syntax error nonassoc?
+%left AMP2 PIPE2.
 %left EQEQ NEQ.
 %nonassoc LT LTE GT GTE.
 %left DOT2.
 %left PIPE CARAT AMP.
 %left PLUS MINUS.
 %left STAR SLASH PERCENT LTLT GTGT.
+
+// one option:
+// %nonassoc AMP2 PIPE2
+// EQEQ NEQ
+// LT LTE GT GTE
+// DOT2
+// PIPE CARAT AMP.
+// %left PLUS MINUS.
+// %left STAR SLASH PERCENT LTLT GTGT.
+
 %left QUESTION BANG TILDE.
 %left DOT DOTQ LPAREN RPAREN LBRACE RBRACE.
 %left COLON LBRACK RBRACK.
+// =================================
 
 %parse_failure {}
 %syntax_error { state->has_err = true; }
@@ -700,6 +721,11 @@ void node_print_typespec(NodeCtx* ctx, TypeSpec* spec, int indent) {
       break;
     }
 
+    case Type2_bytes: {
+      printf("type=bytes");
+      break;
+    }
+
     case Type2_type: {
       printf("type=type");
       break;
@@ -721,11 +747,19 @@ void node_print_typespec(NodeCtx* ctx, TypeSpec* spec, int indent) {
       break;
     }
 
+    case Type2_slice: {
+      printf("type=slice,\n");
+      PRINTI(2, "type=");
+      node_print2(ctx, spec->data.array.type, indent + 2);
+      break;
+    }
+
     case Type2_fndef: {
       printf("type=fn, quals=[");
 
       if (spec->data.fndef.quals & FnQual_EXTERN) printf(" extern");
       if (spec->data.fndef.quals & FnQual_CCALL) printf(" ccall");
+      if (spec->data.fndef.quals & FnQual_INLINE) printf(" inline");
       printf(" ], args=[\n");
 
       PRINT_NODES(ctx, spec->data.fndef.args, fnarg, indent + 4);
@@ -1186,16 +1220,12 @@ char* numtype_strs[NumType__Sentinel] = {
   "I16",
   "I32",
   "I64",
-  "I128",
   "U8",
   "U16",
   "U32",
   "U64",
-  "U128",
-  "F16",
   "F32",
   "F64",
-  "F128",
 };
 
 char* type2_strs[Type2__Sentinel] = {
@@ -1211,6 +1241,8 @@ char* type2_strs[Type2__Sentinel] = {
   "enum",
   "union",
   "optional",
+  "slice",
+  "bytes",
 };
 
 char* literal_type_strs[Literal__Sentinel] = {
@@ -1313,11 +1345,37 @@ char* node_type_strs[Node__Sentinel] = {
 // * string interpolation
 // * bitfields
 // * Default fn args?
-// * slice
 // * extern fn with let doesn't make much sense?
 // * remove parens on if/for/while/switch
 // * linear types, disable/release
-// * fn pattern matching
+// * fn pattern matching, similar to switch
+// * value deconstruction, e.g. let (x, y, _) = foo;
 // * "hard" type aliases
-// * context management/keywords
+// * context management/keywords, effects, capabilities
+//     dynamic vs static effects
 // * make yield an expression so that resume can return things to it?
+// * comptime keyword
+// * many-item pointer
+// * struct/union types: packed, extern, pinned
+// * tuples?
+// * mixins, usingnamespace
+// * inline switch/for
+// * if with optional
+// * unreachable, panic
+// * anytype/signatures in fn parameter types
+// * inline
+// * _ to ignore a value, e.g. _ = foo();
+// * x: [_]u32 = .[1, 2, 3];  _ for auto-count
+// * cImport, cInclude, cDefine
+// * struct/union literal w type S{}
+// * print keyword?
+// * closures, currying
+// * string/bytes? vs []u8
+// * operator overloading? for things like List array indexing
+// * allow leaving off type for fn arg which means anytype (specialized on
+//   call?)
+// * @This()
+// * Ensuring that higher order fns are nice, e.g. map, etc.
+// * async -> spawn rename? await -> join?
+// * channels/mailboxes: send/recv
+// * select on channels, or joins

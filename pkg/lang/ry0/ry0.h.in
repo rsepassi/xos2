@@ -1,3 +1,6 @@
+#ifndef RY0_H_
+#define RY0_H_
+
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -66,6 +69,7 @@ typedef uint8_t DeclQual;
 
 #define FnQual_EXTERN 1 << 0
 #define FnQual_CCALL  1 << 1
+#define FnQual_INLINE 1 << 2
 typedef uint8_t FnQual;
 
 typedef enum {
@@ -73,16 +77,13 @@ typedef enum {
   I16,
   I32,
   I64,
-  I128,
   U8,
   U16,
   U32,
   U64,
-  U128,
   F16,
   F32,
   F64,
-  F128,
   NumType__Sentinel,
 } NumType;
 
@@ -101,6 +102,8 @@ typedef enum {
   Type2_enum,
   Type2_union,
   Type2_optional,
+  Type2_slice,
+  Type2_bytes,
   Type2__Sentinel,
 } Type2;
 
@@ -383,13 +386,15 @@ typedef struct {
   char err[ERR_LEN];
 } State;
 
-typedef enum {LEX_ERR, LEX_OK, LEX_FILL} Status;
+typedef enum {LEX_ERR, LEX_OK, LEX_FILL} LexStatus;
 State state_init(const char* s);
-Status lex(State* state);
-Status lex_err(State* state);
+LexStatus lex(State* state);
+LexStatus lex_err(State* state);
 
 void* ParseAlloc(void*(*malloc)(size_t), State* state);
 void ParseFree(void *pParser, void(*free)(void*));
 void Parse(void *pParser, int tokenCode, Token token);
 void ParseTrace(FILE *stream, char *zPrefix);
 int ParseCoverage(FILE *stream);
+
+#endif

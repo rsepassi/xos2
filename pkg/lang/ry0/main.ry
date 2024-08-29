@@ -1,0 +1,3 @@
+pub let main = fn(args: const []const bytes) void {
+  print("hello");
+};

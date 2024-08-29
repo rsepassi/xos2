@@ -3,7 +3,10 @@
 #include <string.h>
 
 #include "base/log.h"
+#include "base/file.h"
 #include "ry0.h"
+#include "mir.h"
+#include "codegen.h"
 
 #define LOG_FIELD(name) \
   if (sizeof(n.data.name) > 32) printf("sizeof(" #name ")=%zu\n", sizeof(n.data.name))
@@ -40,25 +43,13 @@ void log_sizes() {
   LOG_FIELD(xcase);
 }
 
-char* readFile(const char* filename) {
-    FILE* file = fopen(filename, "rb");
-    CHECK(file, "can't open file");
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    rewind(file);
+int main(int argc, char** argv) {
+  CHECK(argc > 1, "must pass ry file");
 
-    char* buffer = (char*)malloc(file_size + 1);
-    size_t read_size = fread(buffer, 1, file_size, file);
-    buffer[file_size] = '\0';
+  str_t file;
+  CHECK_OK(read_file(argv[1], &file), "could not read file");
 
-    fclose(file);
-    return buffer;
-}
-
-int main() {
-  const char* s = readFile("./xos-out/bin/syntax.ry");
-
-  State state = state_init(s);
+  State state = state_init(file.bytes);
   state.ctx = node_ctx_init();
   Token* tok = &state.last;
 
@@ -99,6 +90,7 @@ int main() {
 
 
 #ifndef NDEBUG
+  printf("\n");
   ParseCoverage(stdout);
 #endif
   ParseFree(parser, free);
@@ -109,8 +101,22 @@ int main() {
   node_print(&state.ctx, state.root);
   printf("\nOK (%d lines)\n", state.lno);
 
+  MIR_context_t mir = MIR_init();
+
+  CodegenCtx cg = {
+    .mir = mir,
+    .node_ctx = &state.ctx,
+  };
+  CHECK_OK(codegen(&cg, state.root), "codegen failed");
+  MIR_output(mir, stdout);
+
+  FILE* f = fopen("/tmp/code.mirb", "wb");
+  MIR_write(mir, f);
+  fclose(f);
+
+  MIR_finish(mir);
   node_ctx_deinit(state.ctx);
-  free(s);
+  free(file.bytes);
 
   return 0;
 }

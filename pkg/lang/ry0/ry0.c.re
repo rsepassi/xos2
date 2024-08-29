@@ -42,7 +42,7 @@ static void ptok(Token tok, State* state) {
   }
 }
 
-static Status parse_num_base(const char* begin, const char* end, int base, double* num) {
+static LexStatus parse_num_base(const char* begin, const char* end, int base, double* num) {
   double sum = 0;
   const char* current = end;
   int place = 1;
@@ -60,12 +60,12 @@ static Status parse_num_base(const char* begin, const char* end, int base, doubl
   return LEX_OK;
 }
 
-static Status parse_int(State* state, double* num) {
+static LexStatus parse_int(State* state, double* num) {
   // the regex only allows 0-9, can't fail
   return parse_num_base(state->tok, state->cur - 1, 10, num);
 }
 
-static Status parse_hex(State* state, double* num) {
+static LexStatus parse_hex(State* state, double* num) {
   // the regex only allows 0-9a-zA-Z, can't fail
   double sum = 0;
   const char* begin = state->tok + 2;
@@ -90,7 +90,7 @@ static Status parse_hex(State* state, double* num) {
   return LEX_OK;
 }
 
-static Status parse_flt(State* state, double* num) {
+static LexStatus parse_flt(State* state, double* num) {
   // the regex only allows 0-9, can't fail
   const char* point = (char*)memchr(state->tok, '.', state->cur - state->tok);
   double frac;
@@ -101,12 +101,12 @@ static Status parse_flt(State* state, double* num) {
   return LEX_OK;
 }
 
-static Status parse_bin(State* state, double* num) {
+static LexStatus parse_bin(State* state, double* num) {
   // the regex only allows 0-1, can't fail
   return parse_num_base(state->tok + 2, state->cur - 1, 2, num);
 }
 
-static Status parse_oct(State* state, double* num) {
+static LexStatus parse_oct(State* state, double* num) {
   if (parse_num_base(state->tok + 2, state->cur - 1, 8, num) == LEX_ERR) {
     state->has_err = true;
     snprintf(state->err, ERR_LEN, "malformed octal number");
@@ -135,7 +135,7 @@ static void state_next_line(State* state) {
   state->bol = state->cur;
 }
 
-Status lex_err(State* state) {
+LexStatus lex_err(State* state) {
   fprintf(stderr, "Syntax error on line %d:\n", state->lno);
   if (state->lno > 1) fprintf(stderr, "  %.*s", (int)(state->bol - state->lastline), state->lastline);
   const char* eol = (char*)memchr(state->bol, '\n', state->lim - state->bol);
@@ -151,7 +151,7 @@ Status lex_err(State* state) {
   return LEX_ERR;
 }
 
-static Status lexi(State* state, int lex_id) {
+static LexStatus lexi(State* state, int lex_id) {
   double num;
 
   int yyaccept;
@@ -253,21 +253,22 @@ static Status lexi(State* state, int lex_id) {
     "async" / delim { TOK(ASYNC); }
     "await" / delim { TOK(AWAIT); }
     "ccall" / delim { TOK(CCALL); }
+    "inline" / delim { TOK(INLINE); }
+    "defer" / delim { TOK(DEFER); }
+    "errdefer" / delim { TOK(ERRDEFER); }
+    "bytes" / delim { TOK(BYTES); }
 
     "i8" / delim { TOK(I8); }
     "i16" / delim { TOK(I16); }
     "i32" / delim { TOK(I32); }
     "i64" / delim { TOK(I64); }
-    "i128" / delim { TOK(I128); }
     "u8" / delim { TOK(U8); }
     "u16" / delim { TOK(U16); }
     "u32" / delim { TOK(U32); }
     "u64" / delim { TOK(U64); }
-    "u128" / delim { TOK(U128); }
     "f16" / delim { TOK(F16); }
     "f32" / delim { TOK(F32); }
     "f64" / delim { TOK(F64); }
-    "f128" / delim { TOK(F128); }
 
     // Identifiers
     name =    [a-zA-Z][a-zA-Z0-9_]*;
@@ -298,4 +299,4 @@ static Status lexi(State* state, int lex_id) {
   return LEX_OK;
 }
 
-Status lex(State* state) { return lexi(state, 0); }
+LexStatus lex(State* state) { return lexi(state, 0); }

@@ -52,7 +52,12 @@ s5: signature {};
 s6: union(tag) {};
 s7: :blk { break :blk void; };
 s8: enum(u8) { a, b, c };
+s9: []const u32;
 
+a0: ?a.b;
+a1: ?a.?;
+a1: ?a();
+a1: ?a[3];
 
 let a = 3;
 let a: u32 = 3;
@@ -119,8 +124,6 @@ let f = fn() void {
   x = x.?;
   x = !x;
   x = *x;
-  let y = async x();
-  await y;
   x = x + 1;
   x = x - 1;
   x = x * 1;
@@ -148,10 +151,60 @@ let f = fn(x: u32) void {
 };
 
 let f = fn() void {
+  let y = async x();
+  defer {y + 1;};
+  errdefer {y + 1;};
+  await y;
+  for (x) |i| { continue; }
+  :a while (true) {
+    for (x) |i| { continue :a; }
+  }
+};
+
+let List = fn(T: type) type {
+  return struct {
+    items: []T;
+    cap: u64;
+    len: u64;
+  };
+};
+
+pub var Foo: type = struct {
+  a: bool = true;
+  a: void;
+  a: type;
+};
+
+let foo = fn() type {
+  
+};
+
+let f = fn() foo {
   if (a <= b && a > 0) {}
   let y = x + 1 * ~z;
   let x = a == b != c;
   let x = a && b && c || d;
   let x = 2..3 + 5;
+  for (2..(3 + 5)) |i| {
+  }
   let x = x <= 5 && y > 9 || !z;
+};
+
+
+
+let bytes = []const u8;
+
+// binary entrypoint
+pub let main = fn(args: []bytes) !void {
+};
+
+pub let Foo = struct {
+};
+
+pub let std_stuff = struct {
+  pub let build = fn(b: *std.Builder) !void {
+  };
+
+  pub let test = fn(t: *std.Test) !void {
+  };
 };

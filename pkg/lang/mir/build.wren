@@ -60,6 +60,20 @@ var m2c = Fn.new { |b, args|
   })
 }
 
+var driver = Fn.new { |b, args|
+  Fetch.call(b)
+  var zig = b.deptool("//toolchains/zig")
+  var exe = zig.buildExe(b, "mir", {
+    "c_srcs": [b.src("driver.c")],
+    "c_deps": [
+      b.dep(":mir"),
+      b.dep("//pkg/cbase"),
+    ],
+    "libc": true,
+  })
+  b.installExe(exe)
+}
+
 var libdriver = Fn.new { |b, args|
   Fetch.call(b)
   var interp = args.count > 0 && args[0] == "--interpret"

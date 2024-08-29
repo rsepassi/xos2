@@ -1,12 +1,14 @@
 hello_m: module
 
-printfi_p: proto p:fmt, i32:v
-import printfi
+print_p: proto p:out
+import print_stdout, print_stderr
 
-format: string "hello world %d!\n"
+out1: string "hi stdout!\n"
+out2: string "hi stderr!\n"
 
 main: func
-  call printfi_p, printfi, format, 20
+  call print_p, print_stdout, out1
+  call print_p, print_stderr, out2
 endfunc
 
 endmodule

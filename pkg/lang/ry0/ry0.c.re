@@ -224,6 +224,7 @@ static LexStatus lexi(State* state, int lex_id) {
     "pub" / delim { TOK(PUB); }
     "threadlocal" / delim { TOK(TLS); }
     "extern" / delim { TOK(EXTERN); }
+    "export" / delim { TOK(EXPORT); }
     "import" / delim { TOK(IMPORT); }
     "let" / delim { TOK(LET); }
     "var"  / delim { TOK(VAR); }
@@ -257,6 +258,8 @@ static LexStatus lexi(State* state, int lex_id) {
     "defer" / delim { TOK(DEFER); }
     "errdefer" / delim { TOK(ERRDEFER); }
     "bytes" / delim { TOK(BYTES); }
+    "pinned" / delim { TOK(PINNED); }
+    "packed" / delim { TOK(PACKED); }
 
     "i8" / delim { TOK(I8); }
     "i16" / delim { TOK(I16); }
@@ -266,7 +269,6 @@ static LexStatus lexi(State* state, int lex_id) {
     "u16" / delim { TOK(U16); }
     "u32" / delim { TOK(U32); }
     "u64" / delim { TOK(U64); }
-    "f16" / delim { TOK(F16); }
     "f32" / delim { TOK(F32); }
     "f64" / delim { TOK(F64); }
 

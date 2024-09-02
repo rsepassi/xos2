@@ -143,8 +143,8 @@ type_spec2(L) ::= type_optional(R).  { L = R; }
 type_fn(L) ::= fn_quals(R1) FN fn_main(R2).
   { L = R2; L->data.type.data.fndef.quals = R1; }
 
-fn_main(L) ::= fn_def(R).  { L = R; }
-fn_main(L) ::= fn_sig(R). { L = R; }
+fn_main(L) ::= fn_def(R). [FNDEF] { L = R; }
+fn_main(L) ::= fn_sig(R). [FNSIG] { L = R; }
 
 type_array(L) ::= LBRACE expr(R1) RBRACE expr(R2).
   { L = NODE_INIT(NodeTypeSpec);
@@ -157,15 +157,16 @@ type_slice(L) ::= LBRACE RBRACE expr(R2).
     L->data.type.type = Type2_slice;
     L->data.type.data.array.type = NH(R2); }
 
-type_struct(L) ::= STRUCT LBRACK struct_body(R) RBRACK.
+type_struct(L) ::= STRUCT struct_quals(R1) LBRACK struct_body(R2) RBRACK.
   { L = NODE_INIT(NodeTypeSpec);
     L->data.type.type = Type2_struct;
-    L->data.type.data.xstruct = NH(R); }
+    L->data.type.data.xstruct.quals = R1;
+    L->data.type.data.xstruct.body = NH(R2); }
 
 type_signature(L) ::= SIGNATURE LBRACK struct_body(R) RBRACK.
   { L = NODE_INIT(NodeTypeSpec);
     L->data.type.type = Type2_signature;
-    L->data.type.data.xstruct = NH(R); }
+    L->data.type.data.xstruct.body = NH(R); }
 
 type_union(L) ::= UNION LBRACK struct_body(R) RBRACK.
   { L = NODE_INIT(NodeTypeSpec);
@@ -207,7 +208,6 @@ type_int(L) ::= U8.   { L = U8; }
 type_int(L) ::= U16.  { L = U16; }
 type_int(L) ::= U32.  { L = U32; }
 type_int(L) ::= U64.  { L = U64; }
-type_flt(L) ::= F16.  { L = F16; }
 type_flt(L) ::= F32.  { L = F32; }
 type_flt(L) ::= F64.  { L = F64; }
 
@@ -272,20 +272,27 @@ literal_struct_field(L) ::= DOT NAME(R1) EQ expr(R2).
 import(L) ::= IMPORT LPAREN expr(R) RPAREN.
   { L = NODE_INIT(NodeImport); L->data.expr.expr = NH(R); }
 
+%type struct_quals {StructQual}
+%type struct_qual {StructQual}
+struct_quals(L) ::= .                         { L = 0; }
+struct_quals(L) ::= struct_quals(R1) struct_qual(R2).
+                                              { L = R1 | R2; }
+struct_qual(L) ::= PINNED.                    { L = StructQual_PINNED; }
+struct_qual(L) ::= PACKED.                    { L = StructQual_PACKED; }
+struct_qual(L) ::= EXTERN.                    { L = StructQual_EXTERN; }
+
 %type fn_quals {FnQual}
 %type fn_qual {FnQual}
 fn_quals(L) ::= .                         { L = 0; }
 fn_quals(L) ::= fn_quals(R1) fn_qual(R2). { L = R1 | R2; }
 fn_qual(L) ::= EXTERN.                    { L = FnQual_EXTERN; }
+fn_qual(L) ::= EXPORT.                    { L = FnQual_EXPORT; }
 fn_qual(L) ::= CCALL.                     { L = FnQual_CCALL; }
 fn_qual(L) ::= INLINE.                    { L = FnQual_INLINE; }
 
-fn_def(L) ::= LPAREN fn_args(R1) RPAREN expr(R2) block(R3).
-  { L = NODE_INIT(NodeTypeSpec);
-    L->data.type.type = Type2_fndef;
-    L->data.type.data.fndef.args = NH(R1);
-    L->data.type.data.fndef.ret_type = NH(R2);
-    L->data.type.data.fndef.body = NH(R3); }
+fn_def(L) ::= fn_sig(R1) block(R2).
+  { L = R1;
+    L->data.type.data.fndef.body = NH(R2); }
 
 fn_sig(L) ::= LPAREN fn_args(R1) RPAREN expr(R2).
   { L = NODE_INIT(NodeTypeSpec);
@@ -604,6 +611,11 @@ switch_clause_body(L) ::= block(R). { L = R; }
 %nonassoc EXPR_CTRLF_EXPR.
 %nonassoc EXPR_CTRLF_STMT.
 
+// Explicitly prefer the LBRACK shift for function definitions over the reduce
+// for a function signature.
+%nonassoc FNSIG.
+%nonassoc FNDEF.
+
 // Our precendence rules
 // =================================
 %left ASYNC AWAIT CONST TRY.
@@ -758,6 +770,7 @@ void node_print_typespec(NodeCtx* ctx, TypeSpec* spec, int indent) {
       printf("type=fn, quals=[");
 
       if (spec->data.fndef.quals & FnQual_EXTERN) printf(" extern");
+      if (spec->data.fndef.quals & FnQual_EXPORT) printf(" export");
       if (spec->data.fndef.quals & FnQual_CCALL) printf(" ccall");
       if (spec->data.fndef.quals & FnQual_INLINE) printf(" inline");
       printf(" ], args=[\n");
@@ -793,15 +806,20 @@ void node_print_typespec(NodeCtx* ctx, TypeSpec* spec, int indent) {
     }
 
     case Type2_struct: {
-      printf("type=struct, body=");
-      NodeHandle body = spec->data.xstruct;
+      printf("type=struct, quals=[");
+      if (spec->data.xstruct.quals & StructQual_EXTERN) printf(" extern");
+      if (spec->data.xstruct.quals & StructQual_PINNED) printf(" pinned");
+      if (spec->data.xstruct.quals & StructQual_PACKED) printf(" packed");
+      printf(" ], body=[\n");
+
+      NodeHandle body = spec->data.xstruct.body;
       node_print2(ctx, body, indent);
       break;
     }
 
     case Type2_signature: {
       printf("type=signature, body=");
-      NodeHandle body = spec->data.xstruct;
+      NodeHandle body = spec->data.xstruct.body;
       node_print2(ctx, body, indent);
       break;
     }
@@ -1347,23 +1365,28 @@ char* node_type_strs[Node__Sentinel] = {
 // * Default fn args?
 // * extern fn with let doesn't make much sense?
 // * remove parens on if/for/while/switch
-// * linear types, disable/release
+// * linear types (exactly once, not discarded or duplicated), disable/release
 // * fn pattern matching, similar to switch
 // * value deconstruction, e.g. let (x, y, _) = foo;
 // * "hard" type aliases
 // * context management/keywords, effects, capabilities
 //     dynamic vs static effects
+//     effekt, koka, helium, links, frank
+//     paper: soundly handling linearity
+//     webassembly: stack-switching, wasmfx
+//     paper: Foundations for Programming and Implementing Effect Handlers
+//       (hillerstrom)
+//     chapter: Composing UNIX with effect handlers
 // * make yield an expression so that resume can return things to it?
 // * comptime keyword
 // * many-item pointer
 // * struct/union types: packed, extern, pinned
 // * tuples?
 // * mixins, usingnamespace
-// * inline switch/for
+// * inline switch/for/while
 // * if with optional
 // * unreachable, panic
 // * anytype/signatures in fn parameter types
-// * inline
 // * _ to ignore a value, e.g. _ = foo();
 // * x: [_]u32 = .[1, 2, 3];  _ for auto-count
 // * cImport, cInclude, cDefine
@@ -1379,3 +1402,6 @@ char* node_type_strs[Node__Sentinel] = {
 // * async -> spawn rename? await -> join?
 // * channels/mailboxes: send/recv
 // * select on channels, or joins
+// * pfor. plugabble parallel schedulers
+// * dataflow?
+// * error/status strings, allow annotating up the stack?

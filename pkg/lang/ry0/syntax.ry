@@ -192,8 +192,6 @@ let f = fn() foo {
 
 
 
-let bytes = []const u8;
-
 // binary entrypoint
 pub let main = fn(args: []bytes) !void {
 };

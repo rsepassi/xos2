@@ -1,5 +1,5 @@
 import "os" for Process, Path
-import "io" for File
+import "io" for File, Directory
 import "json" for JSON
 import "log" for Logger
 import "record" for Record
@@ -47,12 +47,36 @@ var CCOptMap = {
   "ReleaseFast": 3,
 }
 
+class ZigEz {
+  construct new(z) {
+    _z = z
+  }
+
+  cLib(b, opts) {
+    var name = opts["name"] || b.label.target
+    var lib = _z.buildLib(b, name, {
+      "c_srcs": opts["srcs"] || [],
+      "cflags": opts["flags"] || [],
+      "c_deps": opts["deps"] || [],
+      "libc": opts["libc"] || false,
+    })
+    b.installLib(lib)
+    b.installHeader(opts["include"] || [])
+    b.installLibConfig(_z.libConfig(b, name, {
+      "deps": opts["deps"] || [],
+      "libc": opts["libc"] || false,
+    }))
+  }
+}
+
 // Install wrapper
 class Zig {
   construct new(dir) {
     _b = dir.build
     _exe = "%(_b.installDir)/zig/%(_b.target.exeName("zig"))"
   }
+
+  ez { ZigEz.new(this) }
 
   zigExe { _exe }
 

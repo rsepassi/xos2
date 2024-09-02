@@ -50,7 +50,7 @@ static MIR_item_t load_main(MIR_context_t ctx, const char* fname) {
          main_func == NULL && func != NULL;
          func = DLIST_NEXT(MIR_item_t, func)) {
       if (func->item_type != MIR_func_item) continue;
-      if (strcmp(func->u.func->name, "main") == 0) main_func = func;
+      if (strcmp(func->u.func->name, "mirmain") == 0) main_func = func;
     }
   }
 

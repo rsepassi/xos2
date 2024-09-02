@@ -22,13 +22,26 @@ uint8_t* list_get2(list_t* ctx, int i) {
   return &ctx->base[ctx->elsz * i];
 }
 
-uint8_t* list_add2(list_t* ctx) {
-  if (ctx->len == ctx->cap) {
-    ctx->cap *= 2;
+uint8_t* list_add2(list_t* ctx) { return list_addn2(ctx, 1); }
+
+uint8_t* list_addn2(list_t* ctx, size_t n) {
+  if ((ctx->len + n) > ctx->cap) {
+    ctx->cap = (ctx->len + n) * 2;
     ctx->base = realloc(ctx->base, ctx->cap * ctx->elsz);
   }
 
   uint8_t* cur = &ctx->base[ctx->elsz * ctx->len];
-  ++ctx->len;
+  ctx->len += n;
   return cur;
+}
+
+list_handle_t list_get_handle(list_t* ctx, void* el) {
+  uint64_t delta = (uint8_t*)el - ctx->base;
+  return (delta / ctx->elsz) + 1;
+}
+
+uint8_t* list_get_from_handle2(list_t* ctx, list_handle_t handle) {
+  if (handle == 0) return NULL;
+  handle -= 1;
+  return &ctx->base[ctx->elsz * handle];
 }

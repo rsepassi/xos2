@@ -89,6 +89,7 @@ var c2 = Fn.new { |b, args|
     "include": [b.src("c2.h")],
     "deps": [
       b.dep("//pkg/cbase"),
+      b.dep("//pkg/klib"),
     ],
     "libc": true,
   })

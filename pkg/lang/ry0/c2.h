@@ -46,6 +46,7 @@ typedef enum {
   C2_TypeF32,
   C2_TypeF64,
   C2_TypeVoidPtr,
+  C2_TypeBytes,
   C2_TypeNamedOffset,
   C2_TypePtr,
   C2_TypeFnPtr,
@@ -75,7 +76,7 @@ typedef struct {
   C2_Name name;
   C2_TypeId ret;
   C2_FnQual quals;
-  list_t args;  // C2_Type (C2_TypeFnArg)
+  list_t args;  // C2_TypeId (C2_TypeFnArg)
 } C2_FnSig;
 
 typedef struct {
@@ -94,13 +95,13 @@ typedef struct {
     } arr;
     struct {
       C2_Name name;
-      list_t fields;  // C2_Type (C2_TypeStructField)
+      list_t fields;  // C2_TypeId (C2_TypeStructField)
     } xstruct;
   } data;
 } C2_Type;
 
 typedef struct {
-  C2_FnSig sig;
+  C2_TypeId sig;  // C2_TypeFnPtr
   list_t stmts;  // C2_StmtId
 } C2_Fn;
 
@@ -144,7 +145,7 @@ typedef struct {
       C2_Name label;
     } xgoto;
     struct {
-      list_t ifs;  // C2_StmtId
+      list_t ifs;  // C2_StmtId (C2_Stmt_IFBLOCK)
       list_t xelse;  // C2_StmtId
     } xif;
     struct {
@@ -154,7 +155,7 @@ typedef struct {
     } ifblock;
     struct {
       C2_Name expr;
-      list_t cases;  // C2_Name
+      list_t cases;  // C2_StmtId (C2_Stmt_SWITCHCASE)
       list_t xdefault;  // C2_StmtId
     } xswitch;
     struct {
@@ -162,15 +163,24 @@ typedef struct {
       list_t stmts;  // C2_StmtId
     } switchcase;
     struct {
+      // while (true) {
+      //   <cond_stmts>
+      //   if (!<cond_val>) break;
+      //   <body_stmts>
+      //   if (!<continue_val>) break;
+      //   <continue_stmts>
+      // }
       list_t cond_stmts;  // C2_StmtId
+      C2_Name cond_val;
       list_t body_stmts;  // C2_StmtId
+      C2_Name continue_val;
       list_t continue_stmts;  // C2_StmtId
     } loop;
   } data;
 } C2_Stmt;
 
 typedef struct {
-  list_t extern_fns;  // C2_FnSig
+  list_t extern_fns;  // C2_TypeId (C2_TypeFnPtr)
   list_t extern_data;  // C2_ExternData
   list_t data;  // C2_Data
   list_t bss;  // C2_Data

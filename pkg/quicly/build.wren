@@ -4,25 +4,11 @@ import "io" for File
 var Url = "https://api.github.com/repos/h2o/quicly/tarball/69b2275"
 var Hash = "2a75ab06d3a5db87ab433ad3b578a36d9799e29070bb9f95802baba9b6d84340"
 
-var klib = Fn.new { |b, args|
-  Process.chdir(b.untar(b.fetch(
-    "https://api.github.com/repos/attractivechaos/klib/tarball/de09fb7",
-    "77390b9f05cbbdc55baffad27241367c5d3e5fc8cea97da0c38148acf14ffefc")))
-  var zig = b.deptool("//toolchains/zig")
-  b.installLibConfig(zig.libConfig(b, "klib", {
-    "nostdopts": true,
-    "cflags": ["-I{{root}}/include"],
-  }))
-  b.installHeader([
-    "khash.h",
-  ])
-}
-
 var quicly = Fn.new { |b, args|
   Process.chdir(b.untar(b.fetch(Url, Hash)))
 
   var deps = [
-    b.dep(":klib"),
+    b.dep("//pkg/klib"),
     b.dep("//pkg/crypto/picotls"),
   ]
 

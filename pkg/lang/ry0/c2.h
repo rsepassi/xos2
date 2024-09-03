@@ -49,22 +49,17 @@ typedef enum {
   C2_TypeBytes,
   C2_TypeNamedOffset,
   C2_TypePtr,
-  C2_TypeFnPtr,
   C2_TypeArray,
   C2_TypeStruct,
   C2_TypeStructField,
+  C2_TypeFnPtr,
+  C2_TypeFnSig,
   C2_TypeFnArg,
 } C2_TypeType;
 
 typedef struct {
-  union {
-    struct {
-      uint16_t offset;
-      uint16_t len;
-    } str;
-    uint16_t tmp;
-  } val;
-  bool tag;
+  uint16_t offset;
+  uint16_t len;
 } C2_Name;
 #define C2_Name_NULL ((C2_Name){0})
 
@@ -88,7 +83,7 @@ typedef struct {
   C2_TypeType type;
   union {
     C2_NamedType named;
-    C2_FnSig fnptr;
+    C2_FnSig fnsig;
     struct {
       C2_NamedType named;
       uint32_t len;
@@ -101,7 +96,7 @@ typedef struct {
 } C2_Type;
 
 typedef struct {
-  C2_TypeId sig;  // C2_TypeFnPtr
+  C2_TypeId sig;  // C2_TypeFnSig
   list_t stmts;  // C2_StmtId
 } C2_Fn;
 
@@ -180,7 +175,7 @@ typedef struct {
 } C2_Stmt;
 
 typedef struct {
-  list_t extern_fns;  // C2_TypeId (C2_TypeFnPtr)
+  list_t extern_fns;  // C2_TypeId (C2_TypeFnSig)
   list_t extern_data;  // C2_ExternData
   list_t data;  // C2_Data
   list_t bss;  // C2_Data

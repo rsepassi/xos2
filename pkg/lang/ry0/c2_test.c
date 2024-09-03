@@ -3,9 +3,7 @@
 #include "base/str.h"
 
 #define tmpreset() do { tmpid = 25; } while(0)
-#define getname(idx) ((C2_Name){ \
-  .tag = true, \
-  .val = { .str = { .offset = (idx), .len = 1, }}})
+#define getname(idx) ((C2_Name){ .offset = (idx), .len = 1, })
 
 void write(void* ctx, const char* s, int64_t len) {
   fprintf(stdout, "%.*s", (int)len, s);
@@ -48,7 +46,7 @@ int main(int argc, char** argv) {
     tmpreset();
     {
       C2_Type* f = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, fields) = list_get_handle(&types, f);
+      *list_add(C2_TypeId, fields) = C2_TypeNamedOffset + list_get_handle(&types, f);
       f->type = C2_TypeStructField;
 
       f->data.named.name = getname(tmpid--);
@@ -56,7 +54,7 @@ int main(int argc, char** argv) {
     }
     {
       C2_Type* f = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, fields) = list_get_handle(&types, f);
+      *list_add(C2_TypeId, fields) = C2_TypeNamedOffset + list_get_handle(&types, f);
       f->data.named.name = getname(tmpid--);
       f->data.named.type = C2_TypeI32;
     }
@@ -65,15 +63,15 @@ int main(int argc, char** argv) {
   // Fn ptr
   {
     C2_Type* t = list_add(C2_Type, &types);
-    t->type = C2_TypeFnPtr;
-    C2_FnSig* fn = &t->data.fnptr;
+    t->type = C2_TypeFnSig;
+    C2_FnSig* fn = &t->data.fnsig;
     fn->name = getname(nameid++);
     fn->ret = C2_TypeNamedOffset + 2;
 
     fn->args = list_init(C2_TypeId, -1);
     {
       C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &fn->args) = list_get_handle(&types, t);
+      *list_add(C2_TypeId, &fn->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
       t->type = C2_TypeFnArg;
       t->data.named.type = C2_TypeU8;
     }
@@ -109,9 +107,9 @@ int main(int argc, char** argv) {
   list_t extern_fns = list_init(C2_TypeId, -1);
   {
     C2_Type* fn_t = list_add(C2_Type, &types);
-    *list_add(C2_TypeId, &extern_fns) = list_get_handle(&types, fn_t);
-    fn_t->type = C2_TypeFnPtr;
-    C2_FnSig* fn = &fn_t->data.fnptr;
+    *list_add(C2_TypeId, &extern_fns) = C2_TypeNamedOffset + list_get_handle(&types, fn_t);
+    fn_t->type = C2_TypeFnSig;
+    C2_FnSig* fn = &fn_t->data.fnsig;
 
     fn->name = getname(nameid++);
     fn->ret = C2_TypeNamedOffset + 2;
@@ -119,13 +117,13 @@ int main(int argc, char** argv) {
     fn->args = list_init(C2_TypeId, -1);
     {
       C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &fn->args) = list_get_handle(&types, t);
+      *list_add(C2_TypeId, &fn->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
       t->type = C2_TypeFnArg;
       t->data.named.type = C2_TypeU8;
     }
     {
       C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &fn->args) = list_get_handle(&types, t);
+      *list_add(C2_TypeId, &fn->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
       t->type = C2_TypeFnArg;
       t->data.named.type = C2_TypeI8;
     }
@@ -139,23 +137,23 @@ int main(int argc, char** argv) {
     C2_Fn* fn = list_add(C2_Fn, &fns);
 
     C2_Type* sig_t = list_add(C2_Type, &types);
-    fn->sig = list_get_handle(&types, sig_t);
-    sig_t->type = C2_TypeFnPtr;
+    fn->sig = C2_TypeNamedOffset + list_get_handle(&types, sig_t);
+    sig_t->type = C2_TypeFnSig;
 
-    C2_FnSig* sig = &sig_t->data.fnptr;
+    C2_FnSig* sig = &sig_t->data.fnsig;
     sig->name = getname(nameid++);
     sig->ret = C2_TypeNamedOffset + 2;
     sig->args = list_init(C2_TypeId, -1);
     {
       C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &sig->args) = list_get_handle(&types, t);
+      *list_add(C2_TypeId, &sig->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
       t->type = C2_TypeFnArg;
-      t->data.named.type = C2_TypeU8;
+      t->data.named.type = C2_TypeI8;
       t->data.named.name = getname(tmpid--);
     }
     {
       C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &sig->args) = list_get_handle(&types, t);
+      *list_add(C2_TypeId, &sig->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
       t->type = C2_TypeFnArg;
       t->data.named.type = C2_TypeI8;
       t->data.named.name = getname(tmpid--);

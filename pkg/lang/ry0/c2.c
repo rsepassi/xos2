@@ -31,6 +31,10 @@ static C2_TypeId symtab_get(symtab_t* s, C2_Name* name) {
 // genStmts helper
 #define gens(stmts, i) genStmts(ctx, genctx, symtab, symtab_local, stmts, i);
 
+// Helper to get named type
+#define gettype(tid) \
+  list_get_from_handle(C2_Type, &ctx->types, ((tid) - C2_TypeNamedOffset))
+
 // print helpers
 //
 // print str
@@ -38,7 +42,7 @@ static C2_TypeId symtab_get(symtab_t* s, C2_Name* name) {
 // print c string
 #define pc(s) p(cstr(s))
 // print C2_Name*
-#define pn(n) p(str_init(&ctx->names[(n)->val.str.offset], (n)->val.str.len))
+#define pn(n) p(str_init(&ctx->names[(n)->offset], (n)->len))
 // print C2_TypeId
 #define pt(t) printTypeName(ctx, (t), genctx)
 // print indent
@@ -100,8 +104,7 @@ static void printTypeName(C2_Ctx* ctx, C2_TypeId t, C2_GenCtxC* genctx) {
   if (t < C2_TypeNamedOffset) {
     pc(type_strs[t]);
   } else {
-    t -= C2_TypeNamedOffset;
-    C2_Type* type = list_get_from_handle(C2_Type, &ctx->types, t);
+    C2_Type* type = gettype(t);
     C2_Name* name;
     switch (type->type) {
       case C2_TypePtr: {
@@ -116,8 +119,9 @@ static void printTypeName(C2_Ctx* ctx, C2_TypeId t, C2_GenCtxC* genctx) {
         name = &type->data.xstruct.name;
         break;
       }
+      case C2_TypeFnSig:
       case C2_TypeFnPtr: {
-        name = &type->data.fnptr.name;
+        name = &type->data.fnsig.name;
         break;
       }
       default: {}
@@ -141,8 +145,7 @@ static void printFnSig(C2_Ctx* ctx, C2_FnSig* fn, C2_GenCtxC* genctx, bool with_
   size_t nargs = fn->args.len;
   for (size_t j = 0; j < nargs; ++j) {
     if (j > 0) pc(", ");
-    C2_TypeId* t_id = list_get(C2_TypeId, &fn->args, j);
-    C2_Type* t = list_get(C2_Type, &ctx->types, *t_id);
+    C2_Type* t = gettype(*list_get(C2_TypeId, &fn->args, j));
     pt(t->data.named.type);
     if (with_names) {
       pc(" ");
@@ -356,9 +359,9 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
           break;
         }
         case C2_TypeFnPtr: {
-          symtab_put(symtab, &type->data.fnptr.name, type_handle);
+          symtab_put(symtab, &type->data.fnsig.name, type_handle);
           pc("typedef ");
-          printFnSig(ctx, &type->data.fnptr, genctx, false, true);
+          printFnSig(ctx, &type->data.fnsig, genctx, false, true);
           pc(";\n");
           break;
         }
@@ -388,8 +391,7 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
           size_t nfields = type->data.xstruct.fields.len;
           for (size_t i = 0; i < nfields; ++i) {
             pc("  ");
-            C2_TypeId* f_id = list_get(C2_TypeId, &type->data.xstruct.fields, i);
-            C2_Type* f = list_get_from_handle(C2_Type, &ctx->types, *f_id);
+            C2_Type* f = gettype(*list_get(C2_TypeId, &type->data.xstruct.fields, i));
             pt(f->data.named.type);
             pc(" ");
             pn(&f->data.named.name);
@@ -423,7 +425,8 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
     pc("\n// extern fns\n");
     size_t nfns = module->extern_fns.len;
     for (size_t i = 0; i < nfns; ++i) {
-      C2_FnSig* fn = list_get(C2_FnSig, &module->extern_fns, i);
+      C2_Type* fn_t = gettype(*list_get(C2_TypeId, &module->extern_fns, i));
+      C2_FnSig* fn = &fn_t->data.fnsig;
       pc("extern ");
       printFnSig(ctx, fn, genctx, false, false);
       pc(";\n");
@@ -460,7 +463,8 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
     for (size_t i = 0; i < nfns; ++i) {
       symtab_reset(symtab_local);
       C2_Fn* fn = list_get(C2_Fn, &module->fns, i);
-      C2_FnSig* sig = &list_get_from_handle(C2_Type, &ctx->types, fn->sig)->data.fnptr;
+      C2_Type* fn_t = gettype(fn->sig);
+      C2_FnSig* sig = &fn_t->data.fnsig;
       printFnSig(ctx, sig, genctx, true, false);
       pc(" {\n");
       gens(&fn->stmts, 2);
@@ -474,9 +478,9 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
 }
 
 // TODO:
-// Bug with function signature (z missing)
-// Namer
-//   get, create, getorcreate
-//   tmp name
+// Helpers to manage
+//   Names
+//   Stmts
+//   Types
 // line number directives
 // literals

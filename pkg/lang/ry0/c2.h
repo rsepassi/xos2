@@ -11,9 +11,41 @@ typedef list_handle_t C2_TypeId;
 typedef list_handle_t C2_StmtId;
 
 typedef enum {
-  C2_ExprType_ADD,
-  C2_ExprType_SUB,
-} C2_ExprType;
+  C2_Op_INVALID,
+  C2_Op_NONE,
+  // Unary
+  C2_Op_NEGATE,
+  C2_Op_NOT,
+  C2_Op_BITNOT,
+  C2_Op_ADDR,
+  // Binary
+  C2_Op_ADD,
+  C2_Op_SUB,
+  C2_Op_MUL,
+  C2_Op_DIV,
+  C2_Op_MOD,
+  C2_Op_EQ,
+  C2_Op_NEQ,
+  C2_Op_LT,
+  C2_Op_GT,
+  C2_Op_LTE,
+  C2_Op_GTE,
+  C2_Op_AND,
+  C2_Op_OR,
+  C2_Op_BITAND,
+  C2_Op_BITOR,
+  C2_Op_BITXOR,
+  C2_Op_BITLS,
+  C2_Op_BITRS,
+  C2_Op__Sentinel,
+} C2_OpType;
+
+typedef enum {
+  C2_Term_NAME,
+  C2_Term_DEREF,
+  C2_Term_ARRAY,
+  C2_Term_FIELD,
+} C2_TermType;
 
 typedef enum {
   C2_Stmt_INVALID,
@@ -21,6 +53,8 @@ typedef enum {
   C2_Stmt_DECL,
   C2_Stmt_LABEL,
   C2_Stmt_EXPR,
+  C2_Stmt_TERM,
+  C2_Stmt_FNCALL,
   C2_Stmt_ASSIGN,
   C2_Stmt_RETURN,
   C2_Stmt_BREAK,
@@ -75,8 +109,8 @@ typedef struct {
 } C2_FnSig;
 
 typedef struct {
-  C2_Name name;
   C2_TypeId type;
+  C2_Name name;
 } C2_NamedType;
 
 typedef struct {
@@ -89,8 +123,8 @@ typedef struct {
       uint32_t len;
     } arr;
     struct {
-      C2_Name name;
       list_t fields;  // C2_TypeId (C2_TypeStructField)
+      C2_Name name;
     } xstruct;
   } data;
 } C2_Type;
@@ -113,25 +147,20 @@ typedef struct {
   C2_StmtType type;
   union {
     struct {
+      C2_TypeId type;
       C2_Name in_name;
       C2_Name out_name;
-      C2_TypeId type;
     } cast;
     struct {
-      C2_Name name;
       C2_TypeId type;
+      C2_Name name;
     } decl;
     struct {
       C2_Name name;
     } label;
     struct {
-      C2_ExprType type;
-      C2_Name op0;
-      C2_Name op1;
-    } expr;
-    struct {
-      C2_Name lhs;
-      C2_Name rhs;
+      C2_StmtId lhs;  // C2_Stmt_Expr
+      C2_StmtId rhs;  // C2_Stmt_Expr
     } assign;
     struct {
       C2_Name name;
@@ -166,11 +195,25 @@ typedef struct {
       //   <continue_stmts>
       // }
       list_t cond_stmts;  // C2_StmtId
-      C2_Name cond_val;
       list_t body_stmts;  // C2_StmtId
-      C2_Name continue_val;
       list_t continue_stmts;  // C2_StmtId
+      C2_Name cond_val;
+      C2_Name continue_val;
     } loop;
+    struct {
+      list_t term0;  // C2_StmtId (C2_Stmt_TERM)
+      list_t term1;  // C2_StmtId (C2_Stmt_TERM)
+      C2_OpType type;
+    } expr;
+    struct {
+      C2_Name name;
+      C2_TermType type;
+    } term;
+    struct {
+      C2_Name name;
+      C2_Name ret;
+      list_t args;  // C2_Name
+    } fncall;
   } data;
 } C2_Stmt;
 
@@ -193,6 +236,10 @@ typedef struct {
   void* ctx;
 } C2_GenCtxC;
 
+typedef struct {
+} C2_GenCtxMir;
+
 Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx);
+Status c2_gen_mir(C2_Ctx* ctx, C2_Module* module, C2_GenCtxMir* genctx);
 
 #endif

@@ -22,23 +22,33 @@ static void symtab_put(symtab_t* s, C2_Name* name, C2_TypeId type) {
 static C2_TypeId symtab_get(symtab_t* s, C2_Name* name) {
   int64_t k = 0;
   memcpy(&k, name, sizeof(C2_Name));
-  uint64_t v = kh_val(s, kh_get(mSymtab, s, k));
+  khiter_t iter = kh_get(mSymtab, s, k);
+  if (iter == kh_end(s)) return 0;
+  uint64_t v = kh_val(s, iter);
   C2_TypeId out = 0;
   memcpy(&out, &v, sizeof(C2_TypeId));
   return out;
 }
 
-// genStmts helper
-#define gens(stmts, i) genStmts(ctx, genctx, symtab, symtab_local, stmts, i);
+// symtab_get helper
+#define getsymtype(name) getsymtypeid2(name, ctx, symtab, symtab_local)
+
+// printStmts helper
+#define gens(stmts, i) printStmts(ctx, genctx, symtab, symtab_local, stmts, i, true);
 
 // Helper to get named type
 #define gettype(tid) \
   list_get_from_handle(C2_Type, &ctx->types, ((tid) - C2_TypeNamedOffset))
+#define getstmt(sid) \
+  list_get_from_handle(C2_Stmt, &ctx->stmts, (sid));
 
 // print helpers
 //
 // print str
-#define p(s) genctx->write(genctx->ctx, (s).bytes, (s).len)
+#define p(s) do { \
+    str_t st = (s); \
+    genctx->write(genctx->ctx, st.bytes, st.len); \
+  } while (0)
 // print c string
 #define pc(s) p(cstr(s))
 // print C2_Name*
@@ -47,17 +57,6 @@ static C2_TypeId symtab_get(symtab_t* s, C2_Name* name) {
 #define pt(t) printTypeName(ctx, (t), genctx)
 // print indent
 #define pi(n) printIndent(genctx, n + indent)
-
-static void printIndent(C2_GenCtxC* genctx, size_t n) {
-  static char spaces[32] = "                                ";
-  int left = n;
-  while (left > 0) {
-    int send = left < 32 ? left : 32;
-    str_t s = {.bytes = spaces, .len = send};
-    p(s);
-    left -= send;
-  }
-}
 
 static const char* type_strs[C2_TypeNamedOffset] = {
   "uint8_t",
@@ -80,6 +79,8 @@ static const char* stmt_strs[C2_Stmt__Sentinel] = {
   "DECL",
   "LABEL",
   "EXPR",
+  "TERM",
+  "FNCALL",
   "ASSIGN",
   "RETURN",
   "BREAK",
@@ -92,41 +93,170 @@ static const char* stmt_strs[C2_Stmt__Sentinel] = {
   "SWITCHCASE",
 };
 
-static bool nameIsNull(C2_Name* name) {
-  uint8_t* cur = (uint8_t*)(name);
-  for (int i = 0; i < sizeof(C2_Name); ++i) {
-    if (cur[i] != 0) return false;
-  }
-  return true;
+static const char* op_strs[C2_Op__Sentinel] = {
+  "INVALID",
+  "NONE",
+  // Unary
+  "-",
+  "!",
+  "~",
+  "&",
+  // Binary
+  "+",
+  "-",
+  "*",
+  "/",
+  "%",
+  "==",
+  "!=",
+  "<",
+  ">",
+  "<=",
+  ">=",
+  "&&",
+  "||",
+  "&",
+  "|",
+  "^",
+  "<<",
+  ">>",
+};
+
+static C2_TypeId getsymtypeid2(C2_Name* name, C2_Ctx* ctx, symtab_t* symtab, symtab_t* symtab_local) {
+    C2_TypeId tid = symtab_get(symtab_local, name);
+    if (tid == 0) tid = symtab_get(symtab, name);
+    return tid;
 }
 
+static inline bool nameIsNull(C2_Name* name) {
+  return name->offset == 0 && name->len == 0;
+}
+
+static inline bool namesEq(C2_Name* name0, C2_Name* name1) {
+  return name0->offset == name1->offset && name0->len == 0 == name1->len;
+}
+
+static void printIndent(C2_GenCtxC* genctx, size_t n) {
+  static char spaces[32] = "                                ";
+  int left = n;
+  while (left > 0) {
+    int send = left < 32 ? left : 32;
+    str_t s = {.bytes = spaces, .len = send};
+    p(s);
+    left -= send;
+  }
+}
+
+static inline bool isNamedType(C2_TypeId t) { return t > C2_TypeNamedOffset; }
+
 static void printTypeName(C2_Ctx* ctx, C2_TypeId t, C2_GenCtxC* genctx) {
-  if (t < C2_TypeNamedOffset) {
+  if (!isNamedType(t)) {
     pc(type_strs[t]);
-  } else {
-    C2_Type* type = gettype(t);
-    C2_Name* name;
-    switch (type->type) {
-      case C2_TypePtr: {
-        name = &type->data.named.name;
-        break;
-      }
-      case C2_TypeArray: {
-        name = &type->data.arr.named.name;
-        break;
-      }
-      case C2_TypeStruct: {
-        name = &type->data.xstruct.name;
-        break;
-      }
-      case C2_TypeFnSig:
-      case C2_TypeFnPtr: {
-        name = &type->data.fnsig.name;
-        break;
-      }
-      default: {}
+    return;
+  }
+
+  C2_Type* type = gettype(t);
+  C2_Name* name;
+  switch (type->type) {
+    case C2_TypePtr: {
+      name = &type->data.named.name;
+      break;
     }
-    pn(name);
+    case C2_TypeArray: {
+      name = &type->data.arr.named.name;
+      break;
+    }
+    case C2_TypeStruct: {
+      name = &type->data.xstruct.name;
+      break;
+    }
+    case C2_TypeFnSig:
+    case C2_TypeFnPtr: {
+      name = &type->data.fnsig.name;
+      break;
+    }
+    default: {}
+  }
+  pn(name);
+}
+
+static void printTerm(
+    C2_Ctx* ctx,
+    list_t* expr,
+    C2_GenCtxC* genctx,
+    symtab_t* symtab,
+    symtab_t* symtab_local) {
+  int nderef0 = 0;
+  int nterms0 = expr->len;
+  for (int i = 0; i < nterms0; ++i) {
+    C2_Stmt* term = getstmt(*list_get(C2_StmtId, expr, i));
+    if (term->data.term.type == C2_Term_DEREF) ++nderef0;
+  }
+  for (int i = 0; i < nderef0; ++i) pc("(*");
+
+  C2_TypeId tid = 0;
+  for (int i = 0; i < nterms0; ++i) {
+    C2_Stmt* term = getstmt(*list_get(C2_StmtId, expr, i));
+
+    switch (term->data.term.type) {
+      case C2_Term_NAME: {
+        C2_Name* name = &term->data.term.name;
+        tid = getsymtype(name);
+        pn(name);
+        break;
+      }
+      case C2_Term_DEREF: {
+        if (isNamedType(tid)) {
+          C2_Type* t = gettype(tid);
+          if (t->type == C2_TypePtr) {
+            tid = t->data.named.type;
+          }
+        } else if (tid == C2_TypeBytes) {
+          tid = C2_TypeU8;
+        }
+        pc(")");
+        break;
+      }
+      case C2_Term_ARRAY: {
+        if (isNamedType(tid)) {
+          C2_Type* t = gettype(tid);
+          if (t->type == C2_TypePtr) {
+            tid = t->data.named.type;
+          } else if (t->type == C2_TypeArray) {
+            tid = t->data.arr.named.type;
+          }
+        } else {
+          if (tid == C2_TypeBytes) tid = C2_TypeU8;
+        }
+
+        pc("[");
+        pn(&term->data.term.name);
+        pc("]");
+        break;
+      }
+      case C2_Term_FIELD: {
+        C2_Name* name = &term->data.term.name;
+
+        C2_Type* t = gettype(tid);
+        if (t->type == C2_TypeStruct) {
+          pc(".");
+          int nfields = t->data.xstruct.fields.len;
+          for (int i = 0; i < nfields; ++i) {
+            C2_Type* ft = gettype(*list_get(C2_TypeId, &t->data.xstruct.fields, i));
+            if (namesEq(&ft->data.named.name, name)) {
+              tid = ft->data.named.type;
+              break;
+            }
+          }
+        } else if (t->type == C2_TypePtr) {
+          pc("->");
+          tid = t->data.named.type;
+        }
+
+        pn(name);
+        break;
+      }
+    }
   }
 }
 
@@ -181,17 +311,17 @@ static void printData(C2_Ctx* ctx, C2_Data* data, C2_GenCtxC* genctx) {
   pc(";\n");
 }
 
-static void genStmts(
+static void printStmts(
     C2_Ctx* ctx,
     C2_GenCtxC* genctx,
     symtab_t* symtab,
     symtab_t* symtab_local,
     list_t* stmts,
-    int indent) {
+    int indent,
+    bool addnl) {
   size_t nstmt = stmts->len;
   for (size_t j = 0; j < nstmt; ++j) {
-    C2_StmtId* stmtid = list_get(C2_StmtId, stmts, j);
-    C2_Stmt* stmt = list_get_from_handle(C2_Stmt, &ctx->stmts, *stmtid);
+    C2_Stmt* stmt = getstmt(*list_get(C2_StmtId, stmts, j));
     pi(0);
     switch (stmt->type) {
       case C2_Stmt_DECL: {
@@ -201,16 +331,7 @@ static void genStmts(
         pn(&stmt->data.decl.name);
         break;
       }
-      case C2_Stmt_RETURN: {
-        C2_Name* name = &stmt->data.xreturn.name;
-        if (nameIsNull(name)) {
-          pc("return");
-        } else {
-          pc("return ");
-          pn(&stmt->data.xreturn.name);
-        }
-        break;
-      }
+
       case C2_Stmt_CAST: {
         pn(&stmt->data.cast.out_name);
         pc(" = (");
@@ -220,6 +341,7 @@ static void genStmts(
         symtab_put(symtab_local, &stmt->data.cast.out_name, stmt->data.cast.type);
         break;
       }
+
       case C2_Stmt_LABEL: {
         pn(&stmt->data.label.name);
         pc(":\n");
@@ -238,6 +360,17 @@ static void genStmts(
         pc("break");
         break;
       }
+      case C2_Stmt_RETURN: {
+        C2_Name* name = &stmt->data.xreturn.name;
+        if (nameIsNull(name)) {
+          pc("return");
+        } else {
+          pc("return ");
+          pn(&stmt->data.xreturn.name);
+        }
+        break;
+      }
+
       case C2_Stmt_LOOP: {
         pc("while (1) {\n");
         if (!nameIsNull(&stmt->data.loop.cond_val)) {
@@ -261,11 +394,11 @@ static void genStmts(
         pc("}\n");
         break;
       }
+
       case C2_Stmt_IF: {
         size_t nifs = stmt->data.xif.ifs.len;
         for (int ifi = 0; ifi < nifs; ++ifi) {
-          C2_StmtId* ifhandle = list_get(C2_StmtId, &stmt->data.xif.ifs, ifi);
-          C2_Stmt* xif = list_get_from_handle(C2_Stmt, &ctx->stmts, *ifhandle);
+          C2_Stmt* xif = getstmt(*list_get(C2_StmtId, &stmt->data.xif.ifs, ifi));
           if (ifi > 0) pc(" else {\n  ");
           gens(&xif->data.ifblock.cond_stmts, indent + 2);
           pc("if (");
@@ -285,6 +418,7 @@ static void genStmts(
         pc("\n");
         break;
       }
+
       case C2_Stmt_SWITCH: {
         pc("switch (");
         pn(&stmt->data.xswitch.expr);
@@ -293,8 +427,7 @@ static void genStmts(
         for (int k = 0; k < ncases; ++k) {
           pi(2);
           pc("case ");
-          C2_StmtId* case_handle = list_get(C2_StmtId, &stmt->data.xswitch.cases, k);
-          C2_Stmt* xcase = list_get_from_handle(C2_Stmt, &ctx->stmts, *case_handle);
+          C2_Stmt* xcase = getstmt(*list_get(C2_StmtId, &stmt->data.xswitch.cases, k));
           pn(&xcase->data.switchcase.val);
           pc(":");
           size_t ncasestmts = xcase->data.switchcase.stmts.len;
@@ -319,15 +452,61 @@ static void genStmts(
         break;
       }
 
-      // case C2_Stmt_EXPR:
-      // case C2_Stmt_ASSIGN:
+      case C2_Stmt_FNCALL: {
+        bool has_ret = !nameIsNull(&stmt->data.fncall.ret);
+        if (has_ret) {
+          pn(&stmt->data.fncall.ret);
+          pc(" = ");
+        }
+        pn(&stmt->data.fncall.name);
+        pc("(");
+        int nargs = stmt->data.fncall.args.len;
+        for (int i = 0; i < nargs; ++i) {
+          if (i > 0) pc(", ");
+          pn(list_get(C2_Name, &stmt->data.fncall.args, i));
+        }
+        pc(")");
+
+        break;
+      }
+
+      case C2_Stmt_EXPR: {
+        C2_OpType op = stmt->data.expr.type;
+        bool is_unary = op <= C2_Op_ADDR;
+        if (is_unary) {
+          if (op != C2_Op_NONE) pc(op_strs[op]);
+          printTerm(ctx, &stmt->data.expr.term0, genctx, symtab, symtab_local);
+        } else {
+          printTerm(ctx, &stmt->data.expr.term0, genctx, symtab, symtab_local);
+          pc(" ");
+          pc(op_strs[op]);
+          pc(" ");
+          printTerm(ctx, &stmt->data.expr.term1, genctx, symtab, symtab_local);
+        }
+        break;
+      }
+
+      case C2_Stmt_ASSIGN: {
+        list_t stmts;
+        stmts.cap = 1;
+        stmts.len = 1;
+        stmts.elsz = sizeof(C2_StmtId);
+
+        stmts.base = &stmt->data.assign.lhs;
+        printStmts(ctx, genctx, symtab, symtab_local, &stmts, 0, false);
+        pc(" = ");
+        stmts.base = &stmt->data.assign.rhs;
+        printStmts(ctx, genctx, symtab, symtab_local, &stmts, 0, false);
+        break;
+      }
 
       default: {
         pc(stmt_strs[stmt->type]);
       }
     }
 
-    if (stmt->type == C2_Stmt_LABEL ||
+    if (!addnl ||
+        stmt->type == C2_Stmt_LABEL ||
         stmt->type == C2_Stmt_LOOP ||
         stmt->type == C2_Stmt_IF ||
         stmt->type == C2_Stmt_SWITCH ||
@@ -484,3 +663,5 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
 //   Types
 // line number directives
 // literals
+// shrink stmt by adding Stmt_BLOCK type
+// checks/asserts

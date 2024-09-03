@@ -11,8 +11,6 @@ void write(void* ctx, const char* s, int64_t len) {
 }
 
 int main(int argc, char** argv) {
-  list_t out = list_init(uint8_t, -1);
-
   C2_NameBuf names = "abcdefghijklmnopqrstuvwxyz";
   size_t nameid = 0;
   size_t tmpid = 25;
@@ -37,10 +35,12 @@ int main(int argc, char** argv) {
   }
 
   // Struct
+  C2_TypeId struct_id = 0;
   {
     C2_Type* t = list_add(C2_Type, &types);
     t->type = C2_TypeStruct;
     t->data.xstruct.name = getname(nameid++);
+    struct_id = C2_TypeNamedOffset + list_get_handle(&types, t);
     t->data.xstruct.fields = list_init(C2_TypeId, -1);
     list_t* fields = &t->data.xstruct.fields;
     tmpreset();
@@ -171,6 +171,13 @@ int main(int argc, char** argv) {
       {
         C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
         *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
+        stmt->type = C2_Stmt_DECL;
+        stmt->data.decl.name = getname(tmpid--);
+        stmt->data.decl.type = struct_id;
+      }
+      {
+        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
+        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
         stmt->type = C2_Stmt_LABEL;
         stmt->data.label.name = getname(tmpid--);
       }
@@ -263,12 +270,133 @@ int main(int argc, char** argv) {
       {
         C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
         *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
+        stmt->type = C2_Stmt_FNCALL;
+        stmt->data.fncall.name = getname(tmpid--);
+        stmt->data.fncall.ret = getname(tmpid--);
+        stmt->data.fncall.args = list_init(C2_Name, 2);
+        {
+          C2_Name* arg = list_add(C2_Name, &stmt->data.fncall.args);
+          *arg = getname(tmpid--);
+        }
+        {
+          C2_Name* arg = list_add(C2_Name, &stmt->data.fncall.args);
+          *arg = getname(tmpid--);
+        }
+      }
+
+      {
+        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
+        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
+        stmt->type = C2_Stmt_EXPR;
+        stmt->data.expr.type = C2_Op_ADDR;
+        stmt->data.expr.term0 = list_init(C2_StmtId, 1);
+        {
+          C2_Stmt* ts = list_add(C2_Stmt, &stmts);
+          *list_add(C2_StmtId, &stmt->data.expr.term0) = list_get_handle(&stmts, ts);
+          ts->type = C2_Stmt_TERM;
+          ts->data.term.type = C2_Term_NAME;
+          ts->data.term.name = getname(tmpid--);
+        }
+      }
+
+      {
+        C2_StmtId lhs = 0;
+        C2_StmtId rhs = 0;
+        {
+          C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
+          lhs = list_get_handle(&stmts, stmt);
+          stmt->type = C2_Stmt_EXPR;
+          stmt->data.expr.type = C2_Op_NONE;
+          stmt->data.expr.term0 = list_init(C2_StmtId, 2);
+          {
+            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
+            *list_add(C2_StmtId, &stmt->data.expr.term0) = list_get_handle(&stmts, ts);
+            ts->type = C2_Stmt_TERM;
+            ts->data.term.type = C2_Term_NAME;
+            ts->data.term.name = getname(tmpid--);
+          }
+          {
+            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
+            *list_add(C2_StmtId, &stmt->data.expr.term0) = list_get_handle(&stmts, ts);
+            ts->type = C2_Stmt_TERM;
+            ts->data.term.type = C2_Term_DEREF;
+          }
+        }
+        {
+          C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
+          rhs = list_get_handle(&stmts, stmt);
+          stmt->type = C2_Stmt_EXPR;
+          stmt->data.expr.type = C2_Op_NEGATE;
+          stmt->data.expr.term0 = list_init(C2_StmtId, 1);
+          {
+            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
+            *list_add(C2_StmtId, &stmt->data.expr.term0) = list_get_handle(&stmts, ts);
+            ts->type = C2_Stmt_TERM;
+            ts->data.term.type = C2_Term_NAME;
+            ts->data.term.name = getname(tmpid--);
+          }
+        }
+        {
+          C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
+          *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
+          stmt->type = C2_Stmt_ASSIGN;
+          stmt->data.assign.lhs = lhs;
+          stmt->data.assign.rhs = rhs;
+        }
+      }
+
+
+      {
+        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
+        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
+        stmt->type = C2_Stmt_EXPR;
+        stmt->data.expr.type = C2_Op_MOD;
+        stmt->data.expr.term0 = list_init(C2_StmtId, 3);
+        stmt->data.expr.term1 = list_init(C2_StmtId, 1);
+
+        {
+          list_t* terms = &stmt->data.expr.term0;
+
+          {
+            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
+            *list_add(C2_StmtId, terms) = list_get_handle(&stmts, ts);
+            ts->type = C2_Stmt_TERM;
+            ts->data.term.type = C2_Term_NAME;
+            ts->data.term.name = getname(tmpid--);
+          }
+          {
+            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
+            *list_add(C2_StmtId, terms) = list_get_handle(&stmts, ts);
+            ts->type = C2_Stmt_TERM;
+            ts->data.term.type = C2_Term_DEREF;
+          }
+          {
+            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
+            *list_add(C2_StmtId, terms) = list_get_handle(&stmts, ts);
+            ts->type = C2_Stmt_TERM;
+            ts->data.term.type = C2_Term_ARRAY;
+            ts->data.term.name = getname(tmpid--);
+          }
+        }
+        {
+          list_t* terms = &stmt->data.expr.term1;
+
+          C2_Stmt* ts = list_add(C2_Stmt, &stmts);
+          *list_add(C2_StmtId, terms) = list_get_handle(&stmts, ts);
+          ts->type = C2_Stmt_TERM;
+          ts->data.term.type = C2_Term_NAME;
+          ts->data.term.name = getname(tmpid--);
+        }
+      }
+
+      {
+        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
+        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
         stmt->type = C2_Stmt_RETURN;
         stmt->data.xreturn.name = getname(tmpid--);
       }
     }
   }
-
 
   C2_Ctx ctx = {
     .names = names,
@@ -282,6 +410,7 @@ int main(int argc, char** argv) {
     .bss = bss,
     .fns = fns,
   };
+  list_t out = list_init(uint8_t, -1);
   C2_GenCtxC genctx = {
     .write = write,
     .ctx = &out,
@@ -290,9 +419,6 @@ int main(int argc, char** argv) {
   CHECK_OK(c2_gen_c(&ctx, &module, &genctx));
 
   // Cleanup all list_inits
-  // including within each struct def
-  // including within each fn args
-  // including within each fn stmts
 
   return 0;
 }

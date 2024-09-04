@@ -11,16 +11,22 @@
     fprintf(stderr, "[%s %s:%d] " fmt "\n", log_get_current_time(), __FILENAME__, __LINE__ , ##__VA_ARGS__); \
   } while (0)
 
-#ifdef NDEBUG
-#define DLOG(fmt, ...)
-#else
+#ifndef NDEBUG
 #define DLOG(fmt, ...) LOG(fmt, ##__VA_ARGS__)
+#else
+#define DLOG(fmt, ...)
 #endif
 
 #define CHECK2(x, fmt, ...) do { \
   if (!(x)) { LOG(fmt, ##__VA_ARGS__); exit(1); } \
   } while (0)
 #define CHECK(x, ...) CHECK2(x, "check failed: " __VA_ARGS__);
+
+#ifndef NDEBUG
+#define DCHECK(x, ...) CHECK(x, ##__VA_ARGS__)
+#else
+#define DCHECK(x, ...)
+#endif
 
 char* log_get_current_time();
 

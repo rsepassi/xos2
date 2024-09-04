@@ -4,11 +4,8 @@
 #include <stdbool.h>
 
 #include "base/list.h"
+#include "base/str.h"
 #include "base/status.h"
-
-typedef const char* C2_NameBuf;
-typedef list_handle_t C2_TypeId;
-typedef list_handle_t C2_StmtId;
 
 typedef enum {
   C2_Op_INVALID,
@@ -41,13 +38,6 @@ typedef enum {
 } C2_OpType;
 
 typedef enum {
-  C2_Term_NAME,
-  C2_Term_DEREF,
-  C2_Term_ARRAY,
-  C2_Term_FIELD,
-} C2_TermType;
-
-typedef enum {
   C2_Stmt_INVALID,
   C2_Stmt_CAST,
   C2_Stmt_DECL,
@@ -65,10 +55,13 @@ typedef enum {
   C2_Stmt_LOOP,
   C2_Stmt_IFBLOCK,
   C2_Stmt_SWITCHCASE,
+  C2_Stmt_BLOCK,
   C2_Stmt__Sentinel,
 } C2_StmtType;
 
 typedef enum {
+  C2_TypeINVALID,
+  C2_TypeVOID,
   C2_TypeU8,
   C2_TypeU16,
   C2_TypeU32,
@@ -79,8 +72,7 @@ typedef enum {
   C2_TypeI64,
   C2_TypeF32,
   C2_TypeF64,
-  C2_TypeVoidPtr,
-  C2_TypeBytes,
+  C2_TypeBytes,  // uint8_t*
   C2_TypeNamedOffset,
   C2_TypePtr,
   C2_TypeArray,
@@ -91,26 +83,46 @@ typedef enum {
   C2_TypeFnArg,
 } C2_TypeType;
 
-typedef struct {
-  uint16_t offset;
-  uint16_t len;
-} C2_Name;
-#define C2_Name_NULL ((C2_Name){0})
+typedef enum {
+  C2_Term_NAME,
+  C2_Term_DEREF,
+  C2_Term_ARRAY,
+  C2_Term_FIELD,
+} C2_TermType;
 
 #define C2_FnQual_INLINE 1 << 0
 #define C2_FnQual_EXPORT 1 << 1
 typedef uint8_t C2_FnQual;
 
+// Identifiers to key datatypes
+// * Name
+// * Stmt
+// * Type
+typedef struct {
+  uint16_t offset;
+  uint16_t len;
+} C2_Name;
+#define C2_Name_NULL ((C2_Name){0})
+inline bool c2_names_eq(C2_Name, C2_Name);
+
+typedef struct {
+  C2_TypeType type;
+  list_handle_t handle;
+} C2_TypeId;
+#define C2_TypeId_NULL ((C2_TypeId){0})
+
+typedef list_handle_t C2_StmtId;
+#define C2_StmtId_NULL 0
 typedef struct {
   C2_Name name;
-  C2_TypeId ret;
   C2_FnQual quals;
   list_t args;  // C2_TypeId (C2_TypeFnArg)
+  C2_TypeId ret;
 } C2_FnSig;
 
 typedef struct {
-  C2_TypeId type;
   C2_Name name;
+  C2_TypeId type;
 } C2_NamedType;
 
 typedef struct {
@@ -123,15 +135,15 @@ typedef struct {
       uint32_t len;
     } arr;
     struct {
-      list_t fields;  // C2_TypeId (C2_TypeStructField)
       C2_Name name;
+      list_t fields;  // C2_TypeId (C2_TypeStructField)
     } xstruct;
   } data;
 } C2_Type;
 
 typedef struct {
   C2_TypeId sig;  // C2_TypeFnSig
-  list_t stmts;  // C2_StmtId
+  C2_StmtId stmts;  // C2_Stmt_BLOCK
 } C2_Fn;
 
 typedef struct {
@@ -140,8 +152,6 @@ typedef struct {
   uint64_t len;
   bool export;
 } C2_Data;
-
-typedef C2_Name C2_ExternData;
 
 typedef struct {
   C2_StmtType type;
@@ -152,8 +162,8 @@ typedef struct {
       C2_Name out_name;
     } cast;
     struct {
-      C2_TypeId type;
       C2_Name name;
+      C2_TypeId type;
     } decl;
     struct {
       C2_Name name;
@@ -169,22 +179,22 @@ typedef struct {
       C2_Name label;
     } xgoto;
     struct {
-      list_t ifs;  // C2_StmtId (C2_Stmt_IFBLOCK)
-      list_t xelse;  // C2_StmtId
+      C2_StmtId ifs;  // C2_Stmt_BLOCK (C2_Stmt_IFBLOCK)
+      C2_StmtId xelse;  // C2_Stmt_BLOCK
     } xif;
     struct {
-      list_t cond_stmts;  // C2_StmtId
-      list_t body_stmts;  // C2_StmtId
+      C2_StmtId cond_stmts;  // C2_Stmt_BLOCK
       C2_Name cond;
+      C2_StmtId body_stmts;  // C2_Stmt_BLOCK
     } ifblock;
     struct {
       C2_Name expr;
-      list_t cases;  // C2_StmtId (C2_Stmt_SWITCHCASE)
-      list_t xdefault;  // C2_StmtId
+      C2_StmtId cases;  // C2_Stmt_BLOCK (C2_Stmt_SWITCHCASE)
+      C2_StmtId xdefault;  // C2_Stmt_BLOCK
     } xswitch;
     struct {
       C2_Name val;
-      list_t stmts;  // C2_StmtId
+      C2_StmtId stmts;  // C2_Stmt_BLOCK
     } switchcase;
     struct {
       // while (true) {
@@ -194,15 +204,15 @@ typedef struct {
       //   if (!<continue_val>) break;
       //   <continue_stmts>
       // }
-      list_t cond_stmts;  // C2_StmtId
-      list_t body_stmts;  // C2_StmtId
-      list_t continue_stmts;  // C2_StmtId
+      C2_StmtId cond_stmts;  // C2_Stmt_BLOCK
       C2_Name cond_val;
+      C2_StmtId body_stmts;  // C2_Stmt_BLOCK
       C2_Name continue_val;
+      C2_StmtId continue_stmts;  // C2_Stmt_BLOCK
     } loop;
     struct {
-      list_t term0;  // C2_StmtId (C2_Stmt_TERM)
-      list_t term1;  // C2_StmtId (C2_Stmt_TERM)
+      C2_StmtId term0;  // C2_Stmt_BLOCK (C2_Stmt_TERM)
+      C2_StmtId term1;  // C2_Stmt_BLOCK (C2_Stmt_TERM)
       C2_OpType type;
     } expr;
     struct {
@@ -214,32 +224,73 @@ typedef struct {
       C2_Name ret;
       list_t args;  // C2_Name
     } fncall;
+    list_t block;  // C2_StmtId
   } data;
 } C2_Stmt;
 
 typedef struct {
+  list_t buf;
+  void* ctx;
+  size_t tmp;
+} C2_Names;
+
+typedef struct {
+  C2_Names names;
+  list_t types;  // C2_Type
+  list_t stmts;  // C2_Stmt
+} C2_Ctx;
+C2_Ctx c2_ctx_init();
+void c2_ctx_deinit(C2_Ctx*);
+
+typedef struct {
+  C2_Ctx* ctx;
   list_t extern_fns;  // C2_TypeId (C2_TypeFnSig)
-  list_t extern_data;  // C2_ExternData
+  list_t extern_data;  // C2_Name
   list_t data;  // C2_Data
   list_t bss;  // C2_Data
   list_t fns;  // C2_Fn
 } C2_Module;
+C2_Module c2_module_init(C2_Ctx*);
+void c2_module_deinit(C2_Module*);
 
+// C codegen
 typedef struct {
-  C2_NameBuf names;
-  list_t types;  // C2_Type
-  list_t stmts;  // C2_Stmt
-} C2_Ctx;
-
-typedef struct {
-  void (*write)(void* ctx, const char* s, int64_t len);
-  void* ctx;
+  void (*write)(void* user_ctx, str_t s);
+  void* user_ctx;
 } C2_GenCtxC;
-
-typedef struct {
-} C2_GenCtxMir;
-
 Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx);
-Status c2_gen_mir(C2_Ctx* ctx, C2_Module* module, C2_GenCtxMir* genctx);
+
+// C2_Ctx builder API
+// ----------------------------------------------------------------------------
+
+// Names
+C2_Name c2_ctx_namec(C2_Ctx*, const char* name);
+C2_Name c2_ctx_tmpname(C2_Ctx*);
+inline str_t c2_ctx_strname(C2_Ctx* ctx, C2_Name name);
+
+// Types
+C2_Type* c2_ctx_addtypec(C2_Ctx*, C2_TypeType, const char* name);
+#define C2_TypeIdBase(t) (C2_TypeId){.type = (t), .handle = 0}
+inline C2_TypeId C2_TypeIdNamed(C2_Ctx*, C2_Type*);
+inline C2_Type* c2_ctx_gettype(C2_Ctx*, C2_TypeId);
+// Helpers
+void c2_ctx_addstructfield(C2_Ctx*,
+    C2_Type* struct_type, const char* field_name, C2_TypeId field_type);
+void c2_ctx_addfnarg(C2_Ctx*,
+    C2_Type* fn_type, const char* arg_name, C2_TypeId arg_type);
+
+// Stmts
+C2_Fn* c2_module_addfn(C2_Module*, C2_TypeId sig);
+C2_Stmt* c2_ctx_addstmt(C2_Ctx*, C2_Fn* fn, C2_StmtType);
+inline C2_StmtId c2_ctx_stmtid(C2_Ctx*, C2_Stmt*);
+inline C2_Stmt* c2_ctx_getstmt(C2_Ctx*, C2_StmtId);
+// Helpers
+void c2_ctx_addassign(C2_Ctx*, C2_Fn* fn, C2_StmtId lhs, C2_StmtId rhs);
+void c2_ctx_addterm(C2_Ctx*, C2_Stmt* expr, bool rhs, C2_TermType, C2_Name name);
+C2_Stmt* c2_ctx_addexpr(C2_Ctx*, C2_OpType, C2_Name lhs, C2_Name rhs);
+C2_StmtId c2_ctx_addblock(C2_Ctx*);
+C2_Stmt* c2_ctx_blockadd(C2_Ctx*, C2_StmtId block, C2_StmtType);
+void c2_ctx_addifblock(C2_Ctx*, C2_StmtId ifs, C2_StmtId cond_block, C2_Name cond, C2_StmtId body_block);
+void c2_ctx_addswitchcase(C2_Ctx*, C2_StmtId cases, C2_Name case_val, C2_StmtId case_block);
 
 #endif

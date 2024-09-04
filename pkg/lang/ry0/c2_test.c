@@ -2,423 +2,284 @@
 
 #include "base/str.h"
 
-#define tmpreset() do { tmpid = 25; } while(0)
-#define getname(idx) ((C2_Name){ .offset = (idx), .len = 1, })
-
-void write(void* ctx, const char* s, int64_t len) {
-  fprintf(stdout, "%.*s", (int)len, s);
-  str_append(ctx, s, len);
+void write(void* ctx, str_t s) {
+#ifdef DEBUG
+  fprintf(stderr, "%.*s", (int)s.len, s.bytes);
+#endif
+  str_append((list_t*)ctx, s);
 }
 
 int main(int argc, char** argv) {
-  C2_NameBuf names = "abcdefghijklmnopqrstuvwxyz";
-  size_t nameid = 0;
-  size_t tmpid = 25;
+  C2_Ctx ctx = c2_ctx_init();
+  C2_Module module = c2_module_init(&ctx);
 
-  list_t types = list_init(C2_Type, -1);
-
-  // Pointer
+  // tmpname
   {
-    C2_Type* t = list_add(C2_Type, &types);
-    t->type = C2_TypePtr;
-    t->data.named.name = getname(nameid++);
-    t->data.named.type = C2_TypeU8;
+    C2_Name name = c2_ctx_tmpname(&ctx);
+    str_t name_s = c2_ctx_strname(&ctx, name);
+    CHECK(name_s.len == 4);
+    CHECK(!strncmp(name_s.bytes, "tmp0", 4));
   }
 
-  // Array
+  // Pointer type
+  C2_TypeId myptr_t;
   {
-    C2_Type* t = list_add(C2_Type, &types);
-    t->type = C2_TypeArray;
-    t->data.arr.named.name = getname(nameid++);
-    t->data.arr.named.type = C2_TypeU8;
+    C2_Type* t = c2_ctx_addtypec(&ctx, C2_TypePtr, "myptr");
+    t->data.named.type = C2_TypeIdBase(C2_TypeU8);
+    myptr_t = C2_TypeIdNamed(&ctx, t);
+    C2_Name name = c2_ctx_namec(&ctx, "myptr");
+    CHECK(c2_names_eq(t->data.named.name, name));
+  }
+
+  // Array type
+  {
+    C2_Type* t = c2_ctx_addtypec(&ctx, C2_TypeArray, "myarr");
+    t->data.arr.named.type = C2_TypeIdBase(C2_TypeU8);
     t->data.arr.len = 10;
   }
 
-  // Struct
-  C2_TypeId struct_id = 0;
+  // Array of pointer type
   {
-    C2_Type* t = list_add(C2_Type, &types);
-    t->type = C2_TypeStruct;
-    t->data.xstruct.name = getname(nameid++);
-    struct_id = C2_TypeNamedOffset + list_get_handle(&types, t);
-    t->data.xstruct.fields = list_init(C2_TypeId, -1);
-    list_t* fields = &t->data.xstruct.fields;
-    tmpreset();
-    {
-      C2_Type* f = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, fields) = C2_TypeNamedOffset + list_get_handle(&types, f);
-      f->type = C2_TypeStructField;
-
-      f->data.named.name = getname(tmpid--);
-      f->data.named.type = C2_TypeNamedOffset + 1;
-    }
-    {
-      C2_Type* f = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, fields) = C2_TypeNamedOffset + list_get_handle(&types, f);
-      f->data.named.name = getname(tmpid--);
-      f->data.named.type = C2_TypeI32;
-    }
+    C2_Type* t = c2_ctx_addtypec(&ctx, C2_TypeArray, "myarr");
+    t->data.arr.named.type = myptr_t;
+    t->data.arr.len = 10;
   }
 
-  // Fn ptr
+  // Struct type
   {
-    C2_Type* t = list_add(C2_Type, &types);
-    t->type = C2_TypeFnSig;
-    C2_FnSig* fn = &t->data.fnsig;
-    fn->name = getname(nameid++);
-    fn->ret = C2_TypeNamedOffset + 2;
+    C2_Type* t = c2_ctx_addtypec(&ctx, C2_TypeStruct, "mystruct");
+    c2_ctx_addstructfield(&ctx, t, "field0", C2_TypeIdBase(C2_TypeF32));
+    c2_ctx_addstructfield(&ctx, t, "field1", myptr_t);
+  }
 
-    fn->args = list_init(C2_TypeId, -1);
-    {
-      C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &fn->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
-      t->type = C2_TypeFnArg;
-      t->data.named.type = C2_TypeU8;
-    }
+  // Fn ptr type
+  {
+    C2_Type* t = c2_ctx_addtypec(&ctx, C2_TypeFnPtr, "myfnptr");
+    c2_ctx_addfnarg(&ctx, t, "arg0", C2_TypeIdBase(C2_TypeF32));
   }
 
   // Extern data
-  list_t extern_data = list_init(C2_ExternData, -1);
   {
-    C2_ExternData* d = list_add(C2_ExternData, &extern_data);
-    *d = getname(nameid++);
+    *list_add(C2_Name, &module.extern_data) =
+      c2_ctx_namec(&ctx, "myexterndata");
   }
 
   // BSS
-  list_t bss = list_init(C2_Data, -1);
   {
-    C2_Data* d = list_add(C2_Data, &bss);
-    d->name = getname(nameid++);
+    C2_Data* d = list_add(C2_Data, &module.bss);
+    d->name = c2_ctx_namec(&ctx, "mybss");
     d->len = 128;
   }
 
   // Data
   const char* somedata = "hello world!";
-  list_t data = list_init(C2_Data, -1);
   {
-    C2_Data* d = list_add(C2_Data, &data);
-    d->name = getname(nameid++);
+    C2_Data* d = list_add(C2_Data, &module.data);
+    d->name = c2_ctx_namec(&ctx, "mydata");
     d->len = strlen(somedata) + 1;
     d->data = (const uint8_t*)somedata;
     d->export = true;
   }
 
-  // Extern fns
-  list_t extern_fns = list_init(C2_TypeId, -1);
+  // Extern fn
   {
-    C2_Type* fn_t = list_add(C2_Type, &types);
-    *list_add(C2_TypeId, &extern_fns) = C2_TypeNamedOffset + list_get_handle(&types, fn_t);
-    fn_t->type = C2_TypeFnSig;
-    C2_FnSig* fn = &fn_t->data.fnsig;
+    C2_Type* t = c2_ctx_addtypec(&ctx, C2_TypeFnSig, "myexternfn");
+    c2_ctx_addfnarg(&ctx, t, "arg0", C2_TypeIdBase(C2_TypeU16));
+    c2_ctx_addfnarg(&ctx, t, "arg1", myptr_t);
+    t->data.fnsig.ret = C2_TypeIdBase(C2_TypeU64);
+    *list_add(C2_TypeId, &module.extern_fns) = C2_TypeIdNamed(&ctx, t);
+  }
 
-    fn->name = getname(nameid++);
-    fn->ret = C2_TypeNamedOffset + 2;
+  // Statements
+  {
+    C2_Type* sig_t = c2_ctx_addtypec(&ctx, C2_TypeFnSig, "myfn");
+    sig_t->data.fnsig.ret = C2_TypeIdBase(C2_TypeU16);
+    c2_ctx_addfnarg(&ctx, sig_t, "arg0", C2_TypeIdBase(C2_TypeF32));
+    c2_ctx_addfnarg(&ctx, sig_t, "arg1", myptr_t);
 
-    fn->args = list_init(C2_TypeId, -1);
+    C2_Fn* fn = c2_module_addfn(&module, C2_TypeIdNamed(&ctx, sig_t));
+
+    // Declaration
     {
-      C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &fn->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
-      t->type = C2_TypeFnArg;
-      t->data.named.type = C2_TypeU8;
+      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_DECL);
+      s->data.decl.name = c2_ctx_namec(&ctx, "a");
+      s->data.decl.type = C2_TypeIdBase(C2_TypeU8);
     }
+
+    // Declaration with user type
     {
-      C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &fn->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
-      t->type = C2_TypeFnArg;
-      t->data.named.type = C2_TypeI8;
+      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_DECL);
+      s->data.decl.name = c2_ctx_namec(&ctx, "b");
+      s->data.decl.type = myptr_t;
+    }
+
+    // Label
+    {
+      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_LABEL);
+      s->data.label.name = c2_ctx_namec(&ctx, "mylabel");
+    }
+
+    // Cast
+    {
+      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_CAST);
+      s->data.cast.in_name = c2_ctx_namec(&ctx, "a");
+      s->data.cast.out_name = c2_ctx_namec(&ctx, "c");
+      s->data.cast.type = C2_TypeIdBase(C2_TypeU16);
+    }
+
+    // Goto
+    {
+      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_GOTO);
+      s->data.xgoto.label = c2_ctx_namec(&ctx, "mylabel");
+    }
+
+    // Control flow
+    {
+      c2_ctx_addstmt(&ctx, fn, C2_Stmt_CONTINUE);
+      c2_ctx_addstmt(&ctx, fn, C2_Stmt_BREAK);
+      c2_ctx_addstmt(&ctx, fn, C2_Stmt_RETURN);
+    }
+
+    // Return with value
+    {
+      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_RETURN);
+      s->data.xreturn.name = c2_ctx_namec(&ctx, "c");
+    }
+
+    // Function call
+    {
+      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_FNCALL);
+      s->data.fncall.name = c2_ctx_namec(&ctx, "myexternfn");
+      s->data.fncall.ret = c2_ctx_namec(&ctx, "d");
+      *list_add(C2_Name, &s->data.fncall.args) =
+        c2_ctx_namec(&ctx, "c");
+      *list_add(C2_Name, &s->data.fncall.args) =
+        c2_ctx_namec(&ctx, "b");
+    }
+
+    // Assignment
+    {
+      C2_Stmt* lhs_s = c2_ctx_addexpr(&ctx,
+          C2_Op_NONE, c2_ctx_namec(&ctx, "b"), C2_Name_NULL);
+      C2_StmtId lhs = c2_ctx_stmtid(&ctx, lhs_s);
+      c2_ctx_addterm(&ctx, lhs_s, false, C2_Term_DEREF, C2_Name_NULL);
+      C2_StmtId rhs = c2_ctx_stmtid(&ctx, c2_ctx_addexpr(&ctx,
+          C2_Op_NOT, c2_ctx_namec(&ctx, "a"), C2_Name_NULL));
+      c2_ctx_addassign(&ctx, fn, lhs, rhs);
+    }
+
+    // Loop
+    {
+      C2_StmtId cond_block = c2_ctx_addblock(&ctx);
+      {
+        C2_Stmt* s = c2_ctx_blockadd(&ctx, cond_block, C2_Stmt_DECL);
+        s->data.decl.name = c2_ctx_namec(&ctx, "mycond");
+        s->data.decl.type = C2_TypeIdBase(C2_TypeU8);
+      }
+      C2_StmtId body_block = c2_ctx_addblock(&ctx);
+      {
+        C2_Stmt* s = c2_ctx_blockadd(&ctx, body_block, C2_Stmt_DECL);
+        s->data.decl.name = c2_ctx_namec(&ctx, "mycont");
+        s->data.decl.type = C2_TypeIdBase(C2_TypeU8);
+      }
+      C2_StmtId continue_block = c2_ctx_addblock(&ctx);
+      {
+        C2_Stmt* s = c2_ctx_blockadd(&ctx, continue_block, C2_Stmt_DECL);
+        s->data.decl.name = c2_ctx_namec(&ctx, "mycont_var");
+        s->data.decl.type = C2_TypeIdBase(C2_TypeU8);
+      }
+
+      C2_Stmt* loop = c2_ctx_addstmt(&ctx, fn, C2_Stmt_LOOP);
+      loop->data.loop.cond_stmts = cond_block;
+      loop->data.loop.cond_val = c2_ctx_namec(&ctx, "mycond");
+      loop->data.loop.body_stmts = body_block;
+      loop->data.loop.continue_val = c2_ctx_namec(&ctx, "mycont");
+      loop->data.loop.continue_stmts = continue_block;
+    }
+
+    // If else
+    {
+      C2_StmtId if_blocks = c2_ctx_addblock(&ctx);
+      {
+        C2_StmtId cond_block = c2_ctx_addblock(&ctx);
+        {
+          C2_Stmt* s = c2_ctx_blockadd(&ctx, cond_block, C2_Stmt_DECL);
+          s->data.decl.name = c2_ctx_namec(&ctx, "myifcond");
+          s->data.decl.type = C2_TypeIdBase(C2_TypeU8);
+        }
+        C2_Name cond_name = c2_ctx_namec(&ctx, "myifcond");
+        C2_StmtId body_block = c2_ctx_addblock(&ctx);
+        {
+          C2_Stmt* s = c2_ctx_blockadd(&ctx, body_block, C2_Stmt_DECL);
+          s->data.decl.name = c2_ctx_namec(&ctx, "myifbody");
+          s->data.decl.type = C2_TypeIdBase(C2_TypeU8);
+        }
+
+        c2_ctx_addifblock(&ctx, if_blocks, cond_block, cond_name, body_block);
+        c2_ctx_addifblock(&ctx, if_blocks, cond_block, cond_name, body_block);
+      }
+      C2_StmtId else_block = c2_ctx_addblock(&ctx);
+      {
+        C2_Stmt* s = c2_ctx_blockadd(&ctx, else_block, C2_Stmt_DECL);
+        s->data.decl.name = c2_ctx_namec(&ctx, "myelse");
+        s->data.decl.type = C2_TypeIdBase(C2_TypeU8);
+      }
+
+      C2_Stmt* xif = c2_ctx_addstmt(&ctx, fn, C2_Stmt_IF);
+      xif->data.xif.ifs = if_blocks;
+      xif->data.xif.xelse = else_block;
+    }
+
+    // Switch
+    {
+      C2_StmtId cases = c2_ctx_addblock(&ctx);
+      {
+        C2_StmtId block = c2_ctx_addblock(&ctx);
+        c2_ctx_blockadd(&ctx, block, C2_Stmt_BREAK);
+        c2_ctx_addswitchcase(&ctx, cases, c2_ctx_namec(&ctx, "case0"), block);
+      }
+
+      C2_StmtId xdefault = c2_ctx_addblock(&ctx);
+      {
+        C2_Stmt* s = c2_ctx_blockadd(&ctx, xdefault, C2_Stmt_DECL);
+        s->data.decl.name = c2_ctx_namec(&ctx, "mydefault");
+        s->data.decl.type = C2_TypeIdBase(C2_TypeU8);
+      }
+
+      C2_Stmt* xswitch = c2_ctx_addstmt(&ctx, fn, C2_Stmt_SWITCH);
+      xswitch->data.xswitch.expr = c2_ctx_namec(&ctx, "myswitch");
+      xswitch->data.xswitch.cases = cases;
+      xswitch->data.xswitch.xdefault = xdefault;
     }
   }
 
-  list_t stmts = list_init(C2_Stmt, -1);
-
-  list_t fns = list_init(C2_Fn, -1);
-  {
-    tmpreset();
-    C2_Fn* fn = list_add(C2_Fn, &fns);
-
-    C2_Type* sig_t = list_add(C2_Type, &types);
-    fn->sig = C2_TypeNamedOffset + list_get_handle(&types, sig_t);
-    sig_t->type = C2_TypeFnSig;
-
-    C2_FnSig* sig = &sig_t->data.fnsig;
-    sig->name = getname(nameid++);
-    sig->ret = C2_TypeNamedOffset + 2;
-    sig->args = list_init(C2_TypeId, -1);
-    {
-      C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &sig->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
-      t->type = C2_TypeFnArg;
-      t->data.named.type = C2_TypeI8;
-      t->data.named.name = getname(tmpid--);
-    }
-    {
-      C2_Type* t = list_add(C2_Type, &types);
-      *list_add(C2_TypeId, &sig->args) = C2_TypeNamedOffset + list_get_handle(&types, t);
-      t->type = C2_TypeFnArg;
-      t->data.named.type = C2_TypeI8;
-      t->data.named.name = getname(tmpid--);
-    }
-
-    fn->stmts = list_init(C2_StmtId, -1);
-    {
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_DECL;
-        stmt->data.decl.name = getname(tmpid--);
-        stmt->data.decl.type = C2_TypeU8;
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_DECL;
-        stmt->data.decl.name = getname(tmpid--);
-        stmt->data.decl.type = struct_id;
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_LABEL;
-        stmt->data.label.name = getname(tmpid--);
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_CAST;
-        stmt->data.cast.in_name = getname(25);
-        stmt->data.cast.out_name = getname(tmpid--);
-        stmt->data.cast.type = C2_TypeI8;
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_GOTO;
-        stmt->data.xgoto.label = getname(22);
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_CONTINUE;
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_BREAK;
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_LOOP;
-        stmt->data.loop.cond_val = getname(tmpid--);
-        stmt->data.loop.continue_val = getname(tmpid--);
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_IF;
-        stmt->data.xif.ifs = list_init(C2_StmtId, -1);
-        stmt->data.xif.xelse = list_init(C2_StmtId, -1);
-
-        {
-          C2_Stmt* if0 = list_add(C2_Stmt, &stmts);
-          if0->type = C2_Stmt_IFBLOCK;
-          if0->data.ifblock.cond = getname(tmpid--);
-          *list_add(C2_StmtId, &stmt->data.xif.ifs) = list_get_handle(&stmts, if0);
-        }
-        {
-          C2_Stmt* if0 = list_add(C2_Stmt, &stmts);
-          if0->type = C2_Stmt_IFBLOCK;
-          if0->data.ifblock.cond = getname(tmpid--);
-          *list_add(C2_StmtId, &stmt->data.xif.ifs) = list_get_handle(&stmts, if0);
-        }
-        {
-          C2_Stmt* if0 = list_add(C2_Stmt, &stmts);
-          if0->type = C2_Stmt_IFBLOCK;
-          if0->data.ifblock.cond = getname(tmpid--);
-          *list_add(C2_StmtId, &stmt->data.xif.ifs) = list_get_handle(&stmts, if0);
-        }
-        {
-          C2_Stmt* else0 = list_add(C2_Stmt, &stmts);
-          *list_add(C2_StmtId, &stmt->data.xif.xelse) = list_get_handle(&stmts, else0);
-        }
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_SWITCH;
-        stmt->data.xswitch.expr = getname(tmpid--);
-        stmt->data.xswitch.cases = list_init(C2_StmtId, -1);
-        stmt->data.xswitch.xdefault = list_init(C2_StmtId, -1);
-
-        {
-          C2_Stmt* c0 = list_add(C2_Stmt, &stmts);
-          c0->type = C2_Stmt_SWITCHCASE;
-          c0->data.switchcase.val = getname(tmpid--);
-          *list_add(C2_StmtId, &stmt->data.xswitch.cases) = list_get_handle(&stmts, c0);
-        }
-        {
-          C2_Stmt* c0 = list_add(C2_Stmt, &stmts);
-          c0->type = C2_Stmt_SWITCHCASE;
-          c0->data.switchcase.val = getname(tmpid--);
-          *list_add(C2_StmtId, &stmt->data.xswitch.cases) = list_get_handle(&stmts, c0);
-        }
-        {
-          C2_Stmt* def0 = list_add(C2_Stmt, &stmts);
-          *list_add(C2_StmtId, &stmt->data.xswitch.xdefault) = list_get_handle(&stmts, def0);
-        }
-      }
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_FNCALL;
-        stmt->data.fncall.name = getname(tmpid--);
-        stmt->data.fncall.ret = getname(tmpid--);
-        stmt->data.fncall.args = list_init(C2_Name, 2);
-        {
-          C2_Name* arg = list_add(C2_Name, &stmt->data.fncall.args);
-          *arg = getname(tmpid--);
-        }
-        {
-          C2_Name* arg = list_add(C2_Name, &stmt->data.fncall.args);
-          *arg = getname(tmpid--);
-        }
-      }
-
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_EXPR;
-        stmt->data.expr.type = C2_Op_ADDR;
-        stmt->data.expr.term0 = list_init(C2_StmtId, 1);
-        {
-          C2_Stmt* ts = list_add(C2_Stmt, &stmts);
-          *list_add(C2_StmtId, &stmt->data.expr.term0) = list_get_handle(&stmts, ts);
-          ts->type = C2_Stmt_TERM;
-          ts->data.term.type = C2_Term_NAME;
-          ts->data.term.name = getname(tmpid--);
-        }
-      }
-
-      {
-        C2_StmtId lhs = 0;
-        C2_StmtId rhs = 0;
-        {
-          C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-          lhs = list_get_handle(&stmts, stmt);
-          stmt->type = C2_Stmt_EXPR;
-          stmt->data.expr.type = C2_Op_NONE;
-          stmt->data.expr.term0 = list_init(C2_StmtId, 2);
-          {
-            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
-            *list_add(C2_StmtId, &stmt->data.expr.term0) = list_get_handle(&stmts, ts);
-            ts->type = C2_Stmt_TERM;
-            ts->data.term.type = C2_Term_NAME;
-            ts->data.term.name = getname(tmpid--);
-          }
-          {
-            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
-            *list_add(C2_StmtId, &stmt->data.expr.term0) = list_get_handle(&stmts, ts);
-            ts->type = C2_Stmt_TERM;
-            ts->data.term.type = C2_Term_DEREF;
-          }
-        }
-        {
-          C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-          rhs = list_get_handle(&stmts, stmt);
-          stmt->type = C2_Stmt_EXPR;
-          stmt->data.expr.type = C2_Op_NEGATE;
-          stmt->data.expr.term0 = list_init(C2_StmtId, 1);
-          {
-            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
-            *list_add(C2_StmtId, &stmt->data.expr.term0) = list_get_handle(&stmts, ts);
-            ts->type = C2_Stmt_TERM;
-            ts->data.term.type = C2_Term_NAME;
-            ts->data.term.name = getname(tmpid--);
-          }
-        }
-        {
-          C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-          *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-          stmt->type = C2_Stmt_ASSIGN;
-          stmt->data.assign.lhs = lhs;
-          stmt->data.assign.rhs = rhs;
-        }
-      }
-
-
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_EXPR;
-        stmt->data.expr.type = C2_Op_MOD;
-        stmt->data.expr.term0 = list_init(C2_StmtId, 3);
-        stmt->data.expr.term1 = list_init(C2_StmtId, 1);
-
-        {
-          list_t* terms = &stmt->data.expr.term0;
-
-          {
-            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
-            *list_add(C2_StmtId, terms) = list_get_handle(&stmts, ts);
-            ts->type = C2_Stmt_TERM;
-            ts->data.term.type = C2_Term_NAME;
-            ts->data.term.name = getname(tmpid--);
-          }
-          {
-            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
-            *list_add(C2_StmtId, terms) = list_get_handle(&stmts, ts);
-            ts->type = C2_Stmt_TERM;
-            ts->data.term.type = C2_Term_DEREF;
-          }
-          {
-            C2_Stmt* ts = list_add(C2_Stmt, &stmts);
-            *list_add(C2_StmtId, terms) = list_get_handle(&stmts, ts);
-            ts->type = C2_Stmt_TERM;
-            ts->data.term.type = C2_Term_ARRAY;
-            ts->data.term.name = getname(tmpid--);
-          }
-        }
-        {
-          list_t* terms = &stmt->data.expr.term1;
-
-          C2_Stmt* ts = list_add(C2_Stmt, &stmts);
-          *list_add(C2_StmtId, terms) = list_get_handle(&stmts, ts);
-          ts->type = C2_Stmt_TERM;
-          ts->data.term.type = C2_Term_NAME;
-          ts->data.term.name = getname(tmpid--);
-        }
-      }
-
-      {
-        C2_Stmt* stmt = list_add(C2_Stmt, &stmts);
-        *list_add(C2_StmtId, &fn->stmts) = list_get_handle(&stmts, stmt);
-        stmt->type = C2_Stmt_RETURN;
-        stmt->data.xreturn.name = getname(tmpid--);
-      }
-    }
-  }
-
-  C2_Ctx ctx = {
-    .names = names,
-    .types = types,
-    .stmts = stmts,
-  };
-  C2_Module module = {
-    .extern_fns = extern_fns,
-    .extern_data = extern_data,
-    .data = data,
-    .bss = bss,
-    .fns = fns,
-  };
+  // Generate C
   list_t out = list_init(uint8_t, -1);
-  C2_GenCtxC genctx = {
-    .write = write,
-    .ctx = &out,
-  };
-
+  C2_GenCtxC genctx = { .write = write, .user_ctx = &out };
   CHECK_OK(c2_gen_c(&ctx, &module, &genctx));
 
-  // Cleanup all list_inits
+  // Cleanup
+  c2_module_deinit(&module);
+  c2_ctx_deinit(&ctx);
+  list_deinit(&out);
+
+  // Log some struct sizes
+  LOG("sizeof(C2_Stmt) %d", sizeof(C2_Stmt));
+  LOG("sizeof(C2_StmtId) %d", sizeof(C2_StmtId));
+  LOG("sizeof(C2_TypeId) %d", sizeof(C2_TypeId));
+  LOG("sizeof(C2_Name) %d", sizeof(C2_Name));
+  LOG("sizeof(str_t) %d", sizeof(str_t));
+  LOG("sizeof(list_t) %d", sizeof(list_t));
+
+  {
+    C2_Type t;
+    LOG("sizeof(C2_Type) %d", sizeof(C2_Type));
+    LOG("sizeof(C2_Type.data) %d", sizeof(t.data));
+    LOG("sizeof(C2_Type.data.named) %d", sizeof(t.data.named));
+    LOG("sizeof(C2_Type.data.arr) %d", sizeof(t.data.arr));
+    LOG("sizeof(C2_Type.data.fnsig) %d", sizeof(t.data.fnsig));
+    LOG("sizeof(C2_Type.data.xstruct) %d", sizeof(t.data.xstruct));
+  }
 
   return 0;
 }

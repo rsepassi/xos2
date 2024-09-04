@@ -384,6 +384,14 @@ static void printStmts(
         break;
       }
 
+      case C2_Stmt_BLOCK: {
+        pc("{\n");
+        gens(&stmt->data.block, indent + 2);
+        pi(0);
+        pc("}\n");
+        break;
+      }
+
       case C2_Stmt_LOOP: {
         pc("while (1) {\n");
 
@@ -556,6 +564,7 @@ static void printStmts(
         stmt->type == C2_Stmt_LOOP ||
         stmt->type == C2_Stmt_IF ||
         stmt->type == C2_Stmt_SWITCH ||
+        stmt->type == C2_Stmt_BLOCK ||
         false) continue;
     pc(";\n");
   }
@@ -706,7 +715,7 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
   return OK;
 }
 
-KHASH_MAP_INIT_STR(mNames, C2_Name);
+KHASH_INIT(mNames, str_t, C2_Name, 1, str_hash, str_eq);
 #define namemap_t khash_t(mNames)
 
 static C2_Names c2_names_init() {
@@ -737,20 +746,21 @@ C2_Name c2_ctx_namec(C2_Ctx* ctx, const char* cname) {
   C2_Names* names = &ctx->names;
   namemap_t* namemap = (namemap_t*)names->ctx;
 
-  khiter_t iter = kh_get(mNames, namemap, cname);
-  if (iter == kh_end(namemap)) {
-    int len = strlen(cname);
-    str_t sbuf = str_append(&names->buf, str_init(cname, len));
+  str_t name = cstr(cname);
 
-    C2_Name name = {
+  khiter_t iter = kh_get(mNames, namemap, name);
+  if (iter == kh_end(namemap)) {
+    str_t sbuf = str_append(&names->buf, name);
+
+    C2_Name val = {
       .offset = list_idx(&names->buf, (void*)sbuf.bytes),
-      .len = len,
+      .len = name.len,
     };
 
     int ret;
-    khiter_t key = kh_put(mNames, namemap, cname, &ret);
-    kh_val(namemap, key) = name;
-    return name;
+    khiter_t key = kh_put(mNames, namemap, name, &ret);
+    kh_val(namemap, key) = val;
+    return val;
   } else {
     return kh_val(namemap, iter);
   }
@@ -985,6 +995,3 @@ void c2_ctx_addswitchcase(C2_Ctx* ctx, C2_StmtId cases, C2_Name case_val, C2_Stm
 // literals
 // checks/asserts
 // tmpscope to reset tmp names
-// hashmap str keys that are not null-terminated
-// blocks within functions for more scoped stack alloc
-// stmts/types/names reserve so that ptrs are stable

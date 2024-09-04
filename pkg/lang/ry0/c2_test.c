@@ -168,6 +168,14 @@ int main(int argc, char** argv) {
       c2_ctx_addassign(&ctx, fn, lhs, rhs);
     }
 
+    // Block
+    {
+      C2_StmtId block = c2_ctx_stmtid(&ctx, c2_ctx_addstmt(&ctx, fn, C2_Stmt_BLOCK));
+      C2_Stmt* s = c2_ctx_blockadd(&ctx, block, C2_Stmt_DECL);
+      s->data.decl.name = c2_ctx_namec(&ctx, "myblockvar");
+      s->data.decl.type = C2_TypeIdBase(C2_TypeU8);
+    }
+
     // Loop
     {
       C2_StmtId cond_block = c2_ctx_addblock(&ctx);

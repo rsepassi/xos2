@@ -117,12 +117,18 @@ typedef struct {
 
 typedef list_handle_t C2_StmtId;
 #define C2_StmtId_NULL 0
+
 typedef struct {
   C2_Name name;
   C2_FnQual quals;
   list_t args;  // C2_TypeId (C2_TypeFnArg)
   C2_TypeId ret;
 } C2_FnSig;
+
+typedef struct {
+  C2_TypeId sig;  // C2_TypeFnSig
+  C2_StmtId stmts;  // C2_Stmt_BLOCK
+} C2_Fn;
 
 typedef struct {
   C2_Name name;
@@ -144,11 +150,6 @@ typedef struct {
     } xstruct;
   } data;
 } C2_Type;
-
-typedef struct {
-  C2_TypeId sig;  // C2_TypeFnSig
-  C2_StmtId stmts;  // C2_Stmt_BLOCK
-} C2_Fn;
 
 typedef struct {
   C2_Name name;
@@ -275,6 +276,7 @@ void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx);
 
 // Names
 C2_Name c2_ctx_namec(C2_Ctx*, const char* name);
+C2_Name c2_ctx_name_suffix(C2_Ctx*, C2_Name, const char* suffix);
 C2_Name c2_ctx_tmpname(C2_Ctx*);
 inline str_t c2_ctx_strname(C2_Ctx* ctx, C2_Name name);
 

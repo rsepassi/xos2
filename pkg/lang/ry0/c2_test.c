@@ -1,12 +1,11 @@
 #include <stdio.h>
 
 #include "c2.h"
+#include "c2_mir.h"
 #include "base/log.h"
 
 void write(void* ctx, str_t s) {
-#ifdef DEBUG
   fprintf(stderr, "%.*s", (int)s.len, s.bytes);
-#endif
   str_append((list_t*)ctx, s);
 }
 
@@ -274,12 +273,21 @@ int main(int argc, char** argv) {
   // Generate C
   list_t out = list_init(uint8_t, -1);
   C2_GenCtxC genctx = { .write = write, .user_ctx = &out };
+  LOG("C output:");
   c2_gen_c(&ctx, &module, &genctx);
+  list_deinit(&out);
+
+  // Generate MIR
+  MIR_context_t mir = MIR_init();
+  C2_GenCtxMir genctx_mir = { .mir = mir, .module_name = "module0", };
+  c2_gen_mir(&ctx, &module, &genctx_mir);
+  LOG("MIR output:");
+  MIR_output(mir, stderr);
+  MIR_finish(mir);
 
   // Cleanup
   c2_module_deinit(&module);
   c2_ctx_deinit(&ctx);
-  list_deinit(&out);
 
   // Log some struct sizes
   LOG("sizeof(C2_Stmt) %d", sizeof(C2_Stmt));

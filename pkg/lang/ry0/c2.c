@@ -1,4 +1,5 @@
 #include "c2.h"
+#include "c2_internal.h"
 
 #include <stdio.h>
 
@@ -43,7 +44,7 @@ static const char* type_strs[C2_TypeNamedOffset] = {
   "uint8_t*",
 };
 
-static const char* stmt_strs[C2_Stmt__Sentinel] = {
+const char* c2_stmt_strs[C2_Stmt__Sentinel] = {
   "INVALID",
   "CAST",
   "DECL",
@@ -104,21 +105,18 @@ static inline bool isNamedType(C2_TypeType t) {
   return t > C2_TypeNamedOffset;
 }
 
-// Symbol table C2_Name -> C2_TypeId
-KHASH_MAP_INIT_INT(mSymtab, C2_TypeId);
-#define symtab_t khash_t(mSymtab)
-static symtab_t* symtab_init() { return kh_init(mSymtab); }
-static void symtab_deinit(symtab_t* s) { kh_destroy(mSymtab, s); }
-static void symtab_reset(symtab_t* s) { kh_clear(mSymtab, s); }
-static void symtab_put(symtab_t* s, C2_Name name, C2_TypeId type) {
+c2_symtab_t* c2_symtab_init() { return kh_init(mc2symtab); }
+void c2_symtab_deinit(c2_symtab_t* s) { kh_destroy(mc2symtab, s); }
+void c2_symtab_reset(c2_symtab_t* s) { kh_clear(mc2symtab, s); }
+void c2_symtab_put(c2_symtab_t* s, C2_Name name, C2_TypeId type) {
   int32_t k = *(int32_t*)(&name);
   int ret;
-  khiter_t key = kh_put(mSymtab, s, k, &ret);
+  khiter_t key = kh_put(mc2symtab, s, k, &ret);
   kh_val(s, key) = type;
 }
-static C2_TypeId symtab_get(symtab_t* s, C2_Name name) {
+C2_TypeId c2_symtab_get(c2_symtab_t* s, C2_Name name) {
   int32_t k = *(int32_t*)(&name);
-  khiter_t iter = kh_get(mSymtab, s, k);
+  khiter_t iter = kh_get(mc2symtab, s, k);
   if (iter == kh_end(s)) return C2_TypeId_NULL;
   return kh_val(s, iter);
 }
@@ -126,10 +124,10 @@ static C2_TypeId symtab_get(symtab_t* s, C2_Name name) {
 static C2_TypeId getsymtypeid2(
     C2_Name name,
     C2_Ctx* ctx,
-    symtab_t* symtab,
-    symtab_t* symtab_local) {
-  C2_TypeId tid = symtab_get(symtab_local, name);
-  if (typeIsNull(tid)) tid = symtab_get(symtab, name);
+    c2_symtab_t* symtab,
+    c2_symtab_t* symtab_local) {
+  C2_TypeId tid = c2_symtab_get(symtab_local, name);
+  if (typeIsNull(tid)) tid = c2_symtab_get(symtab, name);
   return tid;
 }
 
@@ -179,8 +177,8 @@ static void printTerm(
     C2_Ctx* ctx,
     list_t* expr,
     C2_GenCtxC* genctx,
-    symtab_t* symtab,
-    symtab_t* symtab_local) {
+    c2_symtab_t* symtab,
+    c2_symtab_t* symtab_local) {
   int nderef0 = 0;
   int nterms0 = expr->len;
   for (int i = 0; i < nterms0; ++i) {
@@ -293,7 +291,7 @@ static void printFnSig(
     C2_GenCtxC* genctx,
     bool with_names,
     bool ptr_form,
-    symtab_t* symtab) {
+    c2_symtab_t* symtab) {
   pt(fn->ret);
   pc(" ");
   if (ptr_form) {
@@ -311,7 +309,7 @@ static void printFnSig(
     C2_TypeId argtid = *list_get(C2_TypeId, &fn->args, j);
     C2_Type* t = gettype(argtid);
     if (symtab) {
-      symtab_put(symtab, t->data.named.name, argtid);
+      c2_symtab_put(symtab, t->data.named.name, t->data.named.type);
     }
     pt(t->data.named.type);
     if (with_names) {
@@ -351,8 +349,8 @@ static void printData(C2_Ctx* ctx, C2_Data* data, C2_GenCtxC* genctx) {
 static void printStmts(
     C2_Ctx* ctx,
     C2_GenCtxC* genctx,
-    symtab_t* symtab,
-    symtab_t* symtab_local,
+    c2_symtab_t* symtab,
+    c2_symtab_t* symtab_local,
     list_t* stmts,
     int indent,
     bool addnl) {
@@ -362,7 +360,7 @@ static void printStmts(
     pi(0);
     switch (stmt->type) {
       case C2_Stmt_DECL: {
-        symtab_put(symtab_local, stmt->data.decl.name, stmt->data.decl.type);
+        c2_symtab_put(symtab_local, stmt->data.decl.name, stmt->data.decl.type);
         pt(stmt->data.decl.type);
         pc(" ");
         pn(stmt->data.decl.name);
@@ -375,7 +373,7 @@ static void printStmts(
         pt(stmt->data.cast.type);
         pc(")");
         pn(stmt->data.cast.in_name);
-        symtab_put(
+        c2_symtab_put(
             symtab_local, stmt->data.cast.out_name, stmt->data.cast.type);
         break;
       }
@@ -595,7 +593,7 @@ static void printStmts(
       }
 
       default: {
-        pc(stmt_strs[stmt->type]);
+        pc(c2_stmt_strs[stmt->type]);
       }
     }
 
@@ -612,7 +610,7 @@ static void printStmts(
 
 void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
   // Global symbol table
-  symtab_t* symtab = symtab_init();
+  c2_symtab_t* symtab = c2_symtab_init();
 
   pc("#include <stdint.h>\n");
 
@@ -625,7 +623,7 @@ void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
       C2_TypeId typeid = C2_TypeIdNamed(ctx, type);
       switch (type->type) {
         case C2_TypePtr: {
-          symtab_put(symtab, type->data.named.name, typeid);
+          c2_symtab_put(symtab, type->data.named.name, typeid);
           pc("typedef ");
           pt(type->data.named.type);
           pc("* ");
@@ -634,14 +632,14 @@ void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
           break;
         }
         case C2_TypeFnPtr: {
-          symtab_put(symtab, type->data.fnsig.name, typeid);
+          c2_symtab_put(symtab, type->data.fnsig.name, typeid);
           pc("typedef ");
           printFnSig(ctx, &type->data.fnsig, genctx, false, true, NULL);
           pc(";\n");
           break;
         }
         case C2_TypeArray: {
-          symtab_put(symtab, type->data.arr.named.name, typeid);
+          c2_symtab_put(symtab, type->data.arr.named.name, typeid);
           pc("typedef ");
           pt(type->data.arr.named.type);
           pc(" ");
@@ -654,7 +652,7 @@ void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
           break;
         }
         case C2_TypeStruct: {
-          symtab_put(symtab, type->data.xstruct.name, typeid);
+          c2_symtab_put(symtab, type->data.xstruct.name, typeid);
           pc("typedef struct ");
           pn(type->data.xstruct.name);
           pc("_s ");
@@ -691,7 +689,7 @@ void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
       pc(" ");
       C2_Name* name = list_get(C2_Name, &module->extern_data, i);
       pn(*name);
-      symtab_put(symtab, *name, C2_TypeIdBase(C2_TypeBytes));
+      c2_symtab_put(symtab, *name, C2_TypeIdBase(C2_TypeBytes));
       pc(";\n");
     }
   }
@@ -716,7 +714,7 @@ void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
     for (size_t i = 0; i < nbss; ++i) {
       C2_Data* bss = list_get(C2_Data, &module->bss, i);
       printData(ctx, bss, genctx);
-      symtab_put(symtab, bss->name, C2_TypeIdBase(C2_TypeBytes));
+      c2_symtab_put(symtab, bss->name, C2_TypeIdBase(C2_TypeBytes));
     }
   }
 
@@ -727,7 +725,7 @@ void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
     for (size_t i = 0; i < ndata; ++i) {
       C2_Data* data = list_get(C2_Data, &module->data, i);
       printData(ctx, data, genctx);
-      symtab_put(symtab, data->name, C2_TypeIdBase(C2_TypeBytes));
+      c2_symtab_put(symtab, data->name, C2_TypeIdBase(C2_TypeBytes));
     }
   }
 
@@ -736,11 +734,11 @@ void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
     pc("\n// functions\n");
 
     // Function-local symbol table
-    symtab_t* symtab_local = symtab_init();
+    c2_symtab_t* symtab_local = c2_symtab_init();
 
     size_t nfns = module->fns.len;
     for (size_t i = 0; i < nfns; ++i) {
-      symtab_reset(symtab_local);
+      c2_symtab_reset(symtab_local);
       C2_Fn* fn = list_get(C2_Fn, &module->fns, i);
       C2_FnSig* sig = &gettype(fn->sig)->data.fnsig;
       printFnSig(ctx, sig, genctx, true, false, symtab_local);
@@ -749,10 +747,10 @@ void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
       pc("}\n\n");
     }
 
-    symtab_deinit(symtab_local);
+    c2_symtab_deinit(symtab_local);
   }
 
-  symtab_deinit(symtab);
+  c2_symtab_deinit(symtab);
 }
 
 KHASH_INIT(mNames, str_t, C2_Name, 1, str_hash, str_eq);
@@ -783,15 +781,20 @@ str_t c2_ctx_strname(C2_Ctx* ctx, C2_Name name) {
 }
 
 C2_Name c2_ctx_namec(C2_Ctx* ctx, const char* cname) {
+  str_t name = cstr(cname);
+
   C2_Names* names = &ctx->names;
   namemap_t* namemap = (namemap_t*)names->ctx;
 
-  str_t name = cstr(cname);
   khiter_t iter = kh_get(mNames, namemap, name);
   if (iter != kh_end(namemap)) return kh_val(namemap, iter);
 
   // If not already in the pool, add it and insert into the map
+  // Add 1 to len to store null but don't keep it in the len
+  name.len += 1;
   str_t sbuf = str_append(&names->buf, name);
+  name.len -= 1;
+  ((char*)sbuf.bytes)[sbuf.len - 1] = 0;
 
   C2_Name val = {
     .offset = list_idx(&names->buf, (void*)sbuf.bytes),
@@ -801,6 +804,18 @@ C2_Name c2_ctx_namec(C2_Ctx* ctx, const char* cname) {
   khiter_t key = kh_put(mNames, namemap, name, &ret);
   kh_val(namemap, key) = val;
   return val;
+}
+
+C2_Name c2_ctx_name_suffix(C2_Ctx* ctx, C2_Name base, const char* suffix) {
+  size_t suffixlen = strlen(suffix);
+  list_t tmp = list_init(uint8_t, base.len + suffixlen + 1);
+  str_append(&tmp, c2_ctx_strname(ctx, base));
+  str_append(&tmp, cstr(suffix));
+  *list_add(uint8_t, &tmp) = 0;
+
+  C2_Name out = c2_ctx_namec(ctx, tmp.base);
+  list_deinit(&tmp);
+  return out;
 }
 
 bool c2_names_eq(C2_Name n0, C2_Name n1) {

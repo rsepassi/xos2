@@ -227,7 +227,7 @@ class Zig {
 var ZigArgs_ = Record.create("ZigArgs_", ["target", "opt", "compile", "link", "platformCompile", "platformLink"])
 class ZigArgs is ZigArgs_ {
   static create(b, opts) {
-    var opt_mode = Zig.getOpt(b.opt_mode)
+    var opt_mode = Zig.getOpt(opts["opt"] || b.opt_mode)
     var args = {
       "opt": ["-O", opt_mode],
       "target": ["-target", "%(b.target)"],

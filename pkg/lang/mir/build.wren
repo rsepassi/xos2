@@ -16,6 +16,7 @@ var mir = Fn.new { |b, args|
 
   var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "mir", {
+    "opt": "Fast",
     "flags": ["-I.", "-DMIR_PARALLEL_GEN"] + (b.target.os == "linux" ? ["-D_GNU_SOURCE"] : []),
     "c_flags": ["-std=c11", "-fsigned-char"],
     "c_srcs": [

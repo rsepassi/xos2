@@ -5,7 +5,6 @@
 
 #include "base/list.h"
 #include "base/str.h"
-#include "base/status.h"
 
 typedef enum {
   C2_Op_INVALID,
@@ -88,6 +87,11 @@ typedef enum {
   C2_Term_DEREF,
   C2_Term_ARRAY,
   C2_Term_FIELD,
+  C2_Term_LIT_U64,
+  C2_Term_LIT_I64,
+  C2_Term_LIT_F32,
+  C2_Term_LIT_F64,
+  C2_Term_LIT_STR,
 } C2_TermType;
 
 #define C2_FnQual_INLINE 1 << 0
@@ -216,8 +220,14 @@ typedef struct {
       C2_OpType type;
     } expr;
     struct {
-      C2_Name name;
       C2_TermType type;
+      union {
+        C2_Name name;
+        uint64_t val_u64;
+        int64_t val_i64;
+        float val_f32;
+        double val_f64;
+      } data;
     } term;
     struct {
       C2_Name name;
@@ -258,7 +268,7 @@ typedef struct {
   void (*write)(void* user_ctx, str_t s);
   void* user_ctx;
 } C2_GenCtxC;
-Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx);
+void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx);
 
 // C2_Ctx builder API
 // ----------------------------------------------------------------------------
@@ -275,7 +285,7 @@ inline C2_TypeId C2_TypeIdNamed(C2_Ctx*, C2_Type*);
 inline C2_Type* c2_ctx_gettype(C2_Ctx*, C2_TypeId);
 // Helpers
 void c2_ctx_addstructfield(C2_Ctx*,
-    C2_Type* struct_type, const char* field_name, C2_TypeId field_type);
+    C2_TypeId struct_type, const char* field_name, C2_TypeId field_type);
 void c2_ctx_addfnarg(C2_Ctx*,
     C2_Type* fn_type, const char* arg_name, C2_TypeId arg_type);
 
@@ -286,8 +296,8 @@ inline C2_StmtId c2_ctx_stmtid(C2_Ctx*, C2_Stmt*);
 inline C2_Stmt* c2_ctx_getstmt(C2_Ctx*, C2_StmtId);
 // Helpers
 void c2_ctx_addassign(C2_Ctx*, C2_Fn* fn, C2_StmtId lhs, C2_StmtId rhs);
-void c2_ctx_addterm(C2_Ctx*, C2_Stmt* expr, bool rhs, C2_TermType, C2_Name name);
-C2_Stmt* c2_ctx_addexpr(C2_Ctx*, C2_OpType, C2_Name lhs, C2_Name rhs);
+C2_Stmt* c2_ctx_addterm(C2_Ctx*, C2_StmtId block, C2_TermType);
+C2_StmtId c2_ctx_addexpr(C2_Ctx*, C2_OpType, C2_StmtId lhs, C2_StmtId rhs);
 C2_StmtId c2_ctx_addblock(C2_Ctx*);
 C2_Stmt* c2_ctx_blockadd(C2_Ctx*, C2_StmtId block, C2_StmtType);
 void c2_ctx_addifblock(C2_Ctx*, C2_StmtId ifs, C2_StmtId cond_block, C2_Name cond, C2_StmtId body_block);

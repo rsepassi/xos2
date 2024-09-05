@@ -1,56 +1,31 @@
 #include "c2.h"
 
-#include "base/str.h"
+#include <stdio.h>
+
+#include "base/log.h"
 #include "khash.h"
 
-// Symbol table C2_Name -> C2_TypeId
-KHASH_MAP_INIT_INT(mSymtab, C2_TypeId);
-#define symtab_t khash_t(mSymtab)
-static symtab_t* symtab_init() { return kh_init(mSymtab); }
-static void symtab_deinit(symtab_t* s) { kh_destroy(mSymtab, s); }
-static void symtab_reset(symtab_t* s) { kh_clear(mSymtab, s); }
-static void symtab_put(symtab_t* s, C2_Name name, C2_TypeId type) {
-  int32_t k = *(int32_t*)(&name);
-  int ret;
-  khiter_t key = kh_put(mSymtab, s, k, &ret);
-  kh_val(s, key) = type;
-}
-static C2_TypeId symtab_get(symtab_t* s, C2_Name name) {
-  int32_t k = *(int32_t*)(&name);
-  khiter_t iter = kh_get(mSymtab, s, k);
-  if (iter == kh_end(s)) return C2_TypeId_NULL;
-  return kh_val(s, iter);
-}
-
-// symtab_get helper
+// Some helper macros
+#define gettype(tid) c2_ctx_gettype(ctx, tid)
+#define getstmt(sid) c2_ctx_getstmt(ctx, sid)
+#define getblock(sid) &getstmt(sid)->data.block
 #define getsymtype(name) getsymtypeid2(name, ctx, symtab, symtab_local)
-
-// printStmts helper
-#define gens(stmts, i) printStmts(ctx, genctx, symtab, symtab_local, stmts, i, true);
-
-
-// Helper to get named type
-#define gettype(tid) \
-  list_get_from_handle(C2_Type, &ctx->types, (tid).handle)
-#define getstmt(sid) \
-  list_get_from_handle(C2_Stmt, &ctx->stmts, (sid))
-#define getblock(sid) getstmt(sid)->data.block
 
 // print helpers
 //
-// print str
+// print str_t
 #define p(s) genctx->write(genctx->user_ctx, (s))
 // print c string
 #define pc(s) p(cstr(s))
 // print C2_Name
-#define pn(n) do { \
-    C2_Name na = (n); \
-    p(str_init((char*)(&ctx->names.buf.base[na.offset]), na.len)); \
-  } while (0)
+#define pn(n) p(c2_ctx_strname(ctx, n))
 // print C2_TypeId
 #define pt(t) printTypeName(ctx, (t), genctx)
 // print indent
 #define pi(n) printIndent(genctx, n + indent)
+// printStmts helper
+#define pblock(stmts, i) \
+  printStmts(ctx, genctx, symtab, symtab_local, stmts, i, true);
 
 static const char* type_strs[C2_TypeNamedOffset] = {
   "INVALID",
@@ -118,30 +93,44 @@ static const char* op_strs[C2_Op__Sentinel] = {
   ">>",
 };
 
+static inline bool exprIsUnary(C2_OpType op) { return op <= C2_Op_ADDR; }
 static inline bool typeIsNull(C2_TypeId t) {
   return t.type == 0 && t.handle == 0;
 }
-
-static inline bool typesEq(C2_TypeId t0, C2_TypeId t1) {
-  return t0.type == t1.type && t0.handle == t1.handle;
+static inline bool nameIsNull(C2_Name n) {
+  return n.offset == 0 && n.len == 0;
+}
+static inline bool isNamedType(C2_TypeType t) {
+  return t > C2_TypeNamedOffset;
 }
 
-static C2_TypeId getsymtypeid2(C2_Name name, C2_Ctx* ctx, symtab_t* symtab, symtab_t* symtab_local) {
-    C2_TypeId tid = symtab_get(symtab_local, name);
-    if (typeIsNull(tid)) tid = symtab_get(symtab, name);
-    return tid;
+// Symbol table C2_Name -> C2_TypeId
+KHASH_MAP_INIT_INT(mSymtab, C2_TypeId);
+#define symtab_t khash_t(mSymtab)
+static symtab_t* symtab_init() { return kh_init(mSymtab); }
+static void symtab_deinit(symtab_t* s) { kh_destroy(mSymtab, s); }
+static void symtab_reset(symtab_t* s) { kh_clear(mSymtab, s); }
+static void symtab_put(symtab_t* s, C2_Name name, C2_TypeId type) {
+  int32_t k = *(int32_t*)(&name);
+  int ret;
+  khiter_t key = kh_put(mSymtab, s, k, &ret);
+  kh_val(s, key) = type;
+}
+static C2_TypeId symtab_get(symtab_t* s, C2_Name name) {
+  int32_t k = *(int32_t*)(&name);
+  khiter_t iter = kh_get(mSymtab, s, k);
+  if (iter == kh_end(s)) return C2_TypeId_NULL;
+  return kh_val(s, iter);
 }
 
-static inline bool exprIsUnary(C2_OpType op) {
-  return op <= C2_Op_ADDR;
-}
-
-static inline bool nameIsNull(C2_Name name) {
-  return name.offset == 0 && name.len == 0;
-}
-
-static inline bool namesEq(C2_Name name0, C2_Name name1) {
-  return name0.offset == name1.offset && name0.len == name1.len;
+static C2_TypeId getsymtypeid2(
+    C2_Name name,
+    C2_Ctx* ctx,
+    symtab_t* symtab,
+    symtab_t* symtab_local) {
+  C2_TypeId tid = symtab_get(symtab_local, name);
+  if (typeIsNull(tid)) tid = symtab_get(symtab, name);
+  return tid;
 }
 
 static void printIndent(C2_GenCtxC* genctx, size_t n) {
@@ -154,9 +143,6 @@ static void printIndent(C2_GenCtxC* genctx, size_t n) {
     left -= send;
   }
 }
-
-static inline bool isNamedType(C2_TypeType t) { return t > C2_TypeNamedOffset; }
-static inline bool isBaseType(C2_TypeId t) { return t.type < C2_TypeNamedOffset; }
 
 static void printTypeName(C2_Ctx* ctx, C2_TypeId t, C2_GenCtxC* genctx) {
   if (!isNamedType(t.type)) {
@@ -209,7 +195,7 @@ static void printTerm(
 
     switch (term->data.term.type) {
       case C2_Term_NAME: {
-        C2_Name name = term->data.term.name;
+        C2_Name name = term->data.term.data.name;
         tid = getsymtype(name);
         pn(name);
         break;
@@ -239,20 +225,21 @@ static void printTerm(
         }
 
         pc("[");
-        pn(term->data.term.name);
+        pn(term->data.term.data.name);
         pc("]");
         break;
       }
       case C2_Term_FIELD: {
-        C2_Name name = term->data.term.name;
+        C2_Name name = term->data.term.data.name;
 
         C2_Type* t = gettype(tid);
         if (t->type == C2_TypeStruct) {
           pc(".");
           int nfields = t->data.xstruct.fields.len;
           for (int i = 0; i < nfields; ++i) {
-            C2_Type* ft = gettype(*list_get(C2_TypeId, &t->data.xstruct.fields, i));
-            if (namesEq(ft->data.named.name, name)) {
+            C2_Type* ft = gettype(
+                *list_get(C2_TypeId, &t->data.xstruct.fields, i));
+            if (c2_names_eq(ft->data.named.name, name)) {
               tid = ft->data.named.type;
               break;
             }
@@ -265,11 +252,48 @@ static void printTerm(
         pn(name);
         break;
       }
+      case C2_Term_LIT_STR: {
+        pc("\"");
+        pn(term->data.term.data.name);
+        pc("\"");
+        break;
+      }
+      default: {
+        char buf[256];
+        int len;
+
+        switch (term->data.term.type) {
+          case C2_Term_LIT_U64:
+            len = snprintf(buf, 256, "%lu", term->data.term.data.val_u64);
+            break;
+          case C2_Term_LIT_I64:
+            len = snprintf(buf, 256, "%li", term->data.term.data.val_i64);
+            break;
+          case C2_Term_LIT_F32:
+            len = snprintf(buf, 256, "%f", term->data.term.data.val_f32);
+            break;
+          case C2_Term_LIT_F64:
+            len = snprintf(buf, 256, "%f", term->data.term.data.val_f64);
+            break;
+          default:
+            CHECK(false);
+        }
+
+        buf[len] = 0;
+        pc(buf);
+        break;
+      }
     }
   }
 }
 
-static void printFnSig(C2_Ctx* ctx, C2_FnSig* fn, C2_GenCtxC* genctx, bool with_names, bool ptr_form, symtab_t* symtab) {
+static void printFnSig(
+    C2_Ctx* ctx,
+    C2_FnSig* fn,
+    C2_GenCtxC* genctx,
+    bool with_names,
+    bool ptr_form,
+    symtab_t* symtab) {
   pt(fn->ret);
   pc(" ");
   if (ptr_form) {
@@ -351,7 +375,8 @@ static void printStmts(
         pt(stmt->data.cast.type);
         pc(")");
         pn(stmt->data.cast.in_name);
-        symtab_put(symtab_local, stmt->data.cast.out_name, stmt->data.cast.type);
+        symtab_put(
+            symtab_local, stmt->data.cast.out_name, stmt->data.cast.type);
         break;
       }
 
@@ -386,7 +411,7 @@ static void printStmts(
 
       case C2_Stmt_BLOCK: {
         pc("{\n");
-        gens(&stmt->data.block, indent + 2);
+        pblock(&stmt->data.block, indent + 2);
         pi(0);
         pc("}\n");
         break;
@@ -396,7 +421,7 @@ static void printStmts(
         pc("while (1) {\n");
 
         if (stmt->data.loop.cond_stmts != C2_StmtId_NULL) {
-          gens(&getblock(stmt->data.loop.cond_stmts), indent + 2);
+          pblock(getblock(stmt->data.loop.cond_stmts), indent + 2);
         }
 
         if (!nameIsNull(stmt->data.loop.cond_val)) {
@@ -407,7 +432,7 @@ static void printStmts(
         }
 
         if (stmt->data.loop.body_stmts != C2_StmtId_NULL) {
-          gens(&getblock(stmt->data.loop.body_stmts), indent + 2);
+          pblock(getblock(stmt->data.loop.body_stmts), indent + 2);
         }
 
         if (!nameIsNull(stmt->data.loop.continue_val)) {
@@ -418,7 +443,7 @@ static void printStmts(
         }
 
         if (stmt->data.loop.continue_stmts != C2_StmtId_NULL) {
-          gens(&getblock(stmt->data.loop.continue_stmts), indent + 2);
+          pblock(getblock(stmt->data.loop.continue_stmts), indent + 2);
         }
 
         pi(0);
@@ -431,30 +456,30 @@ static void printStmts(
           pc("\n");
           break;
         }
-        list_t* ifs = &getblock(stmt->data.xif.ifs);
+        list_t* ifs = getblock(stmt->data.xif.ifs);
         size_t nifs = ifs->len;
         for (int ifi = 0; ifi < nifs; ++ifi) {
           C2_Stmt* xif = getstmt(*list_get(C2_StmtId, ifs, ifi));
           if (ifi > 0) pc(" else {\n  ");
           if (xif->data.ifblock.cond_stmts != C2_StmtId_NULL) {
-            gens(&getblock(xif->data.ifblock.cond_stmts), indent);
+            pblock(getblock(xif->data.ifblock.cond_stmts), indent);
             pi(0);
           }
           pc("if (");
           pn(xif->data.ifblock.cond);
           pc(") {\n");
           if (xif->data.ifblock.body_stmts != C2_StmtId_NULL) {
-            gens(&getblock(xif->data.ifblock.body_stmts), indent + 2);
+            pblock(getblock(xif->data.ifblock.body_stmts), indent + 2);
           }
           pi(0);
           pc("}");
         }
 
         if (stmt->data.xif.xelse != C2_StmtId_NULL) {
-          list_t* xelse = &getblock(stmt->data.xif.xelse);
+          list_t* xelse = getblock(stmt->data.xif.xelse);
           if (xelse->len) {
             pc(" else {\n");
-            gens(xelse, indent + 2);
+            pblock(xelse, indent + 2);
             pi(0);
             pc("}");
           }
@@ -470,7 +495,7 @@ static void printStmts(
         pn(stmt->data.xswitch.expr);
         pc(") {\n");
         if (stmt->data.xswitch.cases != C2_StmtId_NULL) {
-          list_t* cases = &getblock(stmt->data.xswitch.cases);
+          list_t* cases = getblock(stmt->data.xswitch.cases);
           size_t ncases = cases->len;
           for (int k = 0; k < ncases; ++k) {
             pi(2);
@@ -478,11 +503,11 @@ static void printStmts(
             C2_Stmt* xcase = getstmt(*list_get(C2_StmtId, cases, k));
             pn(xcase->data.switchcase.val);
             pc(":");
-            list_t* stmts = &getblock(xcase->data.switchcase.stmts);
+            list_t* stmts = getblock(xcase->data.switchcase.stmts);
             size_t ncasestmts = stmts->len;
             if (ncasestmts) {
               pc("{\n");
-              gens(stmts, indent + 4);
+              pblock(stmts, indent + 4);
               pi(2);
               pc("}\n");
             } else {
@@ -492,11 +517,11 @@ static void printStmts(
         }
 
         if (stmt->data.xswitch.xdefault != C2_StmtId_NULL) {
-          list_t* xdefault = &getblock(stmt->data.xswitch.xdefault);
+          list_t* xdefault = getblock(stmt->data.xswitch.xdefault);
           if (xdefault->len) {
             pi(2);
             pc("default: {\n");
-            gens(xdefault, indent + 4);
+            pblock(xdefault, indent + 4);
             pi(2);
             pc("}\n");
           }
@@ -529,13 +554,28 @@ static void printStmts(
         C2_OpType op = stmt->data.expr.type;
         if (exprIsUnary(op)) {
           if (op != C2_Op_NONE) pc(op_strs[op]);
-          printTerm(ctx, &getblock(stmt->data.expr.term0), genctx, symtab, symtab_local);
+          printTerm(
+              ctx,
+              getblock(stmt->data.expr.term0),
+              genctx,
+              symtab,
+              symtab_local);
         } else {
-          printTerm(ctx, &getblock(stmt->data.expr.term0), genctx, symtab, symtab_local);
+          printTerm(
+              ctx,
+              getblock(stmt->data.expr.term0),
+              genctx,
+              symtab,
+              symtab_local);
           pc(" ");
           pc(op_strs[op]);
           pc(" ");
-          printTerm(ctx, &getblock(stmt->data.expr.term1), genctx, symtab, symtab_local);
+          printTerm(
+              ctx,
+              getblock(stmt->data.expr.term1),
+              genctx,
+              symtab,
+              symtab_local);
         }
         break;
       }
@@ -570,7 +610,7 @@ static void printStmts(
   }
 }
 
-Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
+void c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
   // Global symbol table
   symtab_t* symtab = symtab_init();
 
@@ -626,7 +666,8 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
           size_t nfields = type->data.xstruct.fields.len;
           for (size_t i = 0; i < nfields; ++i) {
             pc("  ");
-            C2_Type* f = gettype(*list_get(C2_TypeId, &type->data.xstruct.fields, i));
+            C2_Type* f = gettype(
+                *list_get(C2_TypeId, &type->data.xstruct.fields, i));
             pt(f->data.named.type);
             pc(" ");
             pn(f->data.named.name);
@@ -704,7 +745,7 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
       C2_FnSig* sig = &gettype(fn->sig)->data.fnsig;
       printFnSig(ctx, sig, genctx, true, false, symtab_local);
       pc(" {\n");
-      gens(&getblock(fn->stmts), 2);
+      pblock(getblock(fn->stmts), 2);
       pc("}\n\n");
     }
 
@@ -712,7 +753,6 @@ Status c2_gen_c(C2_Ctx* ctx, C2_Module* module, C2_GenCtxC* genctx) {
   }
 
   symtab_deinit(symtab);
-  return OK;
 }
 
 KHASH_INIT(mNames, str_t, C2_Name, 1, str_hash, str_eq);
@@ -726,8 +766,13 @@ static C2_Names c2_names_init() {
   };
 }
 
+static void c2_names_deinit(C2_Names* names) {
+  list_deinit(&names->buf);
+  kh_destroy(mNames, (namemap_t*)names->ctx);
+}
+
 C2_Name c2_ctx_tmpname(C2_Ctx* ctx) {
-  char buf[8];
+  char buf[16];
   int len = snprintf(buf, 8, "tmp%lu", ctx->names.tmp++);
   buf[len] = 0;
   return c2_ctx_namec(ctx, buf);
@@ -737,33 +782,29 @@ str_t c2_ctx_strname(C2_Ctx* ctx, C2_Name name) {
   return str_init((char*)(&ctx->names.buf.base[name.offset]), name.len);
 }
 
-static void c2_names_deinit(C2_Names* names) {
-  list_deinit(&names->buf);
-  kh_destroy(mNames, (namemap_t*)names->ctx);
-}
-
 C2_Name c2_ctx_namec(C2_Ctx* ctx, const char* cname) {
   C2_Names* names = &ctx->names;
   namemap_t* namemap = (namemap_t*)names->ctx;
 
   str_t name = cstr(cname);
-
   khiter_t iter = kh_get(mNames, namemap, name);
-  if (iter == kh_end(namemap)) {
-    str_t sbuf = str_append(&names->buf, name);
+  if (iter != kh_end(namemap)) return kh_val(namemap, iter);
 
-    C2_Name val = {
-      .offset = list_idx(&names->buf, (void*)sbuf.bytes),
-      .len = name.len,
-    };
+  // If not already in the pool, add it and insert into the map
+  str_t sbuf = str_append(&names->buf, name);
 
-    int ret;
-    khiter_t key = kh_put(mNames, namemap, name, &ret);
-    kh_val(namemap, key) = val;
-    return val;
-  } else {
-    return kh_val(namemap, iter);
-  }
+  C2_Name val = {
+    .offset = list_idx(&names->buf, (void*)sbuf.bytes),
+    .len = name.len,
+  };
+  int ret;
+  khiter_t key = kh_put(mNames, namemap, name, &ret);
+  kh_val(namemap, key) = val;
+  return val;
+}
+
+bool c2_names_eq(C2_Name n0, C2_Name n1) {
+  return n0.offset == n1.offset && n0.len == n1.len;
 }
 
 C2_Module c2_module_init(C2_Ctx* ctx) {
@@ -819,7 +860,7 @@ void c2_ctx_deinit(C2_Ctx* ctx) {
 }
 
 C2_Type* c2_ctx_addtypec(C2_Ctx* ctx, C2_TypeType type, const char* cname) {
-  DCHECK(isNamedType(type));
+  DCHECK(isNamedType(type), "named types cannot be base types");
   C2_Type* t = list_add(C2_Type, &ctx->types);
   t->type = type;
 
@@ -856,18 +897,20 @@ C2_Type* c2_ctx_addtypec(C2_Ctx* ctx, C2_TypeType type, const char* cname) {
 }
 
 C2_TypeId C2_TypeIdNamed(C2_Ctx* ctx, C2_Type* t) {
+  DCHECK(isNamedType(t->type),
+      "C2_TypeIdNamed can only be called on named types");
   return (C2_TypeId){
     .type = t->type,
     .handle = list_get_handle(&ctx->types, t),
   };
 }
 
-bool c2_names_eq(C2_Name n0, C2_Name n1) { return namesEq(n0, n1); }
-
 void c2_ctx_addstructfield(C2_Ctx* ctx,
-    C2_Type* struct_type, const char* field_name, C2_TypeId field_type) {
-  list_t* fields = &struct_type->data.xstruct.fields;
+    C2_TypeId struct_typeid, const char* field_name, C2_TypeId field_type) {
   C2_Type* t = c2_ctx_addtypec(ctx, C2_TypeStructField, field_name);
+  C2_Type* struct_type = c2_ctx_gettype(ctx, struct_typeid);
+  DCHECK(struct_type->type == C2_TypeStruct);
+  list_t* fields = &struct_type->data.xstruct.fields;
   t->data.named.type = field_type;
   *list_add(C2_TypeId, fields) = C2_TypeIdNamed(ctx, t);
 }
@@ -900,7 +943,8 @@ C2_StmtId c2_ctx_addblock(C2_Ctx* ctx) {
 C2_Stmt* c2_ctx_blockadd(C2_Ctx* ctx, C2_StmtId blockid, C2_StmtType type) {
   C2_Stmt* new = c2_ctx_addstmt(ctx, NULL, type);
   C2_Stmt* block = c2_ctx_getstmt(ctx, blockid);
-  DCHECK(block->type == C2_Stmt_BLOCK, "blockid %d must reference a block stmt", blockid);
+  DCHECK(block->type == C2_Stmt_BLOCK,
+      "blockid %d must reference a block stmt", blockid);
   *list_add(C2_StmtId, &block->data.block) = c2_ctx_stmtid(ctx, new);
   return new;
 }
@@ -928,33 +972,26 @@ C2_Stmt* c2_ctx_addstmt(C2_Ctx* ctx, C2_Fn* fn, C2_StmtType type) {
   } else if (type == C2_Stmt_BLOCK) {
     stmt->data.block = list_init(C2_StmtId, 4);
   }
+
   return stmt;
 }
 
-C2_Stmt* c2_ctx_addexpr(C2_Ctx* ctx, C2_OpType op, C2_Name lhs, C2_Name rhs) {
-  list_reserve(&ctx->stmts, ctx->stmts.len + 5);
+C2_Stmt* c2_ctx_addterm(C2_Ctx* ctx, C2_StmtId block, C2_TermType type) {
+  C2_Stmt* s = c2_ctx_blockadd(ctx, block, C2_Stmt_TERM);
+  s->data.term.type = type;
+  return s;
+}
 
-  C2_Stmt* t0 = c2_ctx_addstmt(ctx, NULL, C2_Stmt_BLOCK);
-  C2_Stmt* t00 = c2_ctx_addstmt(ctx, NULL, C2_Stmt_TERM);
-  t00->data.term.type = C2_Term_NAME;
-  t00->data.term.name = lhs;
-  *list_add(C2_StmtId, &t0->data.block) = c2_ctx_stmtid(ctx, t00);
-
-  C2_Stmt* t1 = NULL;
-  if (!exprIsUnary(op)) {
-    t1 = c2_ctx_addstmt(ctx, NULL, C2_Stmt_BLOCK);
-    C2_Stmt* t10 = c2_ctx_addstmt(ctx, NULL, C2_Stmt_TERM);
-    t10->data.term.type = C2_Term_NAME;
-    t10->data.term.name = rhs;
-    *list_add(C2_StmtId, &t1->data.block) = c2_ctx_stmtid(ctx, t10);
-  }
-
+C2_StmtId c2_ctx_addexpr(
+    C2_Ctx* ctx,
+    C2_OpType op,
+    C2_StmtId lhs,
+    C2_StmtId rhs) {
   C2_Stmt* expr = c2_ctx_addstmt(ctx, NULL, C2_Stmt_EXPR);
   expr->data.expr.type = op;
-  expr->data.expr.term0 = c2_ctx_stmtid(ctx, t0);
-  expr->data.expr.term1 = c2_ctx_stmtid(ctx, t1);
-
-  return expr;
+  expr->data.expr.term0 = lhs;
+  expr->data.expr.term1 = rhs;
+  return c2_ctx_stmtid(ctx, expr);
 }
 
 C2_StmtId c2_ctx_stmtid(C2_Ctx* ctx, C2_Stmt* s) {
@@ -967,31 +1004,24 @@ void c2_ctx_addassign(C2_Ctx* ctx, C2_Fn* fn, C2_StmtId lhs, C2_StmtId rhs) {
   s->data.assign.rhs = rhs;
 }
 
-void c2_ctx_addterm(C2_Ctx* ctx, C2_Stmt* expr, bool rhs, C2_TermType type, C2_Name name) {
-  C2_Stmt* term = c2_ctx_addstmt(ctx, NULL, C2_Stmt_TERM);
-  term->data.term.type = type;
-  term->data.term.name = name;
-
-  C2_StmtId sid = rhs ? expr->data.expr.term1 : expr->data.expr.term0;
-  C2_Stmt* term_block = c2_ctx_getstmt(ctx, sid);
-  *list_add(C2_StmtId, &term_block->data.block) = c2_ctx_stmtid(ctx, term);
-}
-
-void c2_ctx_addifblock(C2_Ctx* ctx, C2_StmtId ifs, C2_StmtId cond_block, C2_Name cond, C2_StmtId body_block) {
+void c2_ctx_addifblock(
+    C2_Ctx* ctx,
+    C2_StmtId ifs,
+    C2_StmtId cond_block,
+    C2_Name cond,
+    C2_StmtId body_block) {
   C2_Stmt* s = c2_ctx_blockadd(ctx, ifs, C2_Stmt_IFBLOCK);
   s->data.ifblock.cond_stmts = cond_block;
   s->data.ifblock.cond = cond;
   s->data.ifblock.body_stmts = body_block;
 }
 
-void c2_ctx_addswitchcase(C2_Ctx* ctx, C2_StmtId cases, C2_Name case_val, C2_StmtId case_block) {
+void c2_ctx_addswitchcase(
+    C2_Ctx* ctx,
+    C2_StmtId cases,
+    C2_Name case_val,
+    C2_StmtId case_block) {
   C2_Stmt* s = c2_ctx_blockadd(ctx, cases, C2_Stmt_SWITCHCASE);
   s->data.switchcase.val = case_val;
   s->data.switchcase.stmts = case_block;
 }
-
-// TODO:
-// line number directives
-// literals
-// checks/asserts
-// tmpscope to reset tmp names

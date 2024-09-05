@@ -1,6 +1,7 @@
-#include "c2.h"
+#include <stdio.h>
 
-#include "base/str.h"
+#include "c2.h"
+#include "base/log.h"
 
 void write(void* ctx, str_t s) {
 #ifdef DEBUG
@@ -48,8 +49,9 @@ int main(int argc, char** argv) {
   // Struct type
   {
     C2_Type* t = c2_ctx_addtypec(&ctx, C2_TypeStruct, "mystruct");
-    c2_ctx_addstructfield(&ctx, t, "field0", C2_TypeIdBase(C2_TypeF32));
-    c2_ctx_addstructfield(&ctx, t, "field1", myptr_t);
+    C2_TypeId tid = C2_TypeIdNamed(&ctx, t);
+    c2_ctx_addstructfield(&ctx, tid, "field0", C2_TypeIdBase(C2_TypeF32));
+    c2_ctx_addstructfield(&ctx, tid, "field1", myptr_t);
   }
 
   // Fn ptr type
@@ -157,14 +159,22 @@ int main(int argc, char** argv) {
         c2_ctx_namec(&ctx, "b");
     }
 
-    // Assignment
+    // Expressions and assignment
     {
-      C2_Stmt* lhs_s = c2_ctx_addexpr(&ctx,
-          C2_Op_NONE, c2_ctx_namec(&ctx, "b"), C2_Name_NULL);
-      C2_StmtId lhs = c2_ctx_stmtid(&ctx, lhs_s);
-      c2_ctx_addterm(&ctx, lhs_s, false, C2_Term_DEREF, C2_Name_NULL);
-      C2_StmtId rhs = c2_ctx_stmtid(&ctx, c2_ctx_addexpr(&ctx,
-          C2_Op_NOT, c2_ctx_namec(&ctx, "a"), C2_Name_NULL));
+      C2_StmtId lhs_term = c2_ctx_addblock(&ctx);
+      {
+        C2_Stmt* s = c2_ctx_addterm(&ctx, lhs_term, C2_Term_NAME);
+        s->data.term.data.name = c2_ctx_namec(&ctx, "b");
+      }
+
+      C2_StmtId rhs_term = c2_ctx_addblock(&ctx);
+      {
+        C2_Stmt* s = c2_ctx_addterm(&ctx, rhs_term, C2_Term_LIT_U64);
+        s->data.term.data.val_u64 = 1;
+      }
+
+      C2_StmtId lhs = c2_ctx_addexpr(&ctx, C2_Op_NONE, lhs_term, C2_StmtId_NULL);
+      C2_StmtId rhs = c2_ctx_addexpr(&ctx, C2_Op_NOT, rhs_term, C2_StmtId_NULL);
       c2_ctx_addassign(&ctx, fn, lhs, rhs);
     }
 
@@ -264,7 +274,7 @@ int main(int argc, char** argv) {
   // Generate C
   list_t out = list_init(uint8_t, -1);
   C2_GenCtxC genctx = { .write = write, .user_ctx = &out };
-  CHECK_OK(c2_gen_c(&ctx, &module, &genctx));
+  c2_gen_c(&ctx, &module, &genctx);
 
   // Cleanup
   c2_module_deinit(&module);

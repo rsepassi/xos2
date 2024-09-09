@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdarg.h>
 
 #include "c2.h"
 #include "c2_mir.h"
@@ -7,6 +8,16 @@
 void write(void* ctx, str_t s) {
   fprintf(stderr, "%.*s", (int)s.len, s.bytes);
   str_append((list_t*)ctx, s);
+}
+
+void mirerr(MIR_error_type_t error_type, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    fprintf(stderr, "[MIR Error %d] ", error_type);
+    vfprintf(stderr, format, args);
+    va_end(args);
+    fprintf(stderr, "\n");
+    exit(1);
 }
 
 int main(int argc, char** argv) {
@@ -114,12 +125,6 @@ int main(int argc, char** argv) {
       s->data.decl.type = myptr_t;
     }
 
-    // Label
-    {
-      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_LABEL);
-      s->data.label.name = c2_ctx_namec(&ctx, "mylabel");
-    }
-
     // Cast
     {
       C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_CAST);
@@ -128,27 +133,33 @@ int main(int argc, char** argv) {
       s->data.cast.type = C2_TypeIdBase(C2_TypeU16);
     }
 
-    // Goto
-    {
-      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_GOTO);
-      s->data.xgoto.label = c2_ctx_namec(&ctx, "mylabel");
-    }
-
     // Control flow
     {
       c2_ctx_addstmt(&ctx, fn, C2_Stmt_CONTINUE);
       c2_ctx_addstmt(&ctx, fn, C2_Stmt_BREAK);
-      c2_ctx_addstmt(&ctx, fn, C2_Stmt_RETURN);
     }
 
     // Return with value
     {
-      C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_RETURN);
-      s->data.xreturn.name = c2_ctx_namec(&ctx, "c");
+      {
+        C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_DECL);
+        s->data.decl.name = c2_ctx_namec(&ctx, "c");
+        s->data.decl.type = C2_TypeIdBase(C2_TypeU16);
+      }
+
+      {
+        C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_RETURN);
+        s->data.xreturn.name = c2_ctx_namec(&ctx, "c");
+      }
     }
 
     // Function call
     {
+      {
+        C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_DECL);
+        s->data.decl.name = c2_ctx_namec(&ctx, "d");
+        s->data.decl.type = C2_TypeIdBase(C2_TypeU16);
+      }
       C2_Stmt* s = c2_ctx_addstmt(&ctx, fn, C2_Stmt_FNCALL);
       s->data.fncall.name = c2_ctx_namec(&ctx, "myexternfn");
       s->data.fncall.ret = c2_ctx_namec(&ctx, "d");
@@ -279,6 +290,7 @@ int main(int argc, char** argv) {
 
   // Generate MIR
   MIR_context_t mir = MIR_init();
+  MIR_set_error_func(mir, (MIR_error_func_t)mirerr);
   C2_GenCtxMir genctx_mir = { .mir = mir, .module_name = "module0", };
   c2_gen_mir(&ctx, &module, &genctx_mir);
   LOG("MIR output:");

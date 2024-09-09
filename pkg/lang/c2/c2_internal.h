@@ -13,6 +13,9 @@ void c2_symtab_reset(c2_symtab_t* s);
 void c2_symtab_put(c2_symtab_t* s, C2_Name name, C2_TypeId type);
 C2_TypeId c2_symtab_get(c2_symtab_t* s, C2_Name name);
 
+inline bool c2_name_isnull(C2_Name n);
+
 extern const char* c2_stmt_strs[];
+extern const char* c2_type_strs[];
 
 #endif

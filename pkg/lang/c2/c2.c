@@ -28,7 +28,7 @@
 #define pblock(stmts, i) \
   printStmts(ctx, genctx, symtab, symtab_local, stmts, i, true);
 
-static const char* type_strs[C2_TypeNamedOffset] = {
+const char* c2_type_strs[C2_TypeNamedOffset] = {
   "INVALID",
   "void",
   "uint8_t",
@@ -48,7 +48,6 @@ const char* c2_stmt_strs[C2_Stmt__Sentinel] = {
   "INVALID",
   "CAST",
   "DECL",
-  "LABEL",
   "EXPR",
   "TERM",
   "FNCALL",
@@ -56,7 +55,6 @@ const char* c2_stmt_strs[C2_Stmt__Sentinel] = {
   "RETURN",
   "BREAK",
   "CONTINUE",
-  "GOTO",
   "IF",
   "SWITCH",
   "LOOP",
@@ -98,7 +96,7 @@ static inline bool exprIsUnary(C2_OpType op) { return op <= C2_Op_ADDR; }
 static inline bool typeIsNull(C2_TypeId t) {
   return t.type == 0 && t.handle == 0;
 }
-static inline bool nameIsNull(C2_Name n) {
+bool c2_name_isnull(C2_Name n) {
   return n.offset == 0 && n.len == 0;
 }
 static inline bool isNamedType(C2_TypeType t) {
@@ -144,7 +142,7 @@ static void printIndent(C2_GenCtxC* genctx, size_t n) {
 
 static void printTypeName(C2_Ctx* ctx, C2_TypeId t, C2_GenCtxC* genctx) {
   if (!isNamedType(t.type)) {
-    pc(type_strs[t.type]);
+    pc(c2_type_strs[t.type]);
     return;
   }
 
@@ -378,16 +376,6 @@ static void printStmts(
         break;
       }
 
-      case C2_Stmt_LABEL: {
-        pn(stmt->data.label.name);
-        pc(":\n");
-        break;
-      }
-      case C2_Stmt_GOTO: {
-        pc("goto ");
-        pn(stmt->data.xgoto.label);
-        break;
-      }
       case C2_Stmt_CONTINUE: {
         pc("continue");
         break;
@@ -398,7 +386,7 @@ static void printStmts(
       }
       case C2_Stmt_RETURN: {
         C2_Name name = stmt->data.xreturn.name;
-        if (nameIsNull(name)) {
+        if (c2_name_isnull(name)) {
           pc("return");
         } else {
           pc("return ");
@@ -422,7 +410,7 @@ static void printStmts(
           pblock(getblock(stmt->data.loop.cond_stmts), indent + 2);
         }
 
-        if (!nameIsNull(stmt->data.loop.cond_val)) {
+        if (!c2_name_isnull(stmt->data.loop.cond_val)) {
           pi(2);
           pc("if (!");
           pn(stmt->data.loop.cond_val);
@@ -433,7 +421,7 @@ static void printStmts(
           pblock(getblock(stmt->data.loop.body_stmts), indent + 2);
         }
 
-        if (!nameIsNull(stmt->data.loop.continue_val)) {
+        if (!c2_name_isnull(stmt->data.loop.continue_val)) {
           pi(2);
           pc("if (!");
           pn(stmt->data.loop.continue_val);
@@ -531,7 +519,7 @@ static void printStmts(
       }
 
       case C2_Stmt_FNCALL: {
-        bool has_ret = !nameIsNull(stmt->data.fncall.ret);
+        bool has_ret = !c2_name_isnull(stmt->data.fncall.ret);
         if (has_ret) {
           pn(stmt->data.fncall.ret);
           pc(" = ");
@@ -598,7 +586,6 @@ static void printStmts(
     }
 
     if (!addnl ||
-        stmt->type == C2_Stmt_LABEL ||
         stmt->type == C2_Stmt_LOOP ||
         stmt->type == C2_Stmt_IF ||
         stmt->type == C2_Stmt_SWITCH ||

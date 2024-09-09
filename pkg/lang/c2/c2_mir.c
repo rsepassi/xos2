@@ -3,6 +3,40 @@
 
 #include "base/log.h"
 
+typedef enum {
+  M_INVALID,
+  M_REG,
+} mirstate_type;
+
+typedef struct {
+  mirstate_type type;
+  union {
+    MIR_reg_t reg;
+  } data;
+} mirstate;
+
+KHASH_MAP_INIT_INT(mc2mirtab, mirstate);
+#define c2_mirtab_t khash_t(mc2mirtab)
+void mirtab_put(c2_mirtab_t* t, C2_Name name, mirstate val) {
+  int32_t k = *(int32_t*)(&name);
+  int ret;
+  khiter_t key = kh_put(mc2mirtab, t, k, &ret);
+  kh_val(t, key) = val;
+}
+
+mirstate* mirtab_get(c2_mirtab_t* t, C2_Name name) {
+  int32_t k = *(int32_t*)(&name);
+  khiter_t iter = kh_get(mc2mirtab, t, k);
+  if (iter == kh_end(t)) return NULL;
+  return &kh_val(t, iter);
+}
+
+mirstate* mirtab_get2(c2_mirtab_t* global, c2_mirtab_t* local, C2_Name name) {
+  mirstate* out = mirtab_get(local, name);
+  if (out) return out;
+  return mirtab_get(global, name);
+}
+
 static const MIR_type_t c2_mir_types[C2_TypeFnPtr + 1] = {
   MIR_T_UNDEF,
   MIR_T_UNDEF,
@@ -25,34 +59,164 @@ static const MIR_type_t c2_mir_types[C2_TypeFnPtr + 1] = {
   MIR_T_P,
 };
 
+static void dothing(MIR_context_t mir, MIR_item_t func, MIR_reg_t reg) {
+  LOG("hi");
+        MIR_op_t reg_op = MIR_new_reg_op(mir, reg);
+        MIR_op_t zero = MIR_new_int_op(mir, 0);
+        MIR_insn_t insn = MIR_new_insn(mir, MIR_MOV, reg_op, zero);
+        MIR_append_insn(mir, func, insn);
+};
+
+static inline void zeroinit_reg(MIR_context_t mir, MIR_item_t func, MIR_reg_t reg) {
+  MIR_append_insn(mir, func, MIR_new_insn(mir,
+        MIR_MOV, MIR_new_reg_op(mir, reg), MIR_new_int_op(mir, 0)));
+  return;
+  // MIR_type_t t = MIR_reg_type(mir, reg, MIR_get_item_func(mir, func));
+
+  // MIR_op_t zero;
+  // if (MIR_int_type_p(t)) {
+  //    zero = MIR_new_int_op(mir, 0);
+  // } else {
+  //   switch (t) {
+  //     case MIR_T_F:
+  //       zero = MIR_new_float_op(mir, 0);
+  //     case MIR_T_D:
+  //       zero = MIR_new_double_op(mir, 0);
+  //     default: CHECK(false);
+  //   }
+  // }
+
+  // MIR_append_insn(mir, func, MIR_new_insn(mir,
+  //       MIR_MOV, MIR_new_reg_op(mir, reg), zero));
+}
+
+static inline MIR_type_t getregtype(MIR_type_t t) {
+  if (MIR_int_type_p(t)) return MIR_T_I64;
+  return t;
+}
+
+static inline bool ismirtype(C2_TypeType t) {
+  if (t > C2_TypeFnPtr) return false;
+  if (c2_mir_types[t] == MIR_T_UNDEF) return false;
+  return true;
+}
+
 static inline MIR_type_t c2_getmirtype(C2_TypeType t) {
-  CHECK(t <= C2_TypePtr, "MIR does not accept type %d", t);
-  MIR_type_t out = c2_mir_types[t];
-  CHECK(out != MIR_T_UNDEF, "MIR does not accept type %d", t);
-  return out;
+  DCHECK(ismirtype(t), "MIR does not accept type %s", c2_type_strs[t]);
+  return c2_mir_types[t];
 }
 
 static void genStmts(
     C2_Ctx* ctx,
     MIR_context_t mir,
+    MIR_item_t func,
     list_t* stmts,
     c2_symtab_t* symtab,
-    c2_symtab_t* symtab_local) {
+    c2_symtab_t* symtab_local,
+    c2_mirtab_t* mirtab,
+    c2_mirtab_t* mirtab_local) {
   size_t nstmt = stmts->len;
   for (size_t i = 0; i < nstmt; ++i) {
     C2_Stmt* stmt = c2_ctx_getstmt(ctx, *list_get(C2_StmtId, stmts, i));
+    DLOG("%s", c2_stmt_strs[stmt->type]);
     switch (stmt->type) {
       case C2_Stmt_CAST: {
-        // symtab_local
-        // sign/zero extension?
+        c2_symtab_put(
+            symtab_local, stmt->data.cast.out_name, stmt->data.cast.type);
+        break;
       }
       case C2_Stmt_DECL: {
-        // symtab_local
-        // If mir type, declare local
-        // Else, add to alloca size
+        C2_Name name = stmt->data.decl.name;
+        C2_TypeId type = stmt->data.decl.type;
+        c2_symtab_put(symtab_local, name, type);
+        str_t name_s = c2_ctx_strname(ctx, stmt->data.decl.name);
+
+        MIR_reg_t reg;
+        MIR_type_t reg_type;
+        if (ismirtype(type.type)) {
+          // If mir type, declare local
+          MIR_type_t t = c2_getmirtype(stmt->data.decl.type.type);
+          reg_type = getregtype(t);
+          reg = MIR_new_func_reg(
+            mir, MIR_get_item_func(mir, func), reg_type, name_s.bytes);
+        } else {
+          // Else, stored in alloca
+          // How much to add to alloca and where to place it in alloca
+          //   Type size, type alignment
+          // And then a local pointer to it
+          reg_type = MIR_T_I64;
+          reg = MIR_new_func_reg(
+            mir, MIR_get_item_func(mir, func), MIR_T_I64, name_s.bytes);
+        }
+
+        // Zero the register
+        MIR_op_t reg_op = MIR_new_reg_op(mir, reg);
+        MIR_op_t zero;
+        if (MIR_int_type_p(reg_type)) {
+           zero = MIR_new_int_op(mir, 0);
+        } else {
+          switch (reg_type) {
+            case MIR_T_F:
+              zero = MIR_new_float_op(mir, 0);
+            case MIR_T_D:
+              zero = MIR_new_double_op(mir, 0);
+            default: CHECK(false);
+          }
+        }
+        MIR_new_int_op(mir, 0);
+        MIR_insn_t insn = MIR_new_insn(mir, MIR_MOV, reg_op, zero);
+        MIR_append_insn(mir, func, insn);
+
+        mirstate state;
+        state.type = M_REG;
+        state.data.reg = reg;
+        mirtab_put(mirtab_local, name, state);
+        break;
       }
-      case C2_Stmt_LABEL: {
-        // label
+      case C2_Stmt_RETURN: {
+        C2_Name name = stmt->data.xreturn.name;
+        MIR_insn_t ret;
+        if (c2_name_isnull(name)) {
+          ret = MIR_new_ret_insn(mir, 0);
+        } else {
+          mirstate* state = mirtab_get2(mirtab, mirtab_local, name);
+          DCHECK(state);
+          DCHECK(state->type == M_REG);
+
+          MIR_op_t op = MIR_new_reg_op(mir, state->data.reg);
+          ret = MIR_new_ret_insn(mir, 1, &op);
+        }
+        MIR_append_insn(mir, func, ret);
+        break;
+      }
+      case C2_Stmt_FNCALL: {
+        C2_Name fn_name = stmt->data.fncall.name;
+        C2_Name ret_name = stmt->data.fncall.ret;
+        list_t* args = &stmt->data.fncall.args;
+        bool has_ret = !c2_name_isnull(ret_name);
+
+        // prototype ref + func + return + args
+        int nops = 2 + (int)has_ret + args->len;
+        MIR_op_t* ops = alloca(sizeof(MIR_op_t) * nops);
+
+        mirstate* fnm = mirtab_get2(mirtab, mirtab_local, fn_name);
+        mirstate* retm;
+        if (!c2_name_isnull(ret_name)) {
+          retm = mirtab_get2(mirtab, mirtab_local, ret_name);
+          DCHECK(retm);
+          DCHECK(retm->type == M_REG);
+          ops[2] = MIR_new_reg_op(mir, retm->data.reg);
+        }
+
+        for (int i = 0; i < args->len; ++i) {
+          C2_Name arg_name = *list_get(C2_Name, args, i);
+          retm = mirtab_get2(mirtab, mirtab_local, arg_name);
+          DCHECK(retm);
+          DCHECK(retm->type == M_REG);
+        }
+
+        MIR_insn_t call = MIR_new_insn_arr(mir, MIR_CALL, nops, ops);
+        MIR_append_insn(mir, func, call);
       }
       case C2_Stmt_EXPR: {
         // op
@@ -60,23 +224,11 @@ static void genStmts(
       case C2_Stmt_TERM: {
         // immediate, or mem op
       }
-      case C2_Stmt_FNCALL: {
-        // call
-      }
       case C2_Stmt_ASSIGN: {
         // mov
       }
-      case C2_Stmt_RETURN: {
-        // return
-      }
-      case C2_Stmt_BREAK: {
-        // jmp to current loop end label
-      }
-      case C2_Stmt_CONTINUE: {
-        // jmp to current loop start label
-      }
-      case C2_Stmt_GOTO: {
-        // jmp to label
+      case C2_Stmt_BLOCK: {
+        // block start/end
       }
       case C2_Stmt_IF: {
         // setup each block + else
@@ -87,14 +239,17 @@ static void genStmts(
       case C2_Stmt_LOOP: {
         // labels for start end
       }
+      case C2_Stmt_BREAK: {
+        // jmp to current loop end label
+      }
+      case C2_Stmt_CONTINUE: {
+        // jmp to current loop start label
+      }
       case C2_Stmt_IFBLOCK: {
         // if false, jmp to block end
       }
       case C2_Stmt_SWITCHCASE: {
         // case labels
-      }
-      case C2_Stmt_BLOCK: {
-        // block start/end
       }
       default: {
       }
@@ -102,15 +257,16 @@ static void genStmts(
   }
 }
 
-static void genFnSig(
+static MIR_item_t genFnSig(
     C2_Ctx* ctx,
     MIR_context_t mir,
     C2_FnSig* fn,
-    bool proto_only,
-    c2_symtab_t* symtab) {
+    c2_symtab_t* symtab,
+    bool proto_only) {
+  str_t fn_name = c2_ctx_strname(ctx, fn->name);
+  DLOG("genFnSig %.*s", fn_name.len, fn_name.bytes);
   size_t nargs = fn->args.len;
-  CHECK(nargs <= 16, "maximum number of fn arguments is 16");
-  MIR_var_t args[16];
+  MIR_var_t* args = alloca(sizeof(MIR_var_t) * nargs);
   for (size_t i = 0; i < nargs; ++i) {
     C2_TypeId argtid = *list_get(C2_TypeId, &fn->args, i);
     C2_Type* t = c2_ctx_gettype(ctx, argtid);
@@ -123,17 +279,16 @@ static void genFnSig(
   }
 
   bool has_ret = fn->ret.type != C2_TypeVOID;
-  MIR_type_t ret_type = c2_getmirtype(fn->ret.type);
+  MIR_type_t ret_type = has_ret ? c2_getmirtype(fn->ret.type) : 0;
 
   if (proto_only) {
     str_t proto_name = c2_ctx_strname(
         ctx, c2_ctx_name_suffix(ctx, fn->name, "_proto"));
-    MIR_new_proto_arr(
+    return MIR_new_proto_arr(
         mir, proto_name.bytes, (int)has_ret, &ret_type, nargs, args);
   } else {
-    MIR_item_t func = MIR_new_func_arr(
-        mir, c2_ctx_strname(ctx, fn->name).bytes, (int)has_ret, &ret_type,
-        nargs, args);
+    return MIR_new_func_arr(
+        mir, fn_name.bytes, (int)has_ret, &ret_type, nargs, args);
   }
 }
 
@@ -143,6 +298,7 @@ void c2_gen_mir(C2_Ctx* ctx, C2_Module* module, C2_GenCtxMir* genctx) {
 
   // Global symbol table
   c2_symtab_t* symtab = c2_symtab_init();
+  c2_mirtab_t* mirtab = kh_init(mc2mirtab);
 
   {
     // Named types
@@ -195,7 +351,7 @@ void c2_gen_mir(C2_Ctx* ctx, C2_Module* module, C2_GenCtxMir* genctx) {
       str_t name_s = c2_ctx_strname(ctx, fn->name);
       MIR_new_import(mir, name_s.bytes);
 
-      genFnSig(ctx, mir, fn, true, NULL);
+      MIR_item_t proto = genFnSig(ctx, mir, fn, NULL, true);
     }
   }
 
@@ -232,25 +388,28 @@ void c2_gen_mir(C2_Ctx* ctx, C2_Module* module, C2_GenCtxMir* genctx) {
 
     // Function-local symbol table
     c2_symtab_t* symtab_local = c2_symtab_init();
+    c2_mirtab_t* mirtab_local = kh_init(mc2mirtab);
 
     size_t nfns = module->fns.len;
     for (size_t i = 0; i < nfns; ++i) {
       c2_symtab_reset(symtab_local);
       C2_Fn* fn = list_get(C2_Fn, &module->fns, i);
       C2_FnSig* sig = &c2_ctx_gettype(ctx, fn->sig)->data.fnsig;
-      genFnSig(ctx, mir, sig, false, symtab_local);
+      MIR_item_t func = genFnSig(ctx, mir, sig, symtab_local, false);
       list_t stmts = c2_ctx_getstmt(ctx, fn->stmts)->data.block;
-      genStmts(ctx, mir, &stmts, symtab, symtab_local);
+      genStmts(ctx, mir, func, &stmts, symtab, symtab_local, mirtab, mirtab_local);
       MIR_finish_func(mir);
+      DLOG("func done");
       if (sig->quals & C2_FnQual_EXPORT) {
         MIR_new_export(mir, c2_ctx_strname(ctx, sig->name).bytes);
       }
     }
 
+    kh_destroy(mc2mirtab, mirtab_local);
     c2_symtab_deinit(symtab_local);
   }
 
-
+  kh_destroy(mc2mirtab, mirtab);
   c2_symtab_deinit(symtab);
   MIR_finish_module(mir);
 }

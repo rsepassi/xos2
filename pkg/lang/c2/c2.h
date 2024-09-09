@@ -40,7 +40,6 @@ typedef enum {
   C2_Stmt_INVALID,
   C2_Stmt_CAST,
   C2_Stmt_DECL,
-  C2_Stmt_LABEL,
   C2_Stmt_EXPR,
   C2_Stmt_TERM,
   C2_Stmt_FNCALL,
@@ -48,7 +47,6 @@ typedef enum {
   C2_Stmt_RETURN,
   C2_Stmt_BREAK,
   C2_Stmt_CONTINUE,
-  C2_Stmt_GOTO,
   C2_Stmt_IF,
   C2_Stmt_SWITCH,
   C2_Stmt_LOOP,
@@ -171,18 +169,12 @@ typedef struct {
       C2_TypeId type;
     } decl;
     struct {
-      C2_Name name;
-    } label;
-    struct {
       C2_StmtId lhs;  // C2_Stmt_Expr
       C2_StmtId rhs;  // C2_Stmt_Expr
     } assign;
     struct {
       C2_Name name;
     } xreturn;
-    struct {
-      C2_Name label;
-    } xgoto;
     struct {
       C2_StmtId ifs;  // C2_Stmt_BLOCK (C2_Stmt_IFBLOCK)
       C2_StmtId xelse;  // C2_Stmt_BLOCK
@@ -305,4 +297,8 @@ C2_Stmt* c2_ctx_blockadd(C2_Ctx*, C2_StmtId block, C2_StmtType);
 void c2_ctx_addifblock(C2_Ctx*, C2_StmtId ifs, C2_StmtId cond_block, C2_Name cond, C2_StmtId body_block);
 void c2_ctx_addswitchcase(C2_Ctx*, C2_StmtId cases, C2_Name case_val, C2_StmtId case_block);
 
+// TODO
+// * Add named block construct (vs goto+label)
+// * WebAssembly backend
+// * WebAssembly frontend?
 #endif

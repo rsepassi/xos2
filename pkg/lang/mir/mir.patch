@@ -1,5 +1,5 @@
 diff --git a/mir-hash.h b/mir-hash.h
-index 1b5ae668..af722db4 100644
+index 1b5ae66..af722db 100644
 --- a/mir-hash.h
 +++ b/mir-hash.h
 @@ -16,7 +16,7 @@
@@ -12,7 +12,7 @@ index 1b5ae668..af722db4 100644
  #else
  #define MIR_HASH_UNALIGNED_ACCESS 0
 diff --git a/mir-utils/b2ctab.c b/mir-utils/b2ctab.c
-index 3a63c8bb..cd152364 100644
+index 3a63c8b..cd15236 100644
 --- a/mir-utils/b2ctab.c
 +++ b/mir-utils/b2ctab.c
 @@ -30,10 +30,12 @@ int main (int argc, char *argv[]) {
@@ -29,26 +29,40 @@ index 3a63c8bb..cd152364 100644
    MIR_finish (ctx);
    return ferror (output_mir_code_file);
  }
+diff --git a/mir.c b/mir.c
+index db7b4db..a532b76 100644
+--- a/mir.c
++++ b/mir.c
+@@ -1567,12 +1567,12 @@ void MIR_finish_func (MIR_context_t ctx) {
+       MIR_get_error_func (ctx) (MIR_vararg_func_error, "func %s: mix of RET and JRET insns",
+                                 func_name);
+     } else if (code == MIR_RET && actual_nops != curr_func->nres) {
+-      curr_func = NULL;
+       MIR_get_error_func (
+         ctx) (MIR_vararg_func_error,
+               "func %s: in instruction '%s': number of operands in return does not "
+               "correspond number of function returns. Expected %d, got %d",
+               func_name, insn_descs[code].name, curr_func->nres, actual_nops);
++      curr_func = NULL;
+     } else if (MIR_call_code_p (code)) {
+       expr_p = FALSE;
+     } else if (code == MIR_BO || code == MIR_UBO || code == MIR_BNO || code == MIR_UBNO) {
 diff --git a/mir.h b/mir.h
-index 95c365c0..1997f1c1 100644
+index 95c365c..7d31c92 100644
 --- a/mir.h
 +++ b/mir.h
-@@ -14,9 +14,13 @@ extern "C" {
- #error "MIR does not work on 32-bit Windows"
- #endif
- 
+@@ -17,6 +17,9 @@ extern "C" {
  #include <stdio.h>
  #include <stdint.h>
  #include <assert.h>
 +#ifdef _WIN32
 +#include <malloc.h>
 +#endif
-+
  #include "mir-dlist.h"
  #include "mir-varr.h"
  #include "mir-htab.h"
 diff --git a/mir2c/mir2c.c b/mir2c/mir2c.c
-index 9e27cc9e..a26b79d9 100644
+index 9e27cc9..a26b79d 100644
 --- a/mir2c/mir2c.c
 +++ b/mir2c/mir2c.c
 @@ -341,7 +341,7 @@ static void out_insn (MIR_context_t ctx, FILE *f, MIR_insn_t insn) {

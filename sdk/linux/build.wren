@@ -54,14 +54,33 @@ var podman = Fn.new { |b, args|
   }))
 }
 
-var alpineX11 = Fn.new { |b, args|
-  var sdk = b.dep(":podman", ["alpine:3.19", "libx11-dev,libxcursor-dev,libxrandr-dev,libxinerama-dev,libxi-dev,mesa-dev"])
-  File.rename("%(sdk.path)/sdk", "%(b.installDir)/sdk")
-  File.rename("%(sdk.path)/lib", "%(b.installDir)/lib")
-}
-
 var debianX11 = Fn.new { |b, args|
   var sdk = b.dep(":podman", ["debian:bookworm", "libx11-dev,libxcursor-dev,libxrandr-dev,libxinerama-dev,libxi-dev,libgl1-mesa-dev"])
   File.rename("%(sdk.path)/sdk", "%(b.installDir)/sdk")
   File.rename("%(sdk.path)/lib", "%(b.installDir)/lib")
+}
+
+var alpineX11 = Fn.new { |b, args|
+  var sdk = b.dep(":podman", ["alpine:3.19", "libx11-dev,libxcursor-dev,libxrandr-dev,libxinerama-dev,libxi-dev,mesa-dev"])
+
+  Directory.ensure("%(b.installDir)/sdk/usr/include")
+  Directory.ensure("%(b.installDir)/sdk/usr/lib")
+
+  var root = "%(sdk.path)/sdk"
+  var libs = [
+    "libX11.so.6.4.0",
+    "libX11.so.6",
+    "libX11.so",
+  ]
+  for (lib in libs) {
+    File.copy("%(root)/usr/lib/%(lib)", "%(b.installDir)/sdk/usr/lib/%(lib)")
+  }
+  Directory.copy("%(root)/usr/include/X11", "%(b.installDir)/sdk/usr/include/X11")
+
+  var zig = b.deptool("//toolchains/zig")
+  b.installLibConfig(zig.libConfig(b, "sdk", {
+    "nostdopts": true,
+    "cflags": ["-I{{root}}/sdk/usr/include"],
+    "ldflags": ["-L{{root}}/sdk/usr/lib"],
+  }))
 }

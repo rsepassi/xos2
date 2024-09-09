@@ -8,17 +8,23 @@
 typedef void* (*fenster_realloc)(void *user_ctx, void *ptr, size_t new_size);
 
 typedef enum {
-  FENSTER_LMOUSE_DOWN = 1,
+  FENSTER_MOUSE_NONE,
+  FENSTER_LMOUSE_DOWN,
   FENSTER_LMOUSE_UP,
   FENSTER_RMOUSE_DOWN,
   FENSTER_RMOUSE_UP,
 } fenster_mouse;
 
+typedef enum {
+  FENSTER_KEY_UP = -1,
+  FENSTER_KEY_NONE,
+  FENSTER_KEY_DOWN,
+} fenster_key;
+
 #define FENSTER_MOD_CTRL  1 << 0
 #define FENSTER_MOD_SHIFT 1 << 1
 #define FENSTER_MOD_ALT   1 << 2
 #define FENSTER_MOD_META  1 << 3
-#define fenster_mod(f, key) (f->mod & FENSTER_MOD_##key)
 
 typedef struct {
   char* title;
@@ -26,7 +32,7 @@ typedef struct {
   int32_t height;
   // keys are mostly ASCII, but arrows are 17..20
   // down=1 up=-1
-  int8_t keys[256];
+  fenster_key keys[256];
   uint8_t mod;
   // position of click or mouse motion
   int32_t x;
@@ -50,5 +56,6 @@ void fenster_close(fenster *f);
 void fenster_sleep(int64_t ms);
 int64_t fenster_time(void);
 #define fenster_pixel(f, x, y) ((f)->buf[((y) * (f)->width) + (x)])
+#define fenster_mod(f, key) (f->mod & FENSTER_MOD_##key)
 
 #endif /* FENSTER_H */

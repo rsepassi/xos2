@@ -15,24 +15,24 @@ void* my_realloc(void *user_ctx, void *ptr, size_t new_size) {
 void process_event(fenster* f) {
   // Scan keys
   for (int i = 0; i < 256; ++i) {
-    if (f->keys[i] == 1) {
+    if (f->keys[i] == FENSTER_KEY_DOWN) {
       fprintf(stderr, "keydown %d", i, fenster_mod(f, CTRL));
       if (fenster_mod(f, CTRL)) fprintf(stderr, " ctrl");
       if (fenster_mod(f, SHIFT)) fprintf(stderr, " shift");
       if (fenster_mod(f, ALT)) fprintf(stderr, " alt");
       if (fenster_mod(f, META)) fprintf(stderr, " meta");
       fprintf(stderr, "\n");
-      f->keys[i] = 0;
-    } else if (f->keys[i] == -1) {
+      f->keys[i] = FENSTER_KEY_NONE;
+    } else if (f->keys[i] == FENSTER_KEY_UP) {
       fprintf(stderr, "keyup %d\n", i);
-      f->keys[i] = 0;
+      f->keys[i] = FENSTER_KEY_NONE;
     }
   }
 
   // Scan mouse
-  if (f->mouse != 0) {
+  if (f->mouse != FENSTER_MOUSE_NONE) {
     fprintf(stderr, "mouse %d (%d, %d)\n", f->mouse, f->x, f->y);
-    f->mouse = 0;
+    f->mouse = FENSTER_MOUSE_NONE;
   }
 }
 

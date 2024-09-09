@@ -3,6 +3,7 @@ Resource cleanup on close
 Features
   iOS, Android
   Multi-window, focus, events
+  Sleep til next event (vs continuous)
 
 Mac
   Resizing seems off, maybe due to sleeping
@@ -11,5 +12,3 @@ Windows
   Colors seem off, blueish
   Rendering freezes on window move/resize
     https://stackoverflow.com/questions/3102074/win32-my-application-freezes-while-the-user-resizes-the-window
-
-

@@ -1,0 +1,12 @@
+fenster -> fenster
+
+Features
+  Resize
+  Mobile
+
+Windows
+  Colors seem off, blueish
+  Rendering freezes on window move
+    https://stackoverflow.com/questions/3102074/win32-my-application-freezes-while-the-user-resizes-the-window
+
+

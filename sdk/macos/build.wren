@@ -5,9 +5,7 @@ var Hash = "61121dae9a1a7afd3199e43860995093ea40cd0110a4728b2a9546e1c784e99f"
 
 var macos = Fn.new { |b, args|
   var dir = b.untar(b.fetch(Url, Hash))
-  File.rename(dir, "sdk")
-  b.installDir("", "sdk")
-
+  File.rename(dir, "%(b.installDir)/sdk")
   File.write("libc.txt", GetLibc_.call("%(b.installDir)/sdk"))
   b.install("sdk", "libc.txt")
 }

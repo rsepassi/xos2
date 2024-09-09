@@ -11,7 +11,7 @@ var podman = Fn.new { |b, args|
   var libinstall
   var libinclude
   if (image.startsWith("alpine")) {
-    libinstall = "usr"
+    libinstall = "usr/lib"
     libinclude = "usr/lib"
   } else if (image.startsWith("debian")) {
     libinstall = "usr/lib"
@@ -42,7 +42,8 @@ var podman = Fn.new { |b, args|
   b.systemExport(["podman", "kill", pid])
   Process.chdir(b.untar(archive_path, {"strip": 0}))
 
-  b.installDir("sdk/%(libinstall)", libinclude)
+  Directory.ensure("%(b.installDir)/sdk/usr")
+  File.rename(libinclude, "%(b.installDir)/sdk/%(libinstall)")
   if (Directory.exists("usr/include")) b.installDir("sdk/usr", "usr/include")
 
   var zig = b.deptool("//toolchains/zig")
@@ -55,12 +56,12 @@ var podman = Fn.new { |b, args|
 
 var alpineX11 = Fn.new { |b, args|
   var sdk = b.dep(":podman", ["alpine:3.19", "libx11-dev,libxcursor-dev,libxrandr-dev,libxinerama-dev,libxi-dev,mesa-dev"])
-  b.installDir("", "%(sdk.path)/sdk")
-  b.installDir("", "%(sdk.path)/lib")
+  File.rename("%(sdk.path)/sdk", "%(b.installDir)/sdk")
+  File.rename("%(sdk.path)/lib", "%(b.installDir)/lib")
 }
 
 var debianX11 = Fn.new { |b, args|
   var sdk = b.dep(":podman", ["debian:bookworm", "libx11-dev,libxcursor-dev,libxrandr-dev,libxinerama-dev,libxi-dev,libgl1-mesa-dev"])
-  b.installDir("", "%(sdk.path)/sdk")
-  b.installDir("", "%(sdk.path)/lib")
+  File.rename("%(sdk.path)/sdk", "%(b.installDir)/sdk")
+  File.rename("%(sdk.path)/lib", "%(b.installDir)/lib")
 }

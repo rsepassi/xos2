@@ -2,19 +2,25 @@
 
 #include "base/list.h"
 
+static inline void Realloc(list_t* ctx, size_t newsz) {
+  ctx->base = allocator_realloc(&ctx->alloc, ctx->base, ctx->cap * ctx->elsz, newsz);
+}
+
 list_t list_init2(size_t elsz, int cap) {
   cap = cap < 0 ? 64 : cap;
-  void* base = realloc(NULL, cap * elsz);
+  allocator_t alloc = allocator_default();
+  void* base = allocator_realloc(&alloc, NULL, 0, cap * elsz);
   return (list_t){
     .base = base,
     .cap = cap,
     .len = 0,
     .elsz = elsz,
+    .alloc = alloc,
   };
 }
 
 void list_deinit(list_t* ctx) {
-  realloc(ctx->base, 0);
+  Realloc(ctx, 0);
 }
 
 uint8_t* list_get2(list_t* ctx, int i) {
@@ -27,13 +33,17 @@ uint8_t* list_add2(list_t* ctx) { return list_addn2(ctx, 1); }
 void list_reserve(list_t* ctx, size_t n) {
   if (n <= ctx->cap) return;
   ctx->cap = n;
-  ctx->base = realloc(ctx->base, ctx->cap * ctx->elsz);
+  Realloc(ctx, ctx->cap * ctx->elsz);
+}
+
+void list_clear(list_t* ctx) {
+  ctx->len = 0;
 }
 
 uint8_t* list_addn2(list_t* ctx, size_t n) {
   if ((ctx->len + n) > ctx->cap) {
     ctx->cap = (ctx->len + n) * 2;
-    ctx->base = realloc(ctx->base, ctx->cap * ctx->elsz);
+    Realloc(ctx, ctx->cap * ctx->elsz);
   }
 
   uint8_t* cur = &ctx->base[ctx->elsz * ctx->len];

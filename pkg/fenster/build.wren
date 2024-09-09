@@ -1,6 +1,7 @@
 var fenster = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
 
+  var srcs = []
   var deps = []
   var ldflags = []
   var sdk = false
@@ -15,11 +16,12 @@ var fenster = Fn.new { |b, args|
     ldflags = ["-lgdi32", "--subsystem", "windows"]
   } else if (b.target.os == "macos") {
     ldflags = ["-framework", "Cocoa"]
+    srcs = [b.src("src/fenster_mac.m")]
     sdk = true
   }
 
   zig.ez.cLib(b, {
-    "srcs": b.srcGlob("src/*"),
+    "srcs": b.srcGlob("src/*.c") + srcs,
     "flags": ["-I", b.srcDir("include")],
     "includeDir": b.srcDir("include"),
     "deps": deps,

@@ -15,6 +15,12 @@ static LRESULT CALLBACK fenster_wndproc(HWND hwnd, UINT msg, WPARAM wParam,
                                         LPARAM lParam) {
   fenster *f = (fenster *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
   switch (msg) {
+  case WM_SIZE: {
+    f->width = LOWORD(lParam);
+    f->height = HIWORD(lParam);
+    f->buf = f->realloc(
+        f->user_ctx, f->buf, f->width * f->height * sizeof(uint32_t)); 
+  } break;
   case WM_PAINT: {
     PAINTSTRUCT ps;
     HDC hdc = BeginPaint(hwnd, &ps);
@@ -49,7 +55,13 @@ static LRESULT CALLBACK fenster_wndproc(HWND hwnd, UINT msg, WPARAM wParam,
     break;
   case WM_LBUTTONDOWN:
   case WM_LBUTTONUP:
-    f->mouse = (msg == WM_LBUTTONDOWN);
+    f->mouse = (msg == WM_LBUTTONDOWN ?
+        FENSTER_LMOUSE_DOWN : FENSTER_LMOUSE_UP);
+    break;
+  case WM_RBUTTONDOWN:
+  case WM_RBUTTONUP:
+    f->mouse = (msg == WM_RBUTTONDOWN ?
+        FENSTER_RMOUSE_DOWN : FENSTER_RMOUSE_UP);
     break;
   case WM_MOUSEMOVE:
     f->y = HIWORD(lParam), f->x = LOWORD(lParam);
@@ -60,7 +72,7 @@ static LRESULT CALLBACK fenster_wndproc(HWND hwnd, UINT msg, WPARAM wParam,
              ((GetKeyState(VK_SHIFT) & 0x8000) >> 14) |
              ((GetKeyState(VK_MENU) & 0x8000) >> 13) |
              (((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & 0x8000) >> 12);
-    f->keys[FENSTER_KEYCODES[HIWORD(lParam) & 0x1ff]] = !((lParam >> 31) & 1);
+    f->keys[FENSTER_KEYCODES[HIWORD(lParam) & 0x1ff]] = !((lParam >> 31) & 1) ? 1 : -1;
   } break;
   case WM_DESTROY:
     PostQuitMessage(0);
@@ -72,6 +84,8 @@ static LRESULT CALLBACK fenster_wndproc(HWND hwnd, UINT msg, WPARAM wParam,
 }
 
 int fenster_open(fenster *f) {
+  f->buf = f->realloc(
+      f->user_ctx, f->buf, f->width * f->height * sizeof(uint32_t)); 
   HINSTANCE hInstance = GetModuleHandle(NULL);
   WNDCLASSEX wc = {0};
   wc.cbSize = sizeof(WNDCLASSEX);
@@ -102,7 +116,9 @@ int fenster_open(fenster *f) {
   return 0;
 }
 
-void fenster_close(fenster *f) { (void)f; }
+void fenster_close(fenster *f) {
+  f->buf = f->realloc(f->user_ctx, f->buf, 0);
+}
 
 void fenster_paint(fenster *f) {
   InvalidateRect(f->platform.hwnd, NULL, TRUE);

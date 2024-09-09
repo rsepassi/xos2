@@ -59,12 +59,18 @@ class ZigEz {
       "cflags": opts["flags"] || [],
       "c_deps": opts["deps"] || [],
       "libc": opts["libc"] || false,
+      "sdk": opts["sdk"] || false,
     })
     b.installLib(lib)
+    if (opts["includeDir"]) {
+      b.installHeaderDir(opts["includeDir"])
+    }
     b.installHeader(opts["include"] || [])
     b.installLibConfig(_z.libConfig(b, name, {
       "deps": opts["deps"] || [],
+      "ldflags": opts["ldflags"] || [],
       "libc": opts["libc"] || false,
+      "sdk": opts["sdk"] || false,
     }))
   }
 }
@@ -369,9 +375,9 @@ var GetCArgs_ = Fn.new { |b, opts|
   args.addAll(opts["flags"] || [])
 
   // c flags
-  if (opts["c_flags"]) {
+  if (opts["cflags"]) {
     args.add("-cflags")
-    args.addAll(opts["c_flags"])
+    args.addAll(opts["cflags"])
     args.addAll(platform.ccflags)
 
     // determinism

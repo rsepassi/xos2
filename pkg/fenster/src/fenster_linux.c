@@ -9,8 +9,6 @@ static int FENSTER_KEYCODES[124] = {XK_BackSpace,8,XK_Delete,127,XK_Down,18,XK_E
 // clang-format on
 
 static void create_image(fenster *f) {
-  f->buf = f->realloc(
-      f->user_ctx, f->buf, sizeof(uint32_t) * f->width * f->height);
   f->platform.img = XCreateImage(
       f->platform.dpy,
       DefaultVisual(f->platform.dpy, 0),
@@ -52,6 +50,10 @@ int fenster_open(fenster *f) {
   XStoreName(f->platform.dpy, f->platform.w, f->title);
   XMapWindow(f->platform.dpy, f->platform.w);
   XSync(f->platform.dpy, f->platform.w);
+  if (f->buf == NULL) {
+    f->buf = f->realloc(
+        f->user_ctx, f->buf, sizeof(uint32_t) * f->width * f->height);
+  }
   create_image(f);
   return 0;
 }
@@ -78,50 +80,53 @@ void fenster_paint(fenster *f) {
 
 int fenster_loop(fenster *f) {
   XEvent ev;
-  while (XPending(f->platform.dpy)) {
-    XNextEvent(f->platform.dpy, &ev);
-    switch (ev.type) {
-      case ConfigureNotify:
+  XNextEvent(f->platform.dpy, &ev);
+  switch (ev.type) {
+    case ConfigureNotify:
+      if (!(ev.xconfigure.width == f->width && ev.xconfigure.height == f->height)) {
         f->width = ev.xconfigure.width;
         f->height = ev.xconfigure.height;
+        f->resized = true;
+        f->buf = f->realloc(
+            f->user_ctx, f->buf, sizeof(uint32_t) * f->width * f->height);
         create_image(f);
-        break;
-      case ButtonPress:
-      case ButtonRelease:
-        if (ev.xbutton.button == Button1) {
-          if (ev.type == ButtonPress) {
-            f->mouse = FENSTER_LMOUSE_DOWN;
-          } else {
-            f->mouse = FENSTER_LMOUSE_UP;
-          }
-        } else if (ev.xbutton.button == Button3) {
-          if (ev.type == ButtonPress) {
-            f->mouse = FENSTER_RMOUSE_DOWN;
-          } else {
-            f->mouse = FENSTER_RMOUSE_UP;
-          }
+      }
+      break;
+    case ButtonPress:
+    case ButtonRelease:
+      if (ev.xbutton.button == Button1) {
+        if (ev.type == ButtonPress) {
+          f->mouse = FENSTER_LMOUSE_DOWN;
+        } else {
+          f->mouse = FENSTER_LMOUSE_UP;
         }
-        break;
-      case MotionNotify:
-        f->x = ev.xmotion.x, f->y = ev.xmotion.y;
-        break;
-      case KeyPress:
-      case KeyRelease: {
-        int m = ev.xkey.state;
-        int k = XkbKeycodeToKeysym(f->platform.dpy, ev.xkey.keycode, 0, 0);
-        for (unsigned int i = 0; i < 124; i += 2) {
-          if (FENSTER_KEYCODES[i] == k) {
-            f->keys[FENSTER_KEYCODES[i + 1]] = (ev.type == KeyPress ? 1 : -1);
-            break;
-          }
+      } else if (ev.xbutton.button == Button3) {
+        if (ev.type == ButtonPress) {
+          f->mouse = FENSTER_RMOUSE_DOWN;
+        } else {
+          f->mouse = FENSTER_RMOUSE_UP;
         }
-        f->mod = (!!(m & ControlMask)) | (!!(m & ShiftMask) << 1) |
-                 (!!(m & Mod1Mask) << 2) | (!!(m & Mod4Mask) << 3);
-      } break;
-      case ClientMessage: {
-        if ((Atom)ev.xclient.data.l[0] == wm_delete_window) {
-          return 1;
+      }
+      break;
+    case MotionNotify:
+      f->x = ev.xmotion.x, f->y = ev.xmotion.y;
+      break;
+    case KeyPress:
+    case KeyRelease: {
+      int m = ev.xkey.state;
+      int k = XkbKeycodeToKeysym(f->platform.dpy, ev.xkey.keycode, 0, 0);
+      for (unsigned int i = 0; i < 124; i += 2) {
+        if (FENSTER_KEYCODES[i] == k) {
+          f->keys[FENSTER_KEYCODES[i + 1]] = (ev.type == KeyPress ? 1 : -1);
+          break;
         }
+      }
+      f->mod = (!!(m & ControlMask)) | (!!(m & ShiftMask) << 1) |
+               (!!(m & Mod1Mask) << 2) | (!!(m & Mod4Mask) << 3);
+    } break;
+    case ClientMessage: {
+      if ((Atom)ev.xclient.data.l[0] == wm_delete_window) {
+        return 1;
       }
     }
   }

@@ -2,6 +2,7 @@
 #define FENSTER_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "fenster/fenster_platform.h"
 
@@ -38,6 +39,7 @@ typedef struct {
   int32_t x;
   int32_t y;
   fenster_mouse mouse;
+  bool resized;
   // Pixel buffer, managed internally
   uint32_t* buf;
   // User-provided allocation function

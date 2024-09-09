@@ -78,11 +78,11 @@ class Build {
         Log.debug("%(_label) fetching %(url) to %(tmp_dst)")
         var stdio = NormalizeStdio_.call(null)
         if (Config.get("bootstrap")) {
-          Process.spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst], null, stdio)
+          spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst], null, stdio)
         } else {
           var args = [Target.host.exeName("curl"), "-s", "-L", url, "-o", tmp_dst]
           Log.debug("%(args)")
-          Process.spawn(args, null, stdio)
+          spawn(args, null, stdio)
         }
         var computed_hash = _cache.setContent(tmp_dst)
         if (hash != computed_hash) {
@@ -190,7 +190,8 @@ class Build {
     args.addAll(opts["args"] || [])
     Log.debug("unpacking %(archive), %(args)")
     var stdio = NormalizeStdio_.call(null)
-    Process.spawn(args, null, stdio)
+    spawn(args, null, stdio)
+    Log.debug("unpacked %(archive)")
     return tmpdir
   }
   mktmp() { _cache_entry.mktmp() }

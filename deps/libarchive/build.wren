@@ -24,7 +24,7 @@ var libarchive = Fn.new { |b, args|
       "-DLIBARCHIVE_STATIC",
       "-D__LIBARCHIVE_ENABLE_VISIBILITY",
     ],
-    "c_flags": [
+    "cflags": [
       "-include", "%(mbedtls.includeDir)/mbedtls/compat-2.x.h",
     ],
     "c_deps": [

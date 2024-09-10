@@ -12,10 +12,15 @@
 #endif
 
 typedef struct {
-  uint32_t* buf;
+  uint8_t r, g, b, a;
+} framebuffer_px_t;
+
+typedef struct {
+  framebuffer_px_t* buf;
   uint32_t w;
   uint32_t h;
 } framebuffer_t;
+#define framebuffer_pixel(f, x, y) ((f).buf[((y) * (f).w) + (x)])
 
 void nativefb_init(native_platform_t* p, GLFWwindow* w, framebuffer_t* fb);
 void nativefb_deinit(native_platform_t* p);

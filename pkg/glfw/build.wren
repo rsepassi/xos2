@@ -33,19 +33,21 @@ var glfw = Fn.new { |b, args|
     deps.add(zig.cDep(b.dep("//sdk/linux:debianX11"), "sdk"))
   }
 
+  var sdk = b.target.os == "macos"
+
   var lib = zig.buildLib(b, "glfw", {
     "c_srcs": b.glob("src/*.c") + getAddlSrcs_.call(b),
     "flags": glfw_platform[b.target.os]["flags"],
     "c_deps": deps,
     "libc": true,
-    "sdk": true,
+    "sdk": sdk,
   })
 
   b.installLib(lib)
   b.installLibConfig(zig.libConfig(b, "glfw", {
     "ldflags": glfw_platform[b.target.os]["ldflags"],
     "deps": deps,
-    "sdk": true,
+    "sdk": sdk,
     "libc": true,
   }))
   b.installHeaderDir("include")

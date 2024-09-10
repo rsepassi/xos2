@@ -1,3 +1,5 @@
+#if !defined(_WIN32) && !defined(__APPLE__)
+
 #include "nativefb.h"
 
 static XImage* new_image(native_platform_t* p, framebuffer_t* fb) {
@@ -45,3 +47,5 @@ void nativefb_paint(native_platform_t* p, framebuffer_t* fb) {
       fb->h);
   XFlush(p->display);
 }
+
+#endif

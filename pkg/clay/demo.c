@@ -7,15 +7,23 @@
 #include "base/allocator.h"
 #include "base/fmt.h"
 
+typedef struct appstate_s appstate_t;
+#define CLAY_EXTEND_CONFIG_TEXT \
+  appstate_t* app;
 #include "clay.h"
 #include "olive.h"
 
 #include "GLFW/glfw3.h"
 #include "nativefb.h"
 
+#include "ft2build.h"
+#include FT_FREETYPE_H
+#include "harfbuzz/hb.h"
+#include "harfbuzz/hb-ft.h"
+
 static char lorem[] = "lorem ipsum is simply dummy text of the printing and typesetting industry. lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. it has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. it was popularised in the 1960s with the release of letraset sheets containing lorem ipsum passages, and more recently with desktop publishing software like aldus pagemaker including versions of lorem ipsum.";
 
-typedef struct {
+struct appstate_s {
   int count;
 
   framebuffer_t fb;
@@ -24,9 +32,14 @@ typedef struct {
   allocator_bump_t bump;
   allocator_t frame_alloc;
 
+  FT_Face ft_face;
+  hb_font_t* hb_font;
+  hb_buffer_t* hb_buf;
+  float lineh;
+
   bool needs_render;
   double last_render;
-} appstate_t;
+};
 
 static void appstate_free(appstate_t* app) {
   // free(app->fb.buf);  nativefb_deinit releases this on X11
@@ -77,10 +90,6 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
   appstate_t* app = getapp();
 
-  double xpos, ypos;
-  glfwGetCursorPos(window, &xpos, &ypos);
-  Clay_SetPointerPosition((Clay_Vector2){xpos, ypos});
-
   xoffset *= 4;
   yoffset *= 4;
 
@@ -116,7 +125,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 
 static void window_refresh_callback(GLFWwindow* window) {
   appstate_t* app = getapp();
-  render(window, app);
+  app->needs_render = true;
 }
 
 static void window_focus_callback(GLFWwindow *window, int focus) {
@@ -143,14 +152,14 @@ static void fbsize_callback(GLFWwindow *window, int width, int height) {
   appstate_t* app = getapp();
   LOG("GLFW FB resize (%d, %d)", width, height);
   doresize(app, width, height);
-  render(window, app);
+  app->needs_render = true;
 }
 
 static void winsize_callback(GLFWwindow *window, int width, int height) {
   appstate_t* app = getapp();
   LOG("GLFW Window resize (%d, %d)", width, height);
   doresize(app, width, height);
-  render(window, app);
+  app->needs_render = true;
 }
 
 static inline Clay_String app_strfmt(appstate_t* app, char* fmt, ...) {
@@ -176,7 +185,6 @@ static void buildTree(int w, int h, appstate_t* app) {
                   .padding = {16, 16},
                   .childGap = 16),
       CLAY_RECTANGLE_CONFIG(.color = {0,255,0,255}), {
-
     // A
     CLAY_RECTANGLE(CLAY_ID("A"),
         CLAY_LAYOUT(.sizing = {CLAY_SIZING_PERCENT(.5), CLAY_SIZING_GROW()},
@@ -186,7 +194,7 @@ static void buildTree(int w, int h, appstate_t* app) {
         CLAY_RECTANGLE_CONFIG(.color = {0,0,255,255}), {
       CLAY_TEXT(CLAY_ID("TitleA"),
           CLAY_STRING("left"),
-          CLAY_TEXT_CONFIG(.fontSize = 1, .textColor = {255, 255, 255, 255}));
+          CLAY_TEXT_CONFIG(.textColor = {255, 255, 255, 255}, .app = app));
       CLAY_SCROLL_CONTAINER(CLAY_ID("A-scroll"),
           CLAY_LAYOUT(.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}),
           CLAY_SCROLL_CONFIG(.vertical = true), {
@@ -194,8 +202,8 @@ static void buildTree(int w, int h, appstate_t* app) {
             CLAY_STRING(lorem),
             CLAY_TEXT_CONFIG(
               .lineSpacing = 5,
-              .fontSize = 3,
-              .textColor = {255, 255, 255, 255}));
+              .textColor = {255, 255, 255, 255},
+              .app = app));
       });
     });
 
@@ -207,17 +215,36 @@ static void buildTree(int w, int h, appstate_t* app) {
         CLAY_RECTANGLE_CONFIG(.color = {255,0,0,255}), {
       CLAY_TEXT(CLAY_ID("TitleB"),
           app_strfmt(app, "count %d", app->count),
-          CLAY_TEXT_CONFIG(.fontSize = 1, .textColor = {255, 255, 255, 255}));
+          CLAY_TEXT_CONFIG(.textColor = {255, 255, 255, 255}, .app = app));
       CLAY_RECTANGLE(CLAY_ID("INCR"),
           CLAY_LAYOUT(.sizing = {CLAY_SIZING_FIT(40), CLAY_SIZING_FIT(20)},
                       .padding = {10, 10}),
           CLAY_RECTANGLE_CONFIG(.color = {190, 190, 190, 255}), {
         CLAY_TEXT(CLAY_ID("INCR-text"),
             app_strfmt(app, "increment", app->count),
-            CLAY_TEXT_CONFIG(.fontSize = 1, .textColor = {0, 0, 0, 255}));
+            CLAY_TEXT_CONFIG(.textColor = {0, 0, 0, 255}, .app = app));
       });
     });
   });
+}
+
+framebuffer_px_t alphaBlend(framebuffer_px_t x, framebuffer_px_t y) {
+  if (y.a <= 0) return x;
+
+  float xa = x.a / 255.;
+  float ya = y.a / 255.;
+
+  float r = ya * y.r + (1. - ya) * x.r * xa;
+  float g = ya * y.g + (1. - ya) * x.g * xa;
+  float b = ya * y.b + (1. - ya) * x.b * xa;
+  float a = ya +  xa * (1. - ya);
+
+  return (framebuffer_px_t){
+    .r = r,
+    .g = g,
+    .b = b,
+    .a = a * 255.,
+  };
 }
 
 static void render(GLFWwindow* window, appstate_t* app) {
@@ -230,12 +257,13 @@ static void render(GLFWwindow* window, appstate_t* app) {
   Clay_BeginLayout(w, h);
   buildTree(w, h, app);
   Clay_RenderCommandArray renderCommands = Clay_EndLayout(w, h);
+  duration = glfwGetTime() - start_time;
+  LOG("layout in %dms", (int)(duration * 1000.0));
 
-  Olivec_Canvas canvas = olivec_canvas(app->fb.buf, w, h, w);
+  Olivec_Canvas canvas = olivec_canvas((uint32_t*)app->fb.buf, w, h, w);
 
   bool scissor = false;
   Clay_BoundingBox scissor_box = {0};
-  Olivec_Canvas subcanvas = {0};
 
   for (int i = 0; i < renderCommands.length; i++) {
     Clay_RenderCommand *renderCommand = &renderCommands.internalArray[i];
@@ -244,40 +272,87 @@ static void render(GLFWwindow* window, appstate_t* app) {
         Clay_BoundingBox box = renderCommand->boundingBox;
         Clay_RectangleElementConfig* config = renderCommand->config.rectangleElementConfig;
         Clay_Color color = renderCommand->config.rectangleElementConfig->color;
-        olivec_rect(canvas,
+        olivec_fill(olivec_subcanvas(canvas,
             box.x, box.y,
-            box.width, box.height,
+            box.width, box.height),
             convertColor(config->color));
       } break;
       case CLAY_RENDER_COMMAND_TYPE_TEXT: {
         Clay_BoundingBox box = renderCommand->boundingBox;
-        Clay_String txt = renderCommand->text;
+        Clay_String* text = &renderCommand->text;
         Clay_TextElementConfig* config = renderCommand->config.textElementConfig;
 
-        if (scissor) {
-          olivec_text(subcanvas,
-              txt.chars, txt.length,
-              box.x - scissor_box.x, box.y - scissor_box.y,
-              olivec_default_font,
-              config->fontSize,
-              convertColor(config->textColor));
-        } else {
-          olivec_text(canvas,
-              txt.chars, txt.length,
-              box.x, box.y,
-              olivec_default_font,
-              config->fontSize,
-              convertColor(config->textColor));
+        // Shape
+        hb_buffer_set_length(app->hb_buf, 0);
+        hb_buffer_add_utf8(app->hb_buf, text->chars, text->length, 0, text->length);
+        hb_shape(app->hb_font, app->hb_buf, NULL, 0);
+        unsigned int glyph_count;
+        hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(app->hb_buf, &glyph_count);
+        hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(app->hb_buf, &glyph_count);
+
+        // Render
+        float cursor_x = box.x;
+        for (unsigned int i = 0; i < glyph_count; ++i) {
+          hb_codepoint_t glyph_index = glyph_info[i].codepoint;
+          FT_Face face = app->ft_face;
+          CHECK(!FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT));
+          CHECK(!FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL));
+          FT_Bitmap bitmap = face->glyph->bitmap;
+
+          // Top-left corner of the glyph in the framebuffer
+          float glyph_x = cursor_x +
+            (face->glyph->metrics.horiBearingX >> 6) +
+            (glyph_pos[i].x_offset >> 6);
+          float glyph_y = box.y +
+            (app->ft_face->ascender >> 6) -
+            (face->glyph->metrics.horiBearingY >> 6) -
+            (glyph_pos[i].y_offset >> 6);
+
+          for (int j = 0; j < bitmap.rows; ++j) {
+            for (int k = 0; k < bitmap.width; ++k) {
+              int x = glyph_x + k;
+              int y = glyph_y + j;
+
+              // Bounds check
+              bool inbounds = true;
+              if (scissor) {
+                if (x < scissor_box.x
+                    || x >= (scissor_box.x + scissor_box.width)
+                    || y < scissor_box.y
+                    || y >= (scissor_box.y + scissor_box.height))
+                  inbounds = false;
+              } else {
+                if (x < 0
+                    || x >= canvas.width
+                    || y < 0
+                    || y >= canvas.height)
+                  inbounds = false;
+              }
+              if (!inbounds) continue;
+
+              framebuffer_px_t new = {
+                .r = config->textColor.r,
+                .g = config->textColor.g,
+                .b = config->textColor.b,
+                .a = bitmap.buffer[j * bitmap.pitch + k],
+              };
+              framebuffer_px_t current = framebuffer_pixel(app->fb, x, y);
+              framebuffer_px_t blended = alphaBlend(current, new);
+              framebuffer_pixel(app->fb, x, y) = blended;
+            }
+          }
+
+          cursor_x += glyph_pos[i].x_advance >> 6;
         }
       } break;
       case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
         scissor_box = renderCommand->boundingBox;
-        subcanvas = olivec_subcanvas(canvas, scissor_box.x, scissor_box.y, scissor_box.width, scissor_box.height);
         scissor = true;
       } break;
       case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END: {
         scissor = false;
       } break;
+      case CLAY_RENDER_COMMAND_TYPE_NONE:
       case CLAY_RENDER_COMMAND_TYPE_BORDER:
       case CLAY_RENDER_COMMAND_TYPE_IMAGE:
       case CLAY_RENDER_COMMAND_TYPE_CUSTOM: {
@@ -287,26 +362,48 @@ static void render(GLFWwindow* window, appstate_t* app) {
   }
 
   app->last_render = glfwGetTime();
-  nativefb_paint(&app->platform, &app->fb);
   duration = app->last_render - start_time;
   LOG("rendered in %dms", (int)(duration * 1000.0));
+  nativefb_paint(&app->platform, &app->fb);
 }
 
 static inline Clay_Dimensions MeasureText(
     Clay_String* text,
-    // Clay_TextElementConfig contains members such as fontId, fontSize, letterSpacing etc
     Clay_TextElementConfig* config) {
-  int len = text->length;
-  float w = len * (config->fontSize * OLIVEC_DEFAULT_FONT_WIDTH) + config->letterSpacing;
-  float h = (config->fontSize * OLIVEC_DEFAULT_FONT_HEIGHT) + config->lineSpacing;
-  return (Clay_Dimensions){.width = w, .height = h};
+  appstate_t* app = config->app;
+
+  hb_buffer_set_length(app->hb_buf, 0);
+  hb_buffer_add_utf8(app->hb_buf, text->chars, text->length, 0, text->length);
+  hb_shape(app->hb_font, app->hb_buf, NULL, 0);
+
+  unsigned int glyph_count;
+  hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(app->hb_buf, &glyph_count);
+  hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(app->hb_buf, &glyph_count);
+  float advance = 0;
+  for (unsigned int i = 0; i < glyph_count; i++) {
+    advance += glyph_pos[i].x_advance >> 6;
+  }
+
+  return (Clay_Dimensions){.width = advance, .height = app->lineh};
+}
+
+float getLineHeight(FT_Face font) {
+  float ascender = font->ascender >> 6;
+  float descender = font->descender >> 6;
+  float lineHeight = ascender - descender;
+
+  float height = font->height >> 6;
+  if (lineHeight < height) lineHeight = height;
+
+  return lineHeight;
 }
 
 int main(int argc, char** argv) {
   LOG("hello");
+
   LOG("app init");
-  int w = 640;
-  int h = 480;
+  int w = 800;
+  int h = 600;
   appstate_t app = {0};
   app.fb.buf = malloc(w * h * sizeof(uint32_t));
   app.fb.w = w;
@@ -315,6 +412,20 @@ int main(int argc, char** argv) {
   app.bump.len = 1 << 20;
   app.frame_alloc = allocator_bump(&app.bump);
   app.needs_render = true;
+
+  LOG("text init");
+  int font_size = 16;
+  char* font_path = "/home/ryan/code/xos2/pkg/app/demo/resources/CourierPrime-Regular.ttf";
+  FT_Library ft_library;
+  CHECK(!FT_Init_FreeType(&ft_library));
+  CHECK(!FT_New_Face(ft_library, font_path, 0, &app.ft_face));
+  FT_Set_Char_Size(app.ft_face, 0, font_size << 6, 72, 72);
+  app.lineh = getLineHeight(app.ft_face);
+  app.hb_font = hb_ft_font_create(app.ft_face, NULL);
+  app.hb_buf = hb_buffer_create();
+  hb_buffer_set_direction(app.hb_buf, HB_DIRECTION_LTR);
+  hb_buffer_set_script(app.hb_buf, HB_SCRIPT_LATIN);
+  hb_buffer_set_language(app.hb_buf, hb_language_from_string("en", -1));
 
   LOG("GLFW init");
   CHECK(glfwInit());
@@ -325,11 +436,8 @@ int main(int argc, char** argv) {
   glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
   glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
   GLFWwindow* window = glfwCreateWindow(w, h, "demo", NULL, NULL);
   CHECK(window);
-  nativefb_init(&app.platform, window, &app.fb);
-
   glfwSetWindowUserPointer(window, &app);
   glfwSetWindowCloseCallback(window, close_callback_glfw);
   glfwSetWindowSizeCallback(window, winsize_callback);
@@ -346,7 +454,9 @@ int main(int argc, char** argv) {
   glfwSetScrollCallback(window, scroll_callback);
   glfwSetDropCallback(window, drop_callback);
 
-  // Clay init
+  LOG("Framebuffer init");
+  nativefb_init(&app.platform, window, &app.fb);
+
   LOG("Clay init");
   uint64_t totalMemorySize = CLAY_MAX_ELEMENT_COUNT * 1 << 10;
   char* clay_memblock = malloc(totalMemorySize);
@@ -365,10 +475,16 @@ int main(int argc, char** argv) {
     glfwWaitEvents();
   }
 
+  LOG("Cleanup");
   free(clay_memblock);
   nativefb_deinit(&app.platform);
   glfwDestroyWindow(window);
   glfwTerminate();
+  hb_buffer_destroy(app.hb_buf);
+  hb_font_destroy(app.hb_font);
+  FT_Done_Face(app.ft_face);
+  FT_Done_FreeType(ft_library);
   appstate_free(&app);
+
   LOG("goodbye");
 }

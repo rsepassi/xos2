@@ -24,6 +24,8 @@ var demo = Fn.new { |b, args|
       b.dep("//pkg/olive"),
       b.dep("//pkg/glfw"),
       b.dep("//pkg/glfw/nativefb"),
+      b.dep("//pkg/harfbuzz"),
+      b.dep("//pkg/freetype"),
     ],
     "libc": true,
   }))

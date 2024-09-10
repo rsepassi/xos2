@@ -29,6 +29,7 @@ var freetype = Fn.new { |b, args|
   b.installLib(lib)
   b.installLibConfig(zig.libConfig(b, "freetype", {
     "deps": deps,
+    "libc": true,
   }))
 }
 

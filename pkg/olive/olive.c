@@ -37,6 +37,7 @@
 #define OLIVEC_SWAP(T, a, b) do { T t = a; a = b; b = t; } while (0)
 #define OLIVEC_SIGN(T, x) ((T)((x) > 0) - (T)((x) < 0))
 #define OLIVEC_ABS(T, x) (OLIVEC_SIGN(T, x)*(x))
+#define OLIVEC_RGBA(r, g, b, a) ((((r)&0xFF)<<(8*0)) | (((g)&0xFF)<<(8*1)) | (((b)&0xFF)<<(8*2)) | (((a)&0xFF)<<(8*3)))
 
 typedef struct {
     size_t width, height;
@@ -532,7 +533,6 @@ OLIVECDEF Olivec_Canvas olivec_subcanvas(Olivec_Canvas oc, int x, int y, int w, 
 #define OLIVEC_GREEN(color) (((color)&0x0000FF00)>>(8*1))
 #define OLIVEC_BLUE(color)  (((color)&0x00FF0000)>>(8*2))
 #define OLIVEC_ALPHA(color) (((color)&0xFF000000)>>(8*3))
-#define OLIVEC_RGBA(r, g, b, a) ((((r)&0xFF)<<(8*0)) | (((g)&0xFF)<<(8*1)) | (((b)&0xFF)<<(8*2)) | (((a)&0xFF)<<(8*3)))
 
 OLIVECDEF void olivec_blend_color(uint32_t *c1, uint32_t c2)
 {

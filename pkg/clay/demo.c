@@ -201,7 +201,6 @@ static void buildTree(int w, int h, appstate_t* app) {
         CLAY_TEXT(CLAY_ID("txtA"),
             CLAY_STRING(lorem),
             CLAY_TEXT_CONFIG(
-              .lineSpacing = 5,
               .textColor = {255, 255, 255, 255},
               .app = app));
       });
@@ -304,7 +303,7 @@ static void render(GLFWwindow* window, appstate_t* app) {
             (face->glyph->metrics.horiBearingX >> 6) +
             (glyph_pos[i].x_offset >> 6);
           float glyph_y = box.y +
-            (app->ft_face->ascender >> 6) -
+            (app->ft_face->size->metrics.ascender >> 6) -
             (face->glyph->metrics.horiBearingY >> 6) -
             (glyph_pos[i].y_offset >> 6);
 
@@ -388,11 +387,12 @@ static inline Clay_Dimensions MeasureText(
 }
 
 float getLineHeight(FT_Face font) {
-  float ascender = font->ascender >> 6;
-  float descender = font->descender >> 6;
+  FT_Size_Metrics* metrics = &font->size->metrics;
+  float ascender = metrics->ascender >> 6;
+  float descender = metrics->descender >> 6;
   float lineHeight = ascender - descender;
 
-  float height = font->height >> 6;
+  float height = metrics->height >> 6;
   if (lineHeight < height) lineHeight = height;
 
   return lineHeight;
@@ -414,8 +414,9 @@ int main(int argc, char** argv) {
   app.needs_render = true;
 
   LOG("text init");
-  int font_size = 16;
-  char* font_path = "/home/ryan/code/xos2/pkg/app/demo/resources/CourierPrime-Regular.ttf";
+  int font_size = 32;
+  char* font_path = "/home/ryan/Downloads/static/EBGaramond-Regular.ttf";
+  //char* font_path = "/home/ryan/code/xos2/pkg/app/demo/resources/CourierPrime-Regular.ttf";
   FT_Library ft_library;
   CHECK(!FT_Init_FreeType(&ft_library));
   CHECK(!FT_New_Face(ft_library, font_path, 0, &app.ft_face));

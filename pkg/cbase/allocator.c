@@ -43,3 +43,7 @@ allocator_t allocator_bump(allocator_bump_t* a) {
 void allocator_bump_reset(allocator_bump_t* a) {
   a->end = 0;
 }
+
+void* allocator_allocate(allocator_t* a, size_t new_size) {
+  return a->realloc(a->ctx, NULL, 0, new_size);
+}

@@ -13,9 +13,7 @@ typedef struct {
 
 allocator_t allocator_default(void);
 
-inline void* allocator_allocate(allocator_t* a, size_t new_size) {
-  return a->realloc(a->ctx, NULL, 0, new_size);
-}
+inline void* allocator_allocate(allocator_t* a, size_t new_size);
 
 inline void* allocator_realloc(allocator_t* a, void* ptr, size_t old_size, size_t new_size) {
   return a->realloc(a->ctx, ptr, old_size, new_size);

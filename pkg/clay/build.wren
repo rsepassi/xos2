@@ -22,7 +22,8 @@ var demo = Fn.new { |b, args|
       b.dep(":clay"),
       b.dep("//pkg/cbase"),
       b.dep("//pkg/olive"),
-      b.dep("//pkg/fenster"),
+      b.dep("//pkg/glfw"),
+      b.dep("//pkg/glfw/nativefb"),
     ],
     "libc": true,
   }))

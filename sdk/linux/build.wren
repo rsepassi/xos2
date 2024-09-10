@@ -75,7 +75,15 @@ var alpineX11 = Fn.new { |b, args|
   for (lib in libs) {
     File.copy("%(root)/usr/lib/%(lib)", "%(b.installDir)/sdk/usr/lib/%(lib)")
   }
-  Directory.copy("%(root)/usr/include/X11", "%(b.installDir)/sdk/usr/include/X11")
+
+  var incdirs = [
+    "X11",
+    "GL",
+    "KHR",
+  ]
+  for (dir in incdirs) {
+    Directory.copy("%(root)/usr/include/%(dir)", "%(b.installDir)/sdk/usr/include/%(dir)")
+  }
 
   var zig = b.deptool("//toolchains/zig")
   b.installLibConfig(zig.libConfig(b, "sdk", {

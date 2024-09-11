@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 
 #include "base/log.h"
 #include "base/allocator.h"
@@ -24,9 +25,16 @@ static char lorem[] = "lorem ipsum is simply dummy text of the printing and type
 struct appstate_s {
   int count;
 
+  // Whether the view needs to be rerendered
+  atomic_flag needs_render;
+
+  // We push pixels into the framebuffer, and then use the native platform
+  // to blit it to the screen.
   framebuffer_t fb;
   native_platform_t platform;
 
+  // During view tree construction, we use a simple fixed-size bump allocator
+  // which gets reset at the beginning of each render.
   allocator_bump_t bump;
   allocator_t frame_alloc;
 
@@ -36,12 +44,63 @@ struct appstate_s {
   float lineh;
   text_atlas_t atlas;
 
-  bool needs_render;
-  double last_render;
+  // Timestamp of the last render
+  double last_render_secs;
 };
 
-static void render(GLFWwindow* window, appstate_t* app);
+static inline bool appstate_needs_render(appstate_t* a) {
+  return atomic_load(&a->needs_render._Value);
+}
 
+static inline void appstate_mark_needs_render(appstate_t* a) {
+  atomic_flag_test_and_set(&a->needs_render);
+}
+
+static inline void appstate_reset_needs_render(appstate_t* a) {
+  atomic_flag_clear(&a->needs_render);
+}
+
+// Various helpers
+// ----------------------------------------------------------------------------
+static void resize_fb(appstate_t* app, int width, int height) {
+  if (app->fb.w == width && app->fb.h == height) return;
+  app->fb.buf = realloc(app->fb.buf, width * height * sizeof(uint32_t));
+  app->fb.w = width;
+  app->fb.h = height;
+  nativefb_resize(&app->platform, &app->fb);
+}
+
+static inline Clay_String app_strfmt(appstate_t* app, char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  str_t s = vstrfmt(&app->frame_alloc, fmt, args);
+  va_end(args);
+  return ((Clay_String){.chars = s.bytes, .length = s.len});
+}
+
+static inline uint32_t convertColor(Clay_Color color) {
+  uint8_t out[4];
+  out[0] = (uint8_t)color.r;
+  out[1] = (uint8_t)color.g;
+  out[2] = (uint8_t)color.b;
+  out[3] = (uint8_t)color.a;
+  return *((uint32_t*)out);
+}
+
+static inline Clay_Dimensions measure_text(
+    Clay_String* text,
+    Clay_TextElementConfig* config) {
+  appstate_t* app = config->app;
+  float width = text_measure(
+      (str_t){.bytes = text->chars, .len = text->length},
+      app->hb_font, app->hb_buf);
+  return (Clay_Dimensions){.width = width, .height = app->lineh};
+}
+// ----------------------------------------------------------------------------
+
+
+// GLFW callbacks
+// ----------------------------------------------------------------------------
 #define getapp() (appstate_t*)glfwGetWindowUserPointer(window);
 
 static void close_callback_glfw(GLFWwindow* window) {
@@ -76,7 +135,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
   if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
     if (Clay_PointerOver(CLAY_ID("INCR"))) {
       app->count += 1;
-      app->needs_render = true;
+      appstate_mark_needs_render(app);
     }
   }
 }
@@ -88,9 +147,9 @@ static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) 
   yoffset *= 4;
 
   if (Clay_PointerOver(CLAY_ID("A-scroll"))) {
-    double delta = glfwGetTime() - app->last_render;
+    double delta = glfwGetTime() - app->last_render_secs;
     Clay_UpdateScrollContainers(false, (Clay_Vector2){ xoffset, yoffset }, delta);
-    app->needs_render = true;
+    appstate_mark_needs_render(app);
   }
 }
 
@@ -109,7 +168,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
   }
   if (key == GLFW_KEY_Z && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
     app->count += 1;
-    app->needs_render = true;
+    appstate_mark_needs_render(app);
   }
 
   // Can query key names
@@ -119,7 +178,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 
 static void window_refresh_callback(GLFWwindow* window) {
   appstate_t* app = getapp();
-  app->needs_render = true;
+  appstate_mark_needs_render(app);
 }
 
 static void window_focus_callback(GLFWwindow *window, int focus) {
@@ -134,46 +193,24 @@ static void window_content_scale_callback(GLFWwindow *window, float xscale, floa
   LOG("GLFW content scale changed (%.2f, %.2f)", xscale, yscale);
 }
 
-static void doresize(appstate_t* app, int width, int height) {
-  if (app->fb.w == width && app->fb.h == height) return;
-  app->fb.buf = realloc(app->fb.buf, width * height * sizeof(uint32_t));
-  app->fb.w = width;
-  app->fb.h = height;
-  nativefb_resize(&app->platform, &app->fb);
-}
-
 static void fbsize_callback(GLFWwindow *window, int width, int height) {
   appstate_t* app = getapp();
   LOG("GLFW FB resize (%d, %d)", width, height);
-  doresize(app, width, height);
-  app->needs_render = true;
+  resize_fb(app, width, height);
+  appstate_mark_needs_render(app);
 }
 
 static void winsize_callback(GLFWwindow *window, int width, int height) {
   appstate_t* app = getapp();
   LOG("GLFW Window resize (%d, %d)", width, height);
-  doresize(app, width, height);
-  app->needs_render = true;
+  resize_fb(app, width, height);
+  appstate_mark_needs_render(app);
 }
+// ----------------------------------------------------------------------------
 
-static inline Clay_String app_strfmt(appstate_t* app, char* fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  str_t s = vstrfmt(&app->frame_alloc, fmt, args);
-  va_end(args);
-  return ((Clay_String){.chars = s.bytes, .length = s.len});
-}
-
-static inline uint32_t convertColor(Clay_Color color) {
-  uint8_t out[4];
-  out[0] = (uint8_t)color.r;
-  out[1] = (uint8_t)color.g;
-  out[2] = (uint8_t)color.b;
-  out[3] = (uint8_t)color.a;
-  return *((uint32_t*)out);
-}
-
-static void buildTree(int w, int h, appstate_t* app) {
+// Build view tree, layout, render
+// ----------------------------------------------------------------------------
+static void build_view_tree(int w, int h, appstate_t* app) {
   CLAY_RECTANGLE(CLAY_ID("OuterContainer"),
       CLAY_LAYOUT(.sizing = {CLAY_SIZING_FIXED(w), CLAY_SIZING_FIXED(h)},
                   .padding = {16, 16},
@@ -224,12 +261,13 @@ static void buildTree(int w, int h, appstate_t* app) {
 static void render(GLFWwindow* window, appstate_t* app) {
   double start_time = glfwGetTime();
   double duration;
+
   int w = app->fb.w;
   int h = app->fb.h;
 
   allocator_bump_reset(&app->bump);
   Clay_BeginLayout(w, h);
-  buildTree(w, h, app);
+  build_view_tree(w, h, app);
   Clay_RenderCommandArray renderCommands = Clay_EndLayout(w, h);
   duration = glfwGetTime() - start_time;
   LOG("layout in %dms", (int)(duration * 1000.0));
@@ -338,21 +376,12 @@ static void render(GLFWwindow* window, appstate_t* app) {
     }
   }
 
-  app->last_render = glfwGetTime();
-  duration = app->last_render - start_time;
+  app->last_render_secs = glfwGetTime();
+  duration = app->last_render_secs - start_time;
   LOG("rendered in %dms", (int)(duration * 1000.0));
   nativefb_paint(&app->platform, &app->fb);
 }
-
-static inline Clay_Dimensions measure_text(
-    Clay_String* text,
-    Clay_TextElementConfig* config) {
-  appstate_t* app = config->app;
-  float width = text_measure(
-      (str_t){.bytes = text->chars, .len = text->length},
-      app->hb_font, app->hb_buf);
-  return (Clay_Dimensions){.width = width, .height = app->lineh};
-}
+// ----------------------------------------------------------------------------
 
 int main(int argc, char** argv) {
   LOG("hello");
@@ -361,13 +390,13 @@ int main(int argc, char** argv) {
   int w = 800;
   int h = 600;
   appstate_t app = {0};
+  app.needs_render = (atomic_flag)ATOMIC_FLAG_INIT;
   app.fb.buf = malloc(w * h * sizeof(uint32_t));
   app.fb.w = w;
   app.fb.h = h;
   app.bump.buf = malloc(1 << 20);
   app.bump.len = 1 << 20;
   app.frame_alloc = allocator_bump(&app.bump);
-  app.needs_render = true;
 
   LOG("text init");
   int font_size = 32;
@@ -424,10 +453,11 @@ int main(int argc, char** argv) {
   Clay_Initialize(arena);
 
   LOG("UI loop...");
+  appstate_mark_needs_render(&app);
   while (!glfwWindowShouldClose(window)) {
-    if (app.needs_render) {
+    if (appstate_needs_render(&app)) {
       render(window, &app);
-      app.needs_render = false;
+      appstate_reset_needs_render(&app);
     }
     // Wake from other thread with glfwPostEmptyEvent()
     glfwWaitEvents();

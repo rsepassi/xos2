@@ -8,6 +8,7 @@
 #include "base/fmt.h"
 
 typedef struct appstate_s appstate_t;
+#define CLAY_MAX_ELEMENT_COUNT 8192
 #define CLAY_EXTEND_CONFIG_TEXT \
   appstate_t* app;
 #include "clay.h"
@@ -381,7 +382,7 @@ int main(int argc, char** argv) {
   app.hb_buf = text_english_buf();
 
   int atlash = (int)(app.lineh + 0.5);
-  int atlasw = 1 << 20;
+  int atlasw = (1 << 20) / atlash;
   app.atlas = text_atlas_init(malloc(atlash * atlasw), atlasw, atlash);
 
   LOG("GLFW init");
@@ -416,9 +417,9 @@ int main(int argc, char** argv) {
 
   LOG("Clay init");
   uint64_t totalMemorySize = CLAY_MAX_ELEMENT_COUNT * 1 << 10;
-  char* clay_memblock = malloc(totalMemorySize);
+  char* clay_buf = malloc(totalMemorySize);
   Clay_Arena arena = Clay_CreateArenaWithCapacityAndMemory(
-      totalMemorySize, clay_memblock);
+      totalMemorySize, clay_buf);
   Clay_SetMeasureTextFunction(measure_text);
   Clay_Initialize(arena);
 
@@ -433,7 +434,7 @@ int main(int argc, char** argv) {
   }
 
   LOG("Cleanup");
-  free(clay_memblock);
+  free(clay_buf);
   nativefb_deinit(&app.platform);
   glfwDestroyWindow(window);
   glfwTerminate();

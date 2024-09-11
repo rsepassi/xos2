@@ -16,10 +16,7 @@ typedef struct appstate_s appstate_t;
 #include "GLFW/glfw3.h"
 #include "nativefb.h"
 
-#include "ft2build.h"
-#include FT_FREETYPE_H
-#include "harfbuzz/hb.h"
-#include "harfbuzz/hb-ft.h"
+#include "text.h"
 
 static char lorem[] = "lorem ipsum is simply dummy text of the printing and typesetting industry. lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. it has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. it was popularised in the 1960s with the release of letraset sheets containing lorem ipsum passages, and more recently with desktop publishing software like aldus pagemaker including versions of lorem ipsum.";
 
@@ -36,15 +33,11 @@ struct appstate_s {
   hb_font_t* hb_font;
   hb_buffer_t* hb_buf;
   float lineh;
+  text_atlas_t atlas;
 
   bool needs_render;
   double last_render;
 };
-
-static void appstate_free(appstate_t* app) {
-  // free(app->fb.buf);  nativefb_deinit releases this on X11
-  free(app->bump.buf);
-}
 
 static void render(GLFWwindow* window, appstate_t* app);
 
@@ -113,7 +106,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
   if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
     glfwSetWindowShouldClose(window, GLFW_TRUE);
   }
-  if (key == GLFW_KEY_Z && action == GLFW_PRESS) {
+  if (key == GLFW_KEY_Z && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
     app->count += 1;
     app->needs_render = true;
   }
@@ -227,25 +220,6 @@ static void buildTree(int w, int h, appstate_t* app) {
   });
 }
 
-framebuffer_px_t alphaBlend(framebuffer_px_t x, framebuffer_px_t y) {
-  if (y.a <= 0) return x;
-
-  float xa = x.a / 255.;
-  float ya = y.a / 255.;
-
-  float r = ya * y.r + (1. - ya) * x.r * xa;
-  float g = ya * y.g + (1. - ya) * x.g * xa;
-  float b = ya * y.b + (1. - ya) * x.b * xa;
-  float a = ya +  xa * (1. - ya);
-
-  return (framebuffer_px_t){
-    .r = r,
-    .g = g,
-    .b = b,
-    .a = a * 255.,
-  };
-}
-
 static void render(GLFWwindow* window, appstate_t* app) {
   double start_time = glfwGetTime();
   double duration;
@@ -282,33 +256,36 @@ static void render(GLFWwindow* window, appstate_t* app) {
         Clay_TextElementConfig* config = renderCommand->config.textElementConfig;
 
         // Shape
-        hb_buffer_set_length(app->hb_buf, 0);
-        hb_buffer_add_utf8(app->hb_buf, text->chars, text->length, 0, text->length);
-        hb_shape(app->hb_font, app->hb_buf, NULL, 0);
-        unsigned int glyph_count;
-        hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(app->hb_buf, &glyph_count);
-        hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(app->hb_buf, &glyph_count);
+        text_glyph_info_t shaped = text_shape(
+            (str_t){.bytes = text->chars, .len = text->length},
+            app->hb_font, app->hb_buf);
 
         // Render
         float cursor_x = box.x;
-        for (unsigned int i = 0; i < glyph_count; ++i) {
-          hb_codepoint_t glyph_index = glyph_info[i].codepoint;
-          FT_Face face = app->ft_face;
-          CHECK(!FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT));
-          CHECK(!FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL));
-          FT_Bitmap bitmap = face->glyph->bitmap;
+        for (unsigned int i = 0; i < shaped.n; ++i) {
+          hb_codepoint_t glyph_index = shaped.info[i].codepoint;
+
+          // Render bitmap
+          text_atlas_entry_t* entry = text_atlas_get(&app->atlas, glyph_index);
+          if (entry == NULL) {
+            text_bitmap_t bitmap;
+            text_atlas_entry_info_t entry_info;
+            CHECK(text_atlas_render_glyph(app->ft_face, glyph_index, &entry_info, &bitmap) == 0);
+            CHECK(text_atlas_put(&app->atlas, glyph_index, bitmap, entry_info, &entry) == 0);
+          }
 
           // Top-left corner of the glyph in the framebuffer
           float glyph_x = cursor_x +
-            (face->glyph->metrics.horiBearingX >> 6) +
-            (glyph_pos[i].x_offset >> 6);
+            entry->info.dx +
+            (shaped.pos[i].x_offset >> 6);
           float glyph_y = box.y +
-            (app->ft_face->size->metrics.ascender >> 6) -
-            (face->glyph->metrics.horiBearingY >> 6) -
-            (glyph_pos[i].y_offset >> 6);
+            entry->info.dy -
+            (shaped.pos[i].y_offset >> 6);
 
-          for (int j = 0; j < bitmap.rows; ++j) {
-            for (int k = 0; k < bitmap.width; ++k) {
+          text_bitmap_t bitmap = text_atlas_bitmap(&app->atlas, entry->box);
+
+          for (int j = 0; j < bitmap.h; ++j) {
+            for (int k = 0; k < bitmap.w; ++k) {
               int x = glyph_x + k;
               int y = glyph_y + j;
 
@@ -333,15 +310,15 @@ static void render(GLFWwindow* window, appstate_t* app) {
                 .r = config->textColor.r,
                 .g = config->textColor.g,
                 .b = config->textColor.b,
-                .a = bitmap.buffer[j * bitmap.pitch + k],
+                .a = bitmap.buf[j * bitmap.row_stride + k],
               };
               framebuffer_px_t current = framebuffer_pixel(app->fb, x, y);
-              framebuffer_px_t blended = alphaBlend(current, new);
-              framebuffer_pixel(app->fb, x, y) = blended;
+              framebuffer_pixel(app->fb, x, y) =
+                framebuffer_alpha_blend(current, new);
             }
           }
 
-          cursor_x += glyph_pos[i].x_advance >> 6;
+          cursor_x += shaped.pos[i].x_advance >> 6;
         }
       } break;
       case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
@@ -366,36 +343,14 @@ static void render(GLFWwindow* window, appstate_t* app) {
   nativefb_paint(&app->platform, &app->fb);
 }
 
-static inline Clay_Dimensions MeasureText(
+static inline Clay_Dimensions measure_text(
     Clay_String* text,
     Clay_TextElementConfig* config) {
   appstate_t* app = config->app;
-
-  hb_buffer_set_length(app->hb_buf, 0);
-  hb_buffer_add_utf8(app->hb_buf, text->chars, text->length, 0, text->length);
-  hb_shape(app->hb_font, app->hb_buf, NULL, 0);
-
-  unsigned int glyph_count;
-  hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(app->hb_buf, &glyph_count);
-  hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(app->hb_buf, &glyph_count);
-  float advance = 0;
-  for (unsigned int i = 0; i < glyph_count; i++) {
-    advance += glyph_pos[i].x_advance >> 6;
-  }
-
-  return (Clay_Dimensions){.width = advance, .height = app->lineh};
-}
-
-float getLineHeight(FT_Face font) {
-  FT_Size_Metrics* metrics = &font->size->metrics;
-  float ascender = metrics->ascender >> 6;
-  float descender = metrics->descender >> 6;
-  float lineHeight = ascender - descender;
-
-  float height = metrics->height >> 6;
-  if (lineHeight < height) lineHeight = height;
-
-  return lineHeight;
+  float width = text_measure(
+      (str_t){.bytes = text->chars, .len = text->length},
+      app->hb_font, app->hb_buf);
+  return (Clay_Dimensions){.width = width, .height = app->lineh};
 }
 
 int main(int argc, char** argv) {
@@ -421,12 +376,13 @@ int main(int argc, char** argv) {
   CHECK(!FT_Init_FreeType(&ft_library));
   CHECK(!FT_New_Face(ft_library, font_path, 0, &app.ft_face));
   FT_Set_Char_Size(app.ft_face, 0, font_size << 6, 72, 72);
-  app.lineh = getLineHeight(app.ft_face);
+  app.lineh = text_line_height(app.ft_face);
   app.hb_font = hb_ft_font_create(app.ft_face, NULL);
-  app.hb_buf = hb_buffer_create();
-  hb_buffer_set_direction(app.hb_buf, HB_DIRECTION_LTR);
-  hb_buffer_set_script(app.hb_buf, HB_SCRIPT_LATIN);
-  hb_buffer_set_language(app.hb_buf, hb_language_from_string("en", -1));
+  app.hb_buf = text_english_buf();
+
+  int atlash = (int)(app.lineh + 0.5);
+  int atlasw = 1 << 20;
+  app.atlas = text_atlas_init(malloc(atlash * atlasw), atlasw, atlash);
 
   LOG("GLFW init");
   CHECK(glfwInit());
@@ -463,7 +419,7 @@ int main(int argc, char** argv) {
   char* clay_memblock = malloc(totalMemorySize);
   Clay_Arena arena = Clay_CreateArenaWithCapacityAndMemory(
       totalMemorySize, clay_memblock);
-  Clay_SetMeasureTextFunction(MeasureText);
+  Clay_SetMeasureTextFunction(measure_text);
   Clay_Initialize(arena);
 
   LOG("UI loop...");
@@ -481,11 +437,13 @@ int main(int argc, char** argv) {
   nativefb_deinit(&app.platform);
   glfwDestroyWindow(window);
   glfwTerminate();
+  text_atlas_deinit(&app.atlas);
+  free(app.atlas.buf);
   hb_buffer_destroy(app.hb_buf);
   hb_font_destroy(app.hb_font);
   FT_Done_Face(app.ft_face);
   FT_Done_FreeType(ft_library);
-  appstate_free(&app);
+  free(app.bump.buf);
 
   LOG("goodbye");
 }

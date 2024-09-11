@@ -59,6 +59,7 @@ class ZigEz {
       "cflags": opts["flags"] || [],
       "c_deps": opts["deps"] || [],
       "libc": opts["libc"] || false,
+      "libc++": opts["libc++"] || false,
       "sdk": opts["sdk"] || false,
     })
     b.installLib(lib)
@@ -70,6 +71,7 @@ class ZigEz {
       "deps": opts["deps"] || [],
       "ldflags": opts["ldflags"] || [],
       "libc": opts["libc"] || false,
+      "libc++": opts["libc++"] || false,
       "sdk": opts["sdk"] || false,
     }))
   }
@@ -441,11 +443,17 @@ class CDep {
   construct new_(b, config, libname) {
     var cflags = config["Cflags"] || []
     var libs = config["Libs"] || []
+    var platform_opts = Platform.Opts.new({
+      "sdk": config["sdk"] == true,
+      "libc": config["libc"] == true,
+      "libc++": config["libc++"] == true,
+    })
     var requires = (config["Requires"] || []).map { |x| CDep.fromJSON(b, x) }
 
     for (req in requires) {
       cflags.addAll(req.cflags)
       libs.addAll(req.libs)
+      platform_opts = platform_opts.union(req.platformOpts)
     }
 
     _b = b
@@ -453,11 +461,7 @@ class CDep {
 
     _cflags = cflags
     _libs = libs
-    _platform_opts = Platform.Opts.new({
-      "sdk": config["sdk"] == true,
-      "libc": config["libc"] == true,
-      "libc++": config["libc++"] == true,
-    })
+    _platform_opts = platform_opts
   }
 
   cflags { _cflags }

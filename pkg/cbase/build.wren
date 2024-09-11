@@ -13,4 +13,7 @@ var cbase = Fn.new { |b, args|
   b.installLib(lib)
   b.installLibConfig(zig.libConfig(b))
   b.install("include", "base")
+
+  var klib = b.dep("//pkg/klib")
+  File.copy(klib.header("khash.h"), "%(b.installDir)/include/base/khash.h")
 }

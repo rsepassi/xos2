@@ -48,4 +48,12 @@ void nativefb_paint(native_platform_t* p, framebuffer_t* fb) {
   XFlush(p->display);
 }
 
+void nativefb_trigger_refresh(native_platform_t* p, framebuffer_t* fb) {
+  XEvent e = {0};
+  e.type = Expose;
+  e.xexpose.window = p->window;
+  XSendEvent(p->display, p->window, False, ExposureMask, &e);
+  XFlush(p->display);
+}
+
 #endif

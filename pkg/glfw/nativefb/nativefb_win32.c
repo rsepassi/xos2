@@ -3,17 +3,20 @@
 #include "nativefb.h"
 
 typedef struct {
-  BITMAPINFOHEADER    bmiHeader;
-  RGBQUAD             bmiColors[3];
+  BITMAPINFOHEADER bmiHeader;
+  RGBQUAD bmiColors[3];
 } BINFO;
 
 void nativefb_init(native_platform_t* p, GLFWwindow* w, framebuffer_t* fb) {
   p->hwnd = glfwGetWin32Window(w);
 }
 
+void nativefb_deinit(native_platform_t* p) {}
 void nativefb_resize(native_platform_t* p, framebuffer_t* fb) {}
 
-void nativefb_deinit(native_platform_t* p) {}
+void nativefb_trigger_refresh(native_platform_t* p, framebuffer_t* fb) {
+  InvalidateRect(p->hwnd, NULL, TRUE);
+}
 
 void nativefb_paint(native_platform_t* p, framebuffer_t* fb) {
   PAINTSTRUCT ps;
@@ -36,7 +39,7 @@ void nativefb_paint(native_platform_t* p, framebuffer_t* fb) {
       0,
       fb->h,
       fb->buf,
-      (BITMAPINFO *)&bi,
+      (BITMAPINFO*)&bi,
       DIB_RGB_COLORS);
   BitBlt(hdc, 0, 0, fb->w, fb->h, memdc, 0, 0, SRCCOPY);
   SelectObject(memdc, oldbmp);

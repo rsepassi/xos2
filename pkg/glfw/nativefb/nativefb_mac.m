@@ -41,7 +41,9 @@ void nativefb_init(native_platform_t* p, GLFWwindow* w, framebuffer_t* fb) {
 void nativefb_deinit(native_platform_t* p) {}
 void nativefb_resize(native_platform_t* p, framebuffer_t* fb) {}
 
-void nativefb_paint(native_platform_t* p, framebuffer_t* fb) {
+void nativefb_paint(native_platform_t* p, framebuffer_t* fb) {}
+
+void nativefb_trigger_refresh(native_platform_t* p, framebuffer_t* fb) {
   [p->view drawFb:fb];
 }
 

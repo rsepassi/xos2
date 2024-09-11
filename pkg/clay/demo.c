@@ -179,8 +179,9 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 }
 
 static void window_refresh_callback(GLFWwindow* window) {
+  LOG("GLFW window refresh");
   appstate_t* app = getapp();
-  render(window, app);
+  nativefb_paint(&app->platform, &app->fb);
 }
 
 static void window_focus_callback(GLFWwindow *window, int focus) {
@@ -381,7 +382,7 @@ static void render(GLFWwindow* window, appstate_t* app) {
   app->last_render_secs = glfwGetTime();
   duration = app->last_render_secs - start_time;
   LOG("rendered in %dms", (int)(duration * 1000.0));
-  nativefb_paint(&app->platform, &app->fb);
+  nativefb_trigger_refresh(&app->platform, &app->fb);
 }
 // ----------------------------------------------------------------------------
 
@@ -403,7 +404,7 @@ int main(int argc, char** argv) {
   LOG("text init");
   int font_size = 32;
   //char* font_path = "/home/ryan/Downloads/static/EBGaramond-Regular.ttf";
-  char* font_path = "/Users/ryan/code/xos2/pkg/app/demo/resources/CourierPrime-Regular.ttf";
+  char* font_path = "/tmp/CourierPrime-Regular.ttf";
   FT_Library ft_library;
   CHECK(!FT_Init_FreeType(&ft_library));
   CHECK(!FT_New_Face(ft_library, font_path, 0, &app.ft_face));

@@ -103,6 +103,8 @@ static inline Clay_Dimensions measure_text(
 // ----------------------------------------------------------------------------
 #define getapp() (appstate_t*)glfwGetWindowUserPointer(window);
 
+static void render(GLFWwindow* window, appstate_t* app);
+
 static void close_callback_glfw(GLFWwindow* window) {
   appstate_t* app = getapp();
   LOG("GLFW closing...");
@@ -178,7 +180,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 
 static void window_refresh_callback(GLFWwindow* window) {
   appstate_t* app = getapp();
-  appstate_mark_needs_render(app);
+  render(window, app);
 }
 
 static void window_focus_callback(GLFWwindow *window, int focus) {
@@ -197,7 +199,7 @@ static void fbsize_callback(GLFWwindow *window, int width, int height) {
   appstate_t* app = getapp();
   LOG("GLFW FB resize (%d, %d)", width, height);
   resize_fb(app, width, height);
-  appstate_mark_needs_render(app);
+  render(window, app);
 }
 
 static void winsize_callback(GLFWwindow *window, int width, int height) {
@@ -400,8 +402,8 @@ int main(int argc, char** argv) {
 
   LOG("text init");
   int font_size = 32;
-  char* font_path = "/home/ryan/Downloads/static/EBGaramond-Regular.ttf";
-  //char* font_path = "/home/ryan/code/xos2/pkg/app/demo/resources/CourierPrime-Regular.ttf";
+  //char* font_path = "/home/ryan/Downloads/static/EBGaramond-Regular.ttf";
+  char* font_path = "/Users/ryan/code/xos2/pkg/app/demo/resources/CourierPrime-Regular.ttf";
   FT_Library ft_library;
   CHECK(!FT_Init_FreeType(&ft_library));
   CHECK(!FT_New_Face(ft_library, font_path, 0, &app.ft_face));
@@ -431,6 +433,7 @@ int main(int argc, char** argv) {
   glfwSetFramebufferSizeCallback(window, fbsize_callback);
   glfwSetWindowContentScaleCallback(window, window_content_scale_callback);
   glfwSetWindowFocusCallback(window, window_focus_callback);
+  glfwSetWindowRefreshCallback(window, window_refresh_callback);
   // Input callbacks
   // https://www.glfw.org/docs/latest/group__input.html
   glfwSetKeyCallback(window, key_callback);

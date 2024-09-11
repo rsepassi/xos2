@@ -215,12 +215,80 @@ var cache = Fn.new { |args|
   return CACHE_CMDS[cmd].call(cmd_args)
 }
 
+var new = Fn.new { |args|
+  if (args.count == 0) {
+    var usage = "
+  xos new <name|path>
+  "
+    System.print(usage)
+    return true
+  }
+
+  var path = args[0]
+  var target = Path.basename(path)
+  Directory.ensure(path)
+  var build_path = Path.join([path, "build.wren"])
+  if (File.exists(build_path)) {
+    System.print("%(build_path) already exists")
+    return false
+  }
+
+  var cpath = Path.join([path, "%(target).c"])
+  var exepath = Path.join([path, "%(target)_main.c"])
+  var hpath = Path.join([path, "%(target).h"])
+  File.write(cpath, "#include \"%(target).h\"\n")
+  File.write(hpath, "")
+  var execontents = "#include \"base/log.h\"
+
+#include \"%(target).h\"
+
+int main(int argc, char** argv) {
+  LOG(\"hello world!\\n\");
+  return 0;
+}
+"
+  File.write(exepath, execontents)
+
+  var contents = "import \"io\" for File, Directory
+import \"os\" for Process, Path
+
+var %(target) = Fn.new { |b, args|
+  var zig = b.deptool(\"//toolchains/zig\")
+  zig.ez.cLib(b, {
+    \"srcs\": [b.src(\"%(target).c\")],
+    \"include\": [b.src(\"%(target).h\")],
+    \"flags\": [],
+    \"deps\": [
+      b.dep(\"//pkg/cbase\"),
+    ],
+  })
+}
+
+var %(target)_exe = Fn.new { |b, args|
+  var zig = b.deptool(\"//toolchains/zig\")
+  b.installExe(zig.buildExe(b, \"%(target)\", {
+    \"c_srcs\": [b.src(\"%(target)_main.c\")],
+    \"flags\": [],
+    \"c_deps\": [
+      b.dep(\":%(target)\"),
+      b.dep(\"//pkg/cbase\"),
+    ],
+    \"libc\": true,
+  }))
+}
+"
+
+  File.write(build_path, contents)
+  return true
+}
+
 CMDS = {
   "help": help,
   "build": build,
   "run": run,
   "env": env_cmd,
   "cache": cache,
+  "new": new,
 }
 
 var initConfig = Fn.new {

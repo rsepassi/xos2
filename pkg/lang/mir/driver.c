@@ -33,7 +33,7 @@ static void *import_resolver (const char *name) {
 
 static MIR_item_t load_main(MIR_context_t ctx, const char* fname) {
   str_t contents;
-  CHECK_OK(read_file(fname, &contents), "could not read file");
+  CHECK_OK(fs_read_file(fname, &contents), "could not read file");
   mir_code = &contents;
   mir_code_cur = 0;
   MIR_read_with_func(ctx, read_byte);

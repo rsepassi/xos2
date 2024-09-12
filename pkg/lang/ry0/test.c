@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
   CHECK(argc > 1, "must pass ry file");
 
   str_t file;
-  CHECK_OK(read_file(argv[1], &file), "could not read file");
+  CHECK_OK(fs_read_file(argv[1], &file), "could not read file");
 
   State state = state_init(file.bytes);
   state.ctx = node_ctx_init();

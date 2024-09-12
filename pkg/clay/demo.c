@@ -404,7 +404,7 @@ int main(int argc, char** argv) {
   LOG("text init");
   int font_size = 32;
   //char* font_path = "/home/ryan/Downloads/static/EBGaramond-Regular.ttf";
-  char* font_path = "/tmp/CourierPrime-Regular.ttf";
+  char* font_path = "CourierPrime-Regular.ttf";
   FT_Library ft_library;
   CHECK(!FT_Init_FreeType(&ft_library));
   CHECK(!FT_New_Face(ft_library, font_path, 0, &app.ft_face));

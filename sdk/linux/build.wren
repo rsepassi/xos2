@@ -50,7 +50,7 @@ var podman = Fn.new { |b, args|
   b.installLibConfig(zig.libConfig(b, "sdk", {
     "nostdopts": true,
     "cflags": ["-I{{root}}/sdk/usr/include"],
-    "ldflags": ["-L{{root}}/sdk/%(libinclude)"],
+    "ldflags": ["-L{{root}}/sdk/%(libinstall)"],
   }))
 }
 

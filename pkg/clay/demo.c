@@ -7,6 +7,7 @@
 #include "base/log.h"
 #include "base/allocator.h"
 #include "base/fmt.h"
+#include "base/file.h"
 
 typedef struct appstate_s appstate_t;
 #define CLAY_MAX_ELEMENT_COUNT 8192
@@ -403,11 +404,12 @@ int main(int argc, char** argv) {
 
   LOG("text init");
   int font_size = 32;
-  //char* font_path = "/home/ryan/Downloads/static/EBGaramond-Regular.ttf";
-  char* font_path = "CourierPrime-Regular.ttf";
+
+  str_t font_data = fs_resource_read(cstr("CourierPrime-Regular.ttf"));
+
   FT_Library ft_library;
   CHECK(!FT_Init_FreeType(&ft_library));
-  CHECK(!FT_New_Face(ft_library, font_path, 0, &app.ft_face));
+  CHECK(!FT_New_Memory_Face(ft_library, (const FT_Byte*)font_data.bytes, font_data.len, 0, &app.ft_face));
   FT_Set_Char_Size(app.ft_face, 0, font_size << 6, 72, 72);
   app.lineh = text_line_height(app.ft_face);
   app.hb_font = hb_ft_font_create(app.ft_face, NULL);
@@ -477,6 +479,7 @@ int main(int argc, char** argv) {
   hb_buffer_destroy(app.hb_buf);
   hb_font_destroy(app.hb_font);
   FT_Done_Face(app.ft_face);
+  free(font_data.bytes);
   FT_Done_FreeType(ft_library);
   free(app.bump.buf);
 

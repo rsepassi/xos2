@@ -9,6 +9,7 @@ var cbase_zig = Fn.new { |b, args|
   var lib = zig.buildLib(b, "cbase_zig", {
     "flags": ["-I."],
     "root": b.src("cbase.zig"),
+    "libc": true,
   })
   b.installLib(lib)
   b.installLibConfig(zig.libConfig(b))

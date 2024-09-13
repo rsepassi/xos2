@@ -39,7 +39,6 @@ export fn fs_resource_read(name: c.str_t) c.str_t {
         //     exe
         //   Resources/
         //     resource
-
         const contents_dir = std.fs.path.dirname(std.fs.path.dirname(path).?).?;
         const resource_path = std.fs.path.join(alloc, &[_][]const u8{
             contents_dir,
@@ -47,7 +46,31 @@ export fn fs_resource_read(name: c.str_t) c.str_t {
             fromcstr(name),
         }) catch @panic("OOM");
         defer alloc.free(resource_path);
-
+        const cwd = std.fs.cwd();
+        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch @panic("resource not found");
+        return tocstr(contents);
+    } else if (builtin.os.tag == .windows) {
+        // Flat directory with exe + resources
+        const contents_dir = std.fs.path.dirname(path).?;
+        const resource_path = std.fs.path.join(alloc, &[_][]const u8{
+            contents_dir,
+            fromcstr(name),
+        }) catch @panic("OOM");
+        defer alloc.free(resource_path);
+        const cwd = std.fs.cwd();
+        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch @panic("resource not found");
+        return tocstr(contents);
+    } else if (builtin.os.tag == .linux and builtin.abi != .android) {
+        // exe
+        // resources/
+        //   resource
+        const contents_dir = std.fs.path.dirname(path).?;
+        const resource_path = std.fs.path.join(alloc, &[_][]const u8{
+            contents_dir,
+            "resources",
+            fromcstr(name),
+        }) catch @panic("OOM");
+        defer alloc.free(resource_path);
         const cwd = std.fs.cwd();
         const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch @panic("resource not found");
         return tocstr(contents);

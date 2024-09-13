@@ -54,6 +54,7 @@ pub fn main() !void {
     try exec_env.put("LOG", env.get("LOG") orelse "");
     try exec_env.put("LOG_SCOPES", env.get("LOG_SCOPES") orelse "");
     try exec_env.put("NO_CACHE", env.get("NO_CACHE") orelse "");
+    try exec_env.put("LANG", env.get("LANG") orelse "en_US.UTF-8");
 
     var child = std.process.Child.init(exec_args.items, alloc);
     child.env_map = &exec_env;

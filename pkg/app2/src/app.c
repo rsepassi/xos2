@@ -67,6 +67,7 @@ static void render(app_platform_t* app) {
   allocator_bump_reset(&app->bump);
   app->init.render(app->init.userdata);
   app->state.last_render_ms = glfwGetTime() * 1000;
+  nativefb_trigger_refresh(&app->platform, &app->fb);
 }
 
 static inline void send_event(app_platform_t* app) {
@@ -102,10 +103,9 @@ static void character_callback(GLFWwindow* window, unsigned int codepoint) {
 
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
   app_platform_t* app = getapp();
-  // Clay_SetPointerPosition((Clay_Vector2){xpos, ypos});
 
-  app->state.mouse.x = xpos;
-  app->state.mouse.y = ypos;
+  app->state.mouse.x = (i16)xpos;
+  app->state.mouse.y = (i16)ypos;
 
   EV(MouseMotion, pos, app->state.mouse);
 }
@@ -184,6 +184,7 @@ int main(int argc, char** argv) {
   LOG("hello");
 
   app_platform_t app = {0};
+  LOG("app_platform_t* app = %p", &app);
 
   LOG("app init");
   app_init(&app.state, &app.init);

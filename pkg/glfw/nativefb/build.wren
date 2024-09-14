@@ -7,7 +7,10 @@ var nativefb = Fn.new { |b, args|
     "srcs": b.srcGlob("*.c") + [b.src("nativefb_mac.m")],
     "flags": ["-I", b.srcDir],
     "include": [b.src("nativefb.h")],
-    "deps": [b.dep("//pkg/glfw")],
+    "deps": [
+      b.dep("//pkg/cbase"),
+      b.dep("//pkg/glfw"),
+    ],
     "libc": true,
   })
   Directory.copy("%(b.srcDir)/nativefb", "%(b.installDir)/include/nativefb")

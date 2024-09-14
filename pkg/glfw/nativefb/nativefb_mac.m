@@ -1,6 +1,7 @@
 #ifdef __APPLE__
 
 #include "nativefb.h"
+#include "base/log.h"
 
 @interface NativefbView : NSView
 @property framebuffer_t* fb;
@@ -9,6 +10,7 @@
 @implementation NativefbView
 - (void)drawRect:(NSRect)dirtyRect {
   framebuffer_t* fb = self.fb;
+  DLOG("NativefbView::drawRect %p", fb);
 
   uint32_t w = fb->w;
   uint32_t h = fb->h;
@@ -44,6 +46,7 @@ void nativefb_resize(native_platform_t* p, framebuffer_t* fb) {}
 void nativefb_paint(native_platform_t* p, framebuffer_t* fb) {}
 
 void nativefb_trigger_refresh(native_platform_t* p, framebuffer_t* fb) {
+  DLOG("nativefb_trigger_refresh");
   [p->view drawFb:fb];
 }
 

@@ -38,7 +38,7 @@ typedef enum {                 // app_event_t.data payload
 } app_event_type_t;
 
 typedef struct {
-  u16 x, y;
+  i16 x, y;
 } app_pos2d_t;
 
 typedef struct {

@@ -34,25 +34,25 @@ class android {
     var base = b.deptool("base")
     var rootdir = base.build.toolCacheDir
 
-    var os
-    if (b.target.os == "macos") {
-      os = "darwin"
-    } else if (b.target.os == "linux") {
-      os = "linux"
-    }
+    var unwind_dummy = b.dep("//pkg/unwind_dummy")
 
-    File.write("libc.txt", GetLibc_.call(rootdir, os))
+    var host_os = b.cls.Target.host.os
+    if (host_os == "macos") host_os = "darwin"
+
+    File.write("libc.txt", GetLibc_.call(rootdir, host_os))
     b.install("", "libc.txt")
 
     var zig = b.deptool("//toolchains/zig")
     b.install("", zig.libConfig(b, "sdk", {
       "nostdopts": true,
       "cflags": [
-        "-I%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(os)-x86_64/sysroot/usr/include",
-        "-I%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(os)-x86_64/sysroot/usr/include/aarch64-linux-android",
+        "-I%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(host_os)-x86_64/sysroot/usr/include",
+        "-I%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(host_os)-x86_64/sysroot/usr/include/aarch64-linux-android",
       ],
       "ldflags": [
-        "-L%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(os)-x86_64/sysroot/usr/lib/aarch64-linux-android/29",
+        "-L%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(host_os)-x86_64/sysroot/usr/lib/aarch64-linux-android/29",
+        "-L%(rootdir)/ndk-bundle/toolchains/llvm/prebuilt/%(host_os)-x86_64/sysroot/usr/lib/aarch64-linux-android",
+        "%(unwind_dummy.path)/lib/libunwind_dummy.a",
       ],
     }))
     var env = sdkenv_(rootdir, b.cls.Target.host.os)
@@ -97,12 +97,13 @@ var native_app_glue = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "native_app_glue", {
     "c_srcs": ["%(rootdir)/ndk-bundle/sources/android/native_app_glue/android_native_app_glue.c"],
+    "libc": true,
   })
 
   b.installLib(lib)
   b.installHeader("%(rootdir)/ndk-bundle/sources/android/native_app_glue/android_native_app_glue.h")
   b.installLibConfig(zig.libConfig(b, "native_app_glue", {
-    "ldflags": ["--force_undefined", "ANativeActivity_onCreate"],
+    "ldflags": ["--force_undefined", "ANativeActivity_onCreate", "-landroid", "-llog"],
   }))
 }
 

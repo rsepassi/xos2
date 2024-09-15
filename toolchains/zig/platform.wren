@@ -131,15 +131,23 @@ class Android is Platform {
   }
 
   flags {
-    return [
+    var args = [
       "--libc", "%(_droid.installDir.path)/libc.txt",
     ] + _pc["Cflags"]
+    if (_opts.libcpp) {
+      args.add("%(_pc["Cflags"][0])/c++/v1")
+    }
+    return args
   }
 
   ldargs {
     var args = []
     args.addAll(_pc["Libs"])
-    args.addAll(super)
+    if (_opts.libcpp) args.addAll([
+      "%(_pc["Libs"][0][2..-1])/libc++.a",
+      "%(_pc["Libs"][0][2..-1])/libstdc++.a",
+    ])
+    if (_opts.libc) args.add("-lc")
     return args
   }
 }
@@ -155,7 +163,7 @@ var GetPlatform_ = Fn.new { |b, opts|
     return Windows.new(b, opts)
   } else if (os == "ios") {
     return IOS.new(b, opts)
-  } else if (os == "linux" && b.target.abi == "android") {
+  } else if (os == "linux" && b.target.abi == "android" && (opts.sdk || opts.libc || opts.libcpp)) {
     return Android.new(b, opts)
   } else {
     return Platform.new(b, opts)

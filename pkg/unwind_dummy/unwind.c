@@ -1,5 +1,4 @@
-#include <stdlib.h>
-
+void abort(void);
 #define ABORT() abort()
 
 void _Unwind_Backtrace() { ABORT(); }
@@ -14,3 +13,5 @@ void _Unwind_GetTextRelBase() { ABORT(); }
 void _Unwind_Resume() { ABORT(); }
 void _Unwind_SetGR() { ABORT(); }
 void _Unwind_SetIP() { ABORT(); }
+void _Unwind_DeleteException() { ABORT(); }
+void _Unwind_RaiseException() { ABORT(); }

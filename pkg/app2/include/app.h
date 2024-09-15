@@ -16,6 +16,10 @@
 // APP_PLATFORM_OS_ANDROID
 // APP_PLATFORM_OS_MOBILE
 
+// TODO:
+// * Clipboard
+// * On-screen keyboard
+
 typedef enum {                 // app_event_t.data payload
   AppEvent__INVALID,
   AppEventGfxInit,             // none
@@ -34,6 +38,8 @@ typedef enum {                 // app_event_t.data payload
   AppEventWindowSize,          // size
   AppEventFrameSize,           // size
   AppEventFrameContentScale,   // scale
+  AppEventSuspend,             // none
+  AppEventResume,              // none
   AppEvent__SENTINEL,
 } app_event_type_t;
 

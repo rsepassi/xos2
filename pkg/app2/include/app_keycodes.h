@@ -1,5 +1,6 @@
 // Matching GLFW keycodes
 
+#define AppKey_UNKNOWN 0
 #define AppKey_SPACE   32
 #define AppKey_APOSTROPHE   39 /* ' */
 #define AppKey_COMMA   44 /* , */

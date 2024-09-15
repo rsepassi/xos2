@@ -7,7 +7,7 @@ var Hash = "958ba7fbb13a8df4b8ac0dfa056c0826008badc92453148b1c3d28f2d22084df"
 var ios = Fn.new { |b, args|
   Process.chdir(b.untar(b.fetch(Url, Hash)))
   var dir = b.target.arch == "simulator" ? "ios-sim" : "ios"
-  b.installDir("", "%(dir)/sdk")
+  File.rename("%(dir)/sdk", "%(b.installDir)/sdk")
 
   File.write("libc.txt", GetLibc_.call("%(b.installDir)/sdk"))
   b.install("sdk", "libc.txt")

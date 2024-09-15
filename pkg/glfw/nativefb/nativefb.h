@@ -3,6 +3,8 @@
 
 #ifdef CBASE_ABI_ANDROID
 #include "nativefb/nativefb_android.h"
+#elif CBASE_OS_IOS
+#include "nativefb/nativefb_ios.h"
 #elif defined(__APPLE__)
 #include "nativefb/nativefb_mac.h"
 #elif defined(_WIN32)
@@ -16,6 +18,8 @@
 typedef struct {
   u8 r, g, b, a;
 } framebuffer_px_t;
+#define framebuffer_RGBA(xr, xg, xb, xa) ((framebuffer_px_t){.r = (xr), .g = (xg), .b = (xb), .a = (xa)})
+#define framebuffer_RGBA_u32(xr, xg, xb, xa) *(u32*)&framebuffer_RGBA(xr, xg, xb, xa)
 
 typedef struct {
   framebuffer_px_t* buf;

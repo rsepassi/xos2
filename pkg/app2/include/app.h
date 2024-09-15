@@ -7,6 +7,8 @@
 
 #include "app_keycodes.h"
 
+#include "nativefb.h"
+
 // Platform defs
 // APP_PLATFORM_OS_MACOS
 // APP_PLATFORM_OS_LINUX
@@ -114,6 +116,7 @@ typedef struct {
   app_pos2d_t mouse;
   allocator_t frame_allocator;
   bool onscreen_keyboard;
+  framebuffer_t* fb;
 } app_state_t;
 
 typedef void (*app_event_callback)(void* userdata, app_event_t* ev);

@@ -4,6 +4,8 @@
 
 #include "base/log.h"
 
+#include "olive.h"
+
 typedef struct {
   int count;
   bool dirty;
@@ -26,8 +28,10 @@ static void render(void* ctx) {
   app_t* app = (app_t*)ctx;
   u16 h = app->state->size.h;
   u16 w = app->state->size.w;
+  LOG("render (%d, %d)", w, h);
 
-  LOG("render");
+  Olivec_Canvas canvas = olivec_canvas((uint32_t*)app->state->fb->buf, w, h, w);
+  olivec_fill(canvas, framebuffer_RGBA_u32(0, 255, 0, 255));
 }
 
 void app_init(app_state_t* state, app_init_t* init) {

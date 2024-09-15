@@ -10,6 +10,7 @@ var demo = Fn.new { |b, args|
   var appbuilder = b.deptool("//pkg/app2:builder")
   var exe = appbuilder.build(b, {
     "deps": [b.dep(":demo_lib")],
+    "resources": b.dep("//pkg/app/demo/resources").path,
   })
   b.installExe(exe)
 }

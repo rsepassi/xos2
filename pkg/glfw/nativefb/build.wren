@@ -9,7 +9,7 @@ var nativefb = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
   b.srcGlob("nativefb/*.h")
   zig.ez.cLib(b, {
-    "srcs": b.srcGlob("*.c") + [b.src("nativefb_mac.m")],
+    "srcs": b.srcGlob("*.c") + b.srcGlob("*.m"),
     "flags": ["-I", b.srcDir],
     "include": [b.src("nativefb.h")],
     "deps": deps,

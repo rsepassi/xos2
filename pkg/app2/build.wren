@@ -1,3 +1,5 @@
+import "io" for File
+
 var app2 = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
 
@@ -33,12 +35,18 @@ var app2 = Fn.new { |b, args|
 
     if (b.target.os == "linux") {
       deps.add(b.dep("//sdk/android:native_app_glue"))
+    } else {
+      ldflags.addAll([
+        "-framework", "Foundation",
+        "-framework", "UIKit",
+        "-framework", "CoreGraphics",
+      ])
     }
   }
 
   var lib = zig.buildLib(b, "app2", {
     "flags": ["-I", b.srcDir("include")] + flags,
-    "c_srcs": b.srcGlob("src/*.c"),
+    "c_srcs": b.srcGlob("src/*.c") + [b.src("src/app_ios.m")],
     "c_deps": deps,
   })
 
@@ -60,6 +68,19 @@ class Builder {
         "c_deps": opts["deps"],
       })
       return exe
+    } else if (b.target.os == "ios") {
+      var lib_opts = {
+        "c_deps": opts["deps"],
+      }
+      var zargs = zig.buildArgs(b, lib_opts)
+      var xcode = b.deptool("//pkg/app:xcodeproj")
+      var ldargs = zargs.link + zargs.platformLink
+      var appdir = xcode.build(b, ldargs, opts["resources"])
+      // Sim commands
+      // xcrun simctl uninstall booted com.istudios.xos-app.hello
+      // xcrun simctl install booted xos-out/bin/xos-app.app
+      // xcrun simctl launch booted com.istudios.xos-app.hello
+      return appdir
     } else {
       var exe = zig.buildExe(b, opts["name"] || b.label.target, {
         "c_deps": opts["deps"],

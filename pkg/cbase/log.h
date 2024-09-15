@@ -1,9 +1,19 @@
 #ifndef LOG_H_
 #define LOG_H_
 
-#ifdef CBASE_ABI_ANDROID
+#if defined(CBASE_ABI_ANDROID)
+
 #include <android/log.h>
 #define LOG(fmt, ...) ((void)__android_log_print(ANDROID_LOG_INFO, "NativeActivity", fmt, ##__VA_ARGS__))
+
+#elif defined(CBASE_OS_IOS)
+
+#include <os/log.h>
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define LOG(fmt, ...) do { \
+    os_log(OS_LOG_DEFAULT, "[%s:%d] " fmt "\n", __FILENAME__, __LINE__ , ##__VA_ARGS__); \
+  } while (0)
+
 #else
 
 #include <stdio.h>

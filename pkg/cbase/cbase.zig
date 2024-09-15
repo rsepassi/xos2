@@ -66,14 +66,15 @@ export fn fs_resource_read(name: c.str_t) c.str_t {
         const cwd = std.fs.cwd();
         const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch panic("resource not found");
         return tocstr(contents);
-    } else if (builtin.os.tag == .linux and builtin.abi != .android) {
+    } else if ((builtin.os.tag == .linux and builtin.abi != .android) or builtin.os.tag == .ios) {
         // exe
         // resources/
         //   resource
+        const dirname = if (builtin.os.tag == .ios) "xos-resources" else "resources";
         const contents_dir = std.fs.path.dirname(path).?;
         const resource_path = std.fs.path.join(alloc, &[_][]const u8{
             contents_dir,
-            "resources",
+            dirname,
             fromcstr(name),
         }) catch panic("OOM");
         defer alloc.free(resource_path);

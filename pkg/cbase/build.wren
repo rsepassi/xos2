@@ -22,6 +22,7 @@ var cbase = Fn.new { |b, args|
     "macos": "MACOS",
     "windows": "WINDOWS",
     "linux": "LINUX",
+    "ios": "IOS",
   }
   cflags.add("-DCBASE_OS_%(os[b.target.os])")
   var abi = {
@@ -30,7 +31,7 @@ var cbase = Fn.new { |b, args|
     "gnu": "GNU",
     "none": "NONE",
   }
-  cflags.add("-DCBASE_ABI_%(abi[b.target.abi])")
+  cflags.add("-DCBASE_ABI_%(abi[b.target.abi] || "NONE")")
   var arch = {
     "aarch64": "AARCH64",
     "x86_64": "X86_64",

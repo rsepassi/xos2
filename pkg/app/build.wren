@@ -188,7 +188,7 @@ class XcodeBuilder {
     ]
     var env = Process.env()
     env["HOME"] = Config.get("system_home")
-    b.system(args, env, Log.level == Log.DEBUG ? [null, 1, 2] : null)
+    b.system(args, env)
     return "%(Process.cwd)/xos-app/build/%(config)-%(platform)/xos-app.app"
   }
 }

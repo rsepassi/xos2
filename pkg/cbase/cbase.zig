@@ -13,14 +13,20 @@ fn tocstr(x: []const u8) c.str_t {
     };
 }
 
+fn panic(msg: []const u8) noreturn {
+    if (builtin.abi != .android) {
+        @panic(msg);
+    } else std.c.abort();
+}
+
 export fn fs_self_path() c.str_t {
-    const path = std.fs.selfExePathAlloc(std.heap.c_allocator) catch @panic("OOM");
+    const path = std.fs.selfExePathAlloc(std.heap.c_allocator) catch panic("OOM");
     return tocstr(path);
 }
 
 export fn fs_resource_read(name: c.str_t) c.str_t {
     const alloc = std.heap.c_allocator;
-    const path = std.fs.selfExePathAlloc(std.heap.c_allocator) catch @panic("OOM");
+    const path = std.fs.selfExePathAlloc(std.heap.c_allocator) catch panic("OOM");
     defer alloc.free(path);
 
     if (std.c.getenv("XOS_RESOURCE_DIR")) |cdir| {
@@ -29,9 +35,9 @@ export fn fs_resource_read(name: c.str_t) c.str_t {
         const resource_path = std.fs.path.join(alloc, &[_][]const u8{
             dir,
             fromcstr(name),
-        }) catch @panic("OOM");
+        }) catch panic("OOM");
         defer alloc.free(resource_path);
-        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch @panic("resource not found");
+        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch panic("resource not found");
         return tocstr(contents);
     } else if (builtin.os.tag == .macos) {
         // Contents/
@@ -44,10 +50,10 @@ export fn fs_resource_read(name: c.str_t) c.str_t {
             contents_dir,
             "Resources",
             fromcstr(name),
-        }) catch @panic("OOM");
+        }) catch panic("OOM");
         defer alloc.free(resource_path);
         const cwd = std.fs.cwd();
-        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch @panic("resource not found");
+        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch panic("resource not found");
         return tocstr(contents);
     } else if (builtin.os.tag == .windows) {
         // Flat directory with exe + resources
@@ -55,10 +61,10 @@ export fn fs_resource_read(name: c.str_t) c.str_t {
         const resource_path = std.fs.path.join(alloc, &[_][]const u8{
             contents_dir,
             fromcstr(name),
-        }) catch @panic("OOM");
+        }) catch panic("OOM");
         defer alloc.free(resource_path);
         const cwd = std.fs.cwd();
-        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch @panic("resource not found");
+        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch panic("resource not found");
         return tocstr(contents);
     } else if (builtin.os.tag == .linux and builtin.abi != .android) {
         // exe
@@ -69,11 +75,14 @@ export fn fs_resource_read(name: c.str_t) c.str_t {
             contents_dir,
             "resources",
             fromcstr(name),
-        }) catch @panic("OOM");
+        }) catch panic("OOM");
         defer alloc.free(resource_path);
         const cwd = std.fs.cwd();
-        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch @panic("resource not found");
+        const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch panic("resource not found");
         return tocstr(contents);
+    } else if (builtin.os.tag == .linux and builtin.abi == .android) {
+        const read = @extern(*const fn(c.str_t) callconv(.C) c.str_t, .{.name = "fs_resource_read_android" });
+        return read(name);
     } else {
         @compileError("not implemented");
     }

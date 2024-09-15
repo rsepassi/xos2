@@ -18,4 +18,3 @@ framebuffer_px_t framebuffer_alpha_blend(framebuffer_px_t x, framebuffer_px_t y)
     .a = a * 255.,
   };
 }
-

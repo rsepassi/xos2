@@ -33,7 +33,7 @@
 }
 @end
 
-void nativefb_init(native_platform_t* p, GLFWwindow* w, framebuffer_t* fb) {
+void nativefb_init(native_platform_t* p, void* w, framebuffer_t* fb) {
   NSView* view = glfwGetCocoaView(w);
   p->view = [[NativefbView alloc] initWithFrame:[view bounds]];
   [view addSubview:p->view];

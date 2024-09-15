@@ -1,4 +1,4 @@
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if defined(CBASE_OS_LINUX) && !defined(CBASE_ABI_ANDROID)
 
 #include "nativefb.h"
 

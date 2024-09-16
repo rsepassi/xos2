@@ -779,7 +779,7 @@ C2_Name c2_ctx_namec(C2_Ctx* ctx, const char* cname) {
   // If not already in the pool, add it and insert into the map
   // Add 1 to len to store null but don't keep it in the len
   name.len += 1;
-  str_t sbuf = str_append(&names->buf, name);
+  str_t sbuf = str_add(&names->buf, name);
   name.len -= 1;
   ((char*)sbuf.bytes)[sbuf.len - 1] = 0;
 
@@ -796,8 +796,8 @@ C2_Name c2_ctx_namec(C2_Ctx* ctx, const char* cname) {
 C2_Name c2_ctx_name_suffix(C2_Ctx* ctx, C2_Name base, const char* suffix) {
   size_t suffixlen = strlen(suffix);
   list_t tmp = list_init(uint8_t, base.len + suffixlen + 1);
-  str_append(&tmp, c2_ctx_strname(ctx, base));
-  str_append(&tmp, cstr(suffix));
+  str_add(&tmp, c2_ctx_strname(ctx, base));
+  str_add(&tmp, cstr(suffix));
   *list_add(uint8_t, &tmp) = 0;
 
   C2_Name out = c2_ctx_namec(ctx, tmp.base);

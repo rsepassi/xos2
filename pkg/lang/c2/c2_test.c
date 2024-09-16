@@ -7,7 +7,7 @@
 
 void write(void* ctx, str_t s) {
   fprintf(stderr, "%.*s", (int)s.len, s.bytes);
-  str_append((list_t*)ctx, s);
+  str_add((list_t*)ctx, s);
 }
 
 void mirerr(MIR_error_type_t error_type, const char *format, ...) {

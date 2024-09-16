@@ -19,6 +19,7 @@ typedef struct {
   allocator_bump_t bump;
 
   // Text state
+  FT_Library ft_library;
   FT_Face ft_face;
   hb_font_t* hb_font;
   hb_buffer_t* hb_buf;

@@ -349,6 +349,7 @@ void android_main(struct android_app* droid) {
 
   app.state.frame_allocator = allocator_bump(&app.bump);
   app.state.platform = &app;
+  app.state.fb = &app.fb;
 
   LOG("text init");
   int font_size = 32;

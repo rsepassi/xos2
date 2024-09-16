@@ -125,6 +125,7 @@ int main(int argc, char** argv) {
   app.fb.buf = malloc(w * h * sizeof(uint32_t));
   app.fb.w = w;
   app.fb.h = h;
+  app.state.fb = &app.fb;
   app.bump.buf = malloc(1 << 20);
   app.bump.len = 1 << 20;
 

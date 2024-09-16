@@ -85,15 +85,12 @@ static void window_content_scale_callback(GLFWwindow *window, float xscale, floa
 static void fbsize_callback(GLFWwindow *window, int width, int height) {
   app_platform_t* app = getapp();
   app__resize_fb(app, width, height);
-  app_mark_needs_render(&app->state);
+  app__render(app);
   EV(FrameSize, size, ((app_size2d_t){ .w = width, .h = height }));
 }
 
 static void winsize_callback(GLFWwindow *window, int width, int height) {
-  app_platform_t* app = getapp();
-  app__resize_fb(app, width, height);
-  app_mark_needs_render(&app->state);
-  EV(WindowSize, size, ((app_size2d_t){ .w = width, .h = height }));
+  // We just rely on the framebuffer size changing
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {

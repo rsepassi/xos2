@@ -1,5 +1,11 @@
+#ifndef BASE_STDTYPES_H_
+#define BASE_STDTYPES_H_
+
 #include <stdint.h>
 #include <stdbool.h>
+
+#include "base/str.h"
+#include "base/list.h"
 
 typedef uint64_t u64;
 typedef uint32_t u32;
@@ -12,3 +18,4 @@ typedef int8_t   i8;
 typedef float    f32;
 typedef double   f64;
 
+#endif

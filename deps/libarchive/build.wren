@@ -16,7 +16,12 @@ var libarchive = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
 
   var mbedtls = b.dep("//deps/mbedtls")
-
+  var deps = [
+    b.dep("//deps/zstd"),
+    zig.cDep(mbedtls, "mbedcrypto"),
+    zig.cDep(b.dep("//deps/xz"), "lzma"),
+    zig.cDep(b.dep("//deps/zlib"), "z"),
+  ]
   var lib = zig.buildLib(b, "archive", {
     "c_srcs": b.glob("libarchive/*.c"),
     "flags": [
@@ -27,19 +32,17 @@ var libarchive = Fn.new { |b, args|
     "cflags": [
       "-include", "%(mbedtls.includeDir)/mbedtls/compat-2.x.h",
     ],
-    "c_deps": [
-      b.dep("//deps/zstd"),
-      zig.cDep(mbedtls, "mbedcrypto"),
-      zig.cDep(b.dep("//deps/xz"), "lzma"),
-      zig.cDep(b.dep("//deps/zlib"), "z"),
-    ],
+    "c_deps": deps,
     "libc": true,
     "sdk": true,
   })
 
   b.installHeader("libarchive/archive.h")
+  b.installHeader("libarchive/archive_entry.h")
   b.installLib(lib)
-  b.installLibConfig(zig.libConfig(b, "archive"))
+  b.installLibConfig(zig.libConfig(b, "archive", {
+    "deps": deps,
+  }))
 }
 
 var archive_fe = Fn.new { |b, args|

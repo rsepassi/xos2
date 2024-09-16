@@ -20,6 +20,7 @@ typedef struct {
 
   // Text state
   FT_Library ft_library;
+  str_t font_data;
   FT_Face ft_face;
   hb_font_t* hb_font;
   hb_buffer_t* hb_buf;

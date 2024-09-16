@@ -22,8 +22,8 @@ u64 app__gettimems(app_platform_t* app) {
 // ============================================================================
 @interface TextDelegate : NSObject<UITextFieldDelegate>
 - (void)keyboardWasShown:(NSNotification*)notif;
-- (void)keyboardDidChangeFrame:(NSNotification*)notif;
 - (void)keyboardWillBeHidden:(NSNotification*)notif;
+- (void)keyboardDidChangeFrame:(NSNotification*)notif;
 @end
 
 @interface View : UIView
@@ -107,18 +107,15 @@ u64 app__gettimems(app_platform_t* app) {
 - (void)keyboardDidChangeFrame:(NSNotification*)notif {
   LOG("keyboardDidChangeFrame");
   UIView *view = [AppDelegate shared].view;
-  CGRect viewBounds = view.bounds;
-
   app_platform_t* app = getapp();
-  u16 w, h;
+
+  CGRect viewBounds = view.bounds;
+  u16 w = viewBounds.size.width;
+  u16 h = viewBounds.size.height;
   if (app->state.onscreen_keyboard) {
     NSDictionary* info = notif.userInfo;
     CGFloat kbd_h = [[info objectForKey:UIKeyboardFrameEndUserInfoKey] CGRectValue].size.height;
-    h = viewBounds.size.height - kbd_h;
-    w = viewBounds.size.width;
-  } else {
-    h = viewBounds.size.height;
-    w = viewBounds.size.width;
+    h -= kbd_h;
   }
 
   app__resize_fb(app, w, h);
@@ -126,6 +123,7 @@ u64 app__gettimems(app_platform_t* app) {
 }
 
 - (BOOL)textField:(UITextField*)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString*)string {
+  LOG("text input");
   app_platform_t* app = getapp();
 
   if (range.length > 0 && string.length == 0) {
@@ -194,10 +192,8 @@ u64 app__gettimems(app_platform_t* app) {
   LOG("Tap detected at position: (%f, %f)", location.x, location.y);
   app_platform_t* app = getapp();
   if (app->state.onscreen_keyboard) {
-    LOG("deactivate");
     [[AppDelegate shared] deactivateKeyboard];
   } else {
-    LOG("activate");
     [[AppDelegate shared] activateKeyboard];
   }
 }
@@ -263,16 +259,18 @@ u64 app__gettimems(app_platform_t* app) {
   [[NSNotificationCenter defaultCenter] removeObserver:self.textfield_delegate
                                                   name:UIKeyboardDidChangeFrameNotification
                                                 object:nil];
+
+  app_platform_t* app = self.app;
   nativefb_deinit(&app->platform);
   text_atlas_deinit(&app->atlas);
   free(app->atlas.buf);
   hb_buffer_destroy(app->hb_buf);
   hb_font_destroy(app->hb_font);
   FT_Done_Face(app->ft_face);
-  free((void*)font_data.bytes);
+  free((void*)app->font_data.bytes);
   FT_Done_FreeType(app->ft_library);
-  free(self.app->bump.buf);
-  free(self.app);
+  free(app->bump.buf);
+  free(app);
 }
 
 + (AppDelegate *)shared {
@@ -293,9 +291,9 @@ u64 app__gettimems(app_platform_t* app) {
 
   LOG("text init");
   int font_size = 32;
-  str_t font_data = fs_resource_read(cstr("CourierPrime-Regular.ttf"));
+  app->font_data = fs_resource_read(cstr("CourierPrime-Regular.ttf"));
   CHECK(!FT_Init_FreeType(&app->ft_library));
-  CHECK(!FT_New_Memory_Face(app->ft_library, (const FT_Byte*)font_data.bytes, font_data.len, 0, &app->ft_face));
+  CHECK(!FT_New_Memory_Face(app->ft_library, (const FT_Byte*)app->font_data.bytes, app->font_data.len, 0, &app->ft_face));
   FT_Set_Char_Size(app->ft_face, 0, font_size << 6, 72, 72);
   app->lineh = text_line_height(app->ft_face);
   app->hb_font = hb_ft_font_create(app->ft_face, NULL);
@@ -314,14 +312,11 @@ u64 app__gettimems(app_platform_t* app) {
   self.view_ctrl.view = self.view;
 
   // Keyboard setup with a hidden UITextField
-  self.textfield = [[UITextField alloc] initWithFrame:CGRectMake(10, 10, 100, 50)];
+  self.textfield = [[UITextField alloc] initWithFrame:CGRectMake(10, 10, 10, 10)];
+  self.textfield.text = @"";
   self.textfield.hidden = YES;
-  self.textfield.text = @" ";
-  self.textfield.keyboardType = UIKeyboardTypeDefault;
-  self.textfield.autocapitalizationType = UITextAutocapitalizationTypeNone;
-  self.textfield_delegate = [[TextDelegate alloc] init];
   self.textfield.delegate = self.textfield_delegate;
-  [self.view addSubview:self.textfield];
+  [self.view_ctrl.view addSubview:self.textfield];
   [[NSNotificationCenter defaultCenter] addObserver:self.textfield_delegate
       selector:@selector(keyboardWasShown:)
       name:UIKeyboardDidShowNotification object:nil];

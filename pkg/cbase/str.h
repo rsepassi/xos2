@@ -14,11 +14,20 @@ typedef struct {
 #define str_init(s, l) ((str_t){.bytes = s, .len = l})
 #define cstr(x) ((str_t){.bytes = x, .len = strlen(x)})
 
+void *malloc( size_t size );
+static inline str_t str_copy(str_t s) {
+  str_t out;
+  out.bytes = malloc(s.len);
+  out.len = s.len;
+  memcpy((void*)out.bytes, s.bytes, s.len);
+  return out;
+}
+
 static inline str_t str_from_list(list_t l) {
   return (str_t){.bytes = (char*)l.base, .len = l.len};
 }
 
-static inline str_t str_append(list_t* l, str_t s) {
+static inline str_t str_add(list_t* l, str_t s) {
   uint8_t* ptr = list_addn(uint8_t, l, s.len);
   memcpy(ptr, s.bytes, s.len);
   return str_init((char*)ptr, s.len);
@@ -39,5 +48,8 @@ static inline bool str_eq(str_t a, str_t b) {
   }
   return true;
 }
+
+#define KHASH_MAP_INIT_STRT(name, khval_t) \
+  KHASH_INIT(name, str_t, khval_t, 1, str_hash, str_eq)
 
 #endif

@@ -26,3 +26,11 @@ Status fs_read_file(const char* fname, str_t* out) {
     out->bytes = content;
     return OK;
 }
+
+str_t fs_dirname(str_t path) {
+  // Find the last /
+  int i = path.len - 1;
+  while (i >= 0 && path.bytes[i] != '/') --i;
+  if (i == -1) return (str_t){ .bytes = ".", .len = 1};
+  return (str_t){ .bytes = path.bytes, .len = i };
+}

@@ -27,6 +27,13 @@ inline size_t list_idx(list_t* ctx, void* el);
 inline void list_reserve(list_t* ctx, size_t n);
 inline void list_clear(list_t* ctx);
 
+#define list_foreach(T, ctx, v, code) do { \
+  for (int i = 0; i < (ctx)->len; ++i) { \
+    (v) = list_get(T, (ctx), i); \
+    code; \
+  } \
+  } while (0)
+
 list_t list_init2(size_t elsz, int cap);
 inline uint8_t* list_get2(list_t* ctx, int i);
 inline uint8_t* list_get_from_handle2(list_t* ctx, list_handle_t handle);

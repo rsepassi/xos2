@@ -279,6 +279,8 @@ var %(target)_exe = Fn.new { |b, args|
 "
 
   File.write(build_path, contents)
+  System.print(Path.abspath(path))
+  System.print(Directory.list(path).join("  "))
   return true
 }
 

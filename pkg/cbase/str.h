@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "base/list.h"
+#include "base/khash.h"
 
 typedef struct {
   size_t len;
@@ -51,5 +52,9 @@ static inline bool str_eq(str_t a, str_t b) {
 
 #define KHASH_MAP_INIT_STRT(name, khval_t) \
   KHASH_INIT(name, str_t, khval_t, 1, str_hash, str_eq)
+
+KHASH_MAP_INIT_STRT(mStrToStr, str_t);
+typedef khash_t(mStrToStr) str_map_t;
+
 
 #endif

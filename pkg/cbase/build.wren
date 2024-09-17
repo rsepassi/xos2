@@ -1,9 +1,15 @@
 import "io" for Directory, File
 
-var cbase_zig = Fn.new { |b, args|
+var mkbasedir = Fn.new { |b|
   Directory.create("base")
   var headers = b.srcGlob("*.h")
   for (h in headers) File.copy(h, "base")
+  var klib = b.dep("//pkg/klib")
+  File.copy(klib.header("khash.h"), "base")
+}
+
+var cbase_zig = Fn.new { |b, args|
+  mkbasedir.call(b)
 
   var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "cbase_zig", {
@@ -44,9 +50,8 @@ var cbase = Fn.new { |b, args|
     cflags.add("-DCBASE_OS_MOBILE")
   }
 
-  Directory.create("base")
-  var headers = b.srcGlob("*.h")
-  for (h in headers) File.copy(h, "base")
+  mkbasedir.call(b)
+
   var zig = b.deptool("//toolchains/zig")
   var lib = zig.buildLib(b, "cbase", {
     "flags": ["-I."] + cflags,
@@ -58,9 +63,7 @@ var cbase = Fn.new { |b, args|
   b.installLibConfig(zig.libConfig(b, "cbase", {
     "cflags": cflags,
     "deps": [b.dep(":cbase_zig")],
+    "libc": true,
   }))
   b.install("include", "base")
-
-  var klib = b.dep("//pkg/klib")
-  File.copy(klib.header("khash.h"), "%(b.installDir)/include/base/khash.h")
 }

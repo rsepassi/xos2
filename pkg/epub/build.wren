@@ -9,6 +9,8 @@ var epub = Fn.new { |b, args|
     "flags": [],
     "deps": [
       b.dep("//pkg/cbase"),
+      b.dep("//pkg/tidy"),
+      zig.cDep(b.dep("//deps/libarchive"), "archive"),
     ],
   })
 }
@@ -24,8 +26,6 @@ var epub_exe = Fn.new { |b, args|
     "c_deps": [
       b.dep(":epub"),
       b.dep("//pkg/cbase"),
-      b.dep("//pkg/tidy"),
-      zig.cDep(b.dep("//deps/libarchive"), "archive"),
     ],
     "libc": true,
   }))

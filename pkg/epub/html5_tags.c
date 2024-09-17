@@ -2,7 +2,7 @@
 
 #include "base/khash.h"
 
-KHASH_MAP_INIT_STR(mHtml5Tags, uint32_t);
+KHASH_MAP_INIT_STR(mHtml5Tags, Html5TagType);
 typedef khash_t(mHtml5Tags) html5_tagmap_t;
 
 static html5_tagmap_t* html5_tagmap() {
@@ -21,7 +21,7 @@ static html5_tagmap_t* html5_tagmap() {
  return tagmap;
 }
 
-Html5TagType html5_tagmap_get(char* tag) {
+Html5TagType html5_tagmap_get(const char* tag) {
   html5_tagmap_t* h = html5_tagmap();
   khiter_t iter = kh_get(mHtml5Tags, h, tag);
   if (iter == kh_end(h)) return Html5Tag_UNKNOWN;

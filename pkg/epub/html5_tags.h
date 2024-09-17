@@ -140,6 +140,6 @@ typedef enum {
 
 extern char* html5_tagstrs[Html5Tag__SENTINEL];
 
-Html5TagType html5_tagmap_get(char*);
+Html5TagType html5_tagmap_get(const char*);
 
 #endif

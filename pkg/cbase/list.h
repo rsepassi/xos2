@@ -28,8 +28,8 @@ inline void list_reserve(list_t* ctx, size_t n);
 inline void list_clear(list_t* ctx);
 
 #define list_foreach(T, ctx, v, code) do { \
-  for (int i = 0; i < (ctx)->len; ++i) { \
-    (v) = list_get(T, (ctx), i); \
+  for (int __i = 0; __i < (ctx)->len; ++__i) { \
+    (v) = list_get(T, (ctx), __i); \
     code; \
   } \
   } while (0)

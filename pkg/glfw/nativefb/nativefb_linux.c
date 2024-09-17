@@ -9,14 +9,14 @@ static XImage* new_image(native_platform_t* p, framebuffer_t* fb) {
       24,
       ZPixmap,
       0,
-      fb->buf,
+      (char*)fb->buf,
       fb->w,
       fb->h,
       32,
       0);
 }
 
-void nativefb_init(native_platform_t* p, GLFWwindow* w, framebuffer_t* fb) {
+void nativefb_init(native_platform_t* p, void* w, framebuffer_t* fb) {
   p->display = 	glfwGetX11Display();
   p->window = glfwGetX11Window(w);
   p->gc = XCreateGC(p->display, p->window, 0, 0);

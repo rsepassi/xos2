@@ -4,7 +4,8 @@ var clay = Fn.new { |b, args|
   var h = b.fetch(
     "https://raw.githubusercontent.com/nicbarker/clay/807fd62/clay.h",
     "c9f57a20c88a04dfc29d977b074bc5948f0da3271bb5f785506ce195c5e623e0")
-  h = File.copy(h, "clay.h")
+  // h = File.copy(h, "clay.h")
+  h = File.copy(b.src("clay.h"), "clay.h")
 
   b.installHeader(h)
   var zig = b.deptool("//toolchains/zig")

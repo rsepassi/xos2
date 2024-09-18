@@ -4,7 +4,10 @@ import "os" for Process, Path
 var epub = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
   zig.ez.cLib(b, {
-    "srcs": [b.src("epub.c")],
+    "srcs": [
+      b.src("epub.c"),
+      b.src("html5_tags.c"),
+    ],
     "include": [b.src("epub.h")],
     "flags": [],
     "deps": [
@@ -18,10 +21,7 @@ var epub = Fn.new { |b, args|
 var epub_exe = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
   b.installExe(zig.buildExe(b, "epub", {
-    "c_srcs": [
-      b.src("epub_main.c"),
-      b.src("html5_tags.c"),
-    ],
+    "c_srcs": [b.src("epub_main.c")],
     "flags": [],
     "c_deps": [
       b.dep(":epub"),

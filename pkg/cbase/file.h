@@ -1,7 +1,6 @@
 #ifndef BASE_FILE_H_
 #define BASE_FILE_H_
 
-#include "base/status.h"
 #include "base/str.h"
 
 int fs_read_file(const char* fname, str_t* out);

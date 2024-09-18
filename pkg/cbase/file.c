@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "base/file.h"
+#include "base/log.h"
 
 int fs_read_file(const char* fname, str_t* out) {
     FILE* file = fopen(fname, "rb");

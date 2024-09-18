@@ -1,6 +1,23 @@
 #ifndef LOG_H_
 #define LOG_H_
 
+// OK = 0
+// ERR = 1
+// LOG(fmt, ...)
+// DLOG(fmt, ...)
+// CHECK(res, ...)
+// DCHECK(res, ...)
+// CHECK_OK(res, ...)
+// TRY(res)
+
+#ifndef OK
+#define OK 0
+#endif
+
+#ifndef ERR
+#define ERR 1
+#endif
+
 #if defined(CBASE_ABI_ANDROID)
 
 #include <android/log.h>
@@ -46,5 +63,12 @@ char* log_get_current_time();
 #else
 #define DCHECK(x, ...)
 #endif
+
+#define CHECK_OK(x, ...) CHECK((x == OK), ##__VA_ARGS__)
+
+#define TRY(x) do { \
+    int code = (x); \
+    if (code != OK) return code; \
+  } while (0)
 
 #endif  // LOG_H_

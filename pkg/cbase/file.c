@@ -3,7 +3,7 @@
 
 #include "base/file.h"
 
-Status fs_read_file(const char* fname, str_t* out) {
+int fs_read_file(const char* fname, str_t* out) {
     FILE* file = fopen(fname, "rb");
     if (!file) return ERR;
     

@@ -82,7 +82,7 @@ export fn fs_resource_read(name: c.str_t) c.str_t {
         const contents = cwd.readFileAlloc(alloc, resource_path, 1 << 30) catch panic("resource not found");
         return tocstr(contents);
     } else if (builtin.os.tag == .linux and builtin.abi == .android) {
-        const read = @extern(*const fn(c.str_t) callconv(.C) c.str_t, .{.name = "fs_resource_read_android" });
+        const read = @extern(*const fn (c.str_t) callconv(.C) c.str_t, .{ .name = "fs_resource_read_android" });
         return read(name);
     } else {
         @compileError("not implemented");

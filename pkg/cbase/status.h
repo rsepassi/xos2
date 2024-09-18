@@ -3,15 +3,13 @@
 
 #include "base/log.h"
 
-typedef enum {
-  OK,
-  ERR,
-} Status;
+#define OK 0
+#define ERR 1
 
 #define CHECK_OK(x, ...) CHECK((x == OK), ##__VA_ARGS__)
 
 #define TRY(x) do { \
-    Status code = (x); \
+    int code = (x); \
     if (code != OK) return code; \
   } while (0)
 

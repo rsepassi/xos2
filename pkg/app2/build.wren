@@ -1,4 +1,5 @@
-import "io" for File
+import "io" for File, Directory
+import "os" for Path
 
 var app2 = Fn.new { |b, args|
   var zig = b.deptool("//toolchains/zig")
@@ -82,10 +83,13 @@ class Builder {
       // xcrun simctl launch booted com.istudios.xos-app.hello
       return appdir
     } else {
+      var tmp = b.mktmpdir()
       var exe = zig.buildExe(b, opts["name"] || b.label.target, {
         "c_deps": opts["deps"],
       })
-      return exe
+      File.rename(exe, "%(tmp)/%(Path.basename(exe))")
+      if (opts["resources"]) Directory.copy(opts["resources"], "%(tmp)/resources")
+      return tmp
     }
   }
 }

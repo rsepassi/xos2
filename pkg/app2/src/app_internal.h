@@ -1,7 +1,6 @@
 #include "app.h"
 
 #include "nativefb.h"
-#include "text.h"
 
 typedef struct {
   app_state_t state;
@@ -13,19 +12,11 @@ typedef struct {
   framebuffer_t fb;
   native_platform_t platform;
   bool needs_render;
+  bool quit_requested;
 
   // During view tree construction, we use a simple fixed-size bump allocator
   // which gets reset at the beginning of each render.
   allocator_bump_t bump;
-
-  // Text state
-  FT_Library ft_library;
-  str_t font_data;
-  FT_Face ft_face;
-  hb_font_t* hb_font;
-  hb_buffer_t* hb_buf;
-  float lineh;
-  text_atlas_t atlas;
 } app_platform_t;
 
 void app__resize_fb(app_platform_t* app, int width, int height);

@@ -131,20 +131,6 @@ int main(int argc, char** argv) {
   app.state.size.w = w;
   app.state.size.h = h;
 
-  LOG("text init");
-  int font_size = 32;
-  str_t font_data = fs_resource_read(cstr("CourierPrime-Regular.ttf"));
-  FT_Library ft_library;
-  CHECK(!FT_Init_FreeType(&ft_library));
-  CHECK(!FT_New_Memory_Face(ft_library, (const FT_Byte*)font_data.bytes, font_data.len, 0, &app.ft_face));
-  FT_Set_Char_Size(app.ft_face, 0, font_size << 6, 72, 72);
-  app.lineh = text_line_height(app.ft_face);
-  app.hb_font = hb_ft_font_create(app.ft_face, NULL);
-  app.hb_buf = text_english_buf();
-  int atlash = (int)(app.lineh + 0.5);
-  int atlasw = (1 << 20) / atlash;
-  app.atlas = text_atlas_init(malloc(atlash * atlasw), atlasw, atlash);
-
   LOG("GLFW init");
   CHECK(glfwInit());
   glfwSetErrorCallback(error_callback_glfw);
@@ -180,7 +166,7 @@ int main(int argc, char** argv) {
 
   LOG("UI loop...");
   app.needs_render = true;
-  while (!glfwWindowShouldClose(window)) {
+  while (!glfwWindowShouldClose(window) && !app.quit_requested) {
     if (app.needs_render) {
       app__render(&app);
       app.needs_render = false;
@@ -196,13 +182,6 @@ int main(int argc, char** argv) {
   nativefb_deinit(&app.platform);
   glfwDestroyWindow(window);
   glfwTerminate();
-  text_atlas_deinit(&app.atlas);
-  free(app.atlas.buf);
-  hb_buffer_destroy(app.hb_buf);
-  hb_font_destroy(app.hb_font);
-  FT_Done_Face(app.ft_face);
-  free((void*)font_data.bytes);
-  FT_Done_FreeType(ft_library);
   free(app.bump.buf);
 
   LOG("goodbye");

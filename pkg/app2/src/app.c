@@ -15,6 +15,10 @@ str_t app_frame_strfmt(app_state_t* app, char* fmt, ...) {
   return s;
 }
 
+void app_quit(app_state_t* state) {
+  ((app_platform_t*)(state->platform))->quit_requested = true;
+}
+
 void app__resize_fb(app_platform_t* app, int width, int height) {
   if (app->fb.w == width && app->fb.h == height) return;
   app->fb.buf = realloc(app->fb.buf, width * height * sizeof(uint32_t));
@@ -30,6 +34,10 @@ void app__render(app_platform_t* app) {
   app->init.render(app->init.userdata);
   app->state.last_render_ms = app__gettimems(app);
   nativefb_trigger_refresh(&app->platform, &app->fb);
+}
+
+u64 app_gettimems(app_state_t* state) {
+  return app__gettimems(state->platform);
 }
 
 void app_mark_needs_render(app_state_t* state) {

@@ -136,5 +136,7 @@ void app_mark_needs_render(app_state_t* state);
 void app_onscreen_keyboard(app_state_t* state, bool show);
 const char* app_event_type_str(app_event_type_t);
 str_t app_frame_strfmt(app_state_t* app, char* fmt, ...);
+u64 app_gettimems(app_state_t* app);
+void app_quit(app_state_t* app);
 
 #endif

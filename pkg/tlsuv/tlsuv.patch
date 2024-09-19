@@ -1,0 +1,37 @@
+diff --git a/src/compression.c b/src/compression.c
+index 7ff1454..4bbe298 100644
+--- a/src/compression.c
++++ b/src/compression.c
+@@ -63,10 +63,6 @@ static void comp_free(void *ctx, void *p) {
+ #endif
+ 
+ static void init(void) {
+-
+-#if _WIN32
+-    // on WIN32 zlib is not usually available
+-    // so we link it statically and set functions pointers directly
+     zlib_ver = zlibVersion;
+     zlib_flags = zlibCompileFlags;
+     inflateInit_f = inflateInit_;
+@@ -74,21 +70,6 @@ static void init(void) {
+     inflateEnd_f = inflateEnd;
+     inflate_f = inflate;
+     zError_f = zError;
+-#else
+-#define CHECK_DL(op) do{ \
+-if ((op) != 0)           \
+-goto on_error;           \
+-} while(0)
+-
+-    CHECK_DL(uv_dlopen(SO_lib(libz), &zlib));
+-    CHECK_DL(uv_dlsym(&zlib, "zlibVersion", (void **) &zlib_ver));
+-    CHECK_DL(uv_dlsym(&zlib, "zlibCompileFlags", (void **) &zlib_flags));
+-    CHECK_DL(uv_dlsym(&zlib, "inflateEnd", (void **) &inflateEnd_f));
+-    CHECK_DL(uv_dlsym(&zlib, "inflateInit_", (void **) &inflateInit_f));
+-    CHECK_DL(uv_dlsym(&zlib, "inflateInit2_", (void **) &inflateInit2_f));
+-    CHECK_DL(uv_dlsym(&zlib, "inflate", (void **) &inflate_f));
+-    CHECK_DL(uv_dlsym(&zlib, "zError", (void **) &zError_f));
+-#endif
+ 
+     ZLibVersion = zlib_ver();
+     if (ZLibVersion[0] != ZLIB_VERSION[0]) {

@@ -349,6 +349,27 @@ static void epub_parse_xhtml_text(epub_node_t* n, xmlparser_t* x, TidyNode cur) 
   for (; cur; cur = tidyGetNext(cur)) epub_parse_xhtml_text(n, x, cur);
 }
 
+static void epub_parse_xhtml_list(epub_section_t* section, xmlparser_t* x, TidyNode cur, Html5TagType type) {
+  cur = tidyGetChild(cur);
+  if (!cur) return;
+
+  char numbuf[32];
+  int i = 0;
+  for (; cur; cur = tidyGetNext(cur)) {
+    epub_node_t* n = list_add(epub_node_t, &section->nodes);
+    n->type = EpubNodeParagraph;
+    n->contents = list_init(u8, -1);
+    if (type == Html5Tag_ol) {
+      int numlen = snprintf(numbuf, 32, "%d. ", i + 1);
+      str_add(&n->contents, str_init(numbuf, numlen));
+    } else {
+      str_add(&n->contents, cstr("* "));
+    }
+    epub_parse_xhtml_text(n, x, cur);
+    ++i;
+  }
+}
+
 static void epub_parse_xhtml_body(epub_section_t* section, xmlparser_t* x, TidyNode cur) {
   // If we hit text directly in a structural element, treat it like a paragraph
   if (tidyNodeIsText(cur)) {
@@ -424,6 +445,7 @@ static void epub_parse_xhtml_body(epub_section_t* section, xmlparser_t* x, TidyN
         case Html5Tag_strike:
         case Html5Tag_tt:
         case Html5Tag_xmp:
+        case Html5Tag_li:
 
         // Paragraphs
         case Html5Tag_p:
@@ -439,10 +461,9 @@ static void epub_parse_xhtml_body(epub_section_t* section, xmlparser_t* x, TidyN
         // Lists
         case Html5Tag_ul:
         case Html5Tag_ol:
-        case Html5Tag_li:
         case Html5Tag_menu:
         case Html5Tag_dir:
-          LOG("tag skip = list");
+          epub_parse_xhtml_list(section, x, cur, type);
           break;
 
         // Table

@@ -29,7 +29,7 @@ class zig {
   static getUrl_(target) {
     var version = "0.12.0"
     var suffix = target.os == "windows" ? "zip" : "tar.xz"
-    return "https://ziglang.org/builds/zig-%(target.os)-%(target.arch)-%(version).%(suffix)"
+    return "https://ziglang.org/download/%(version)/zig-%(target.os)-%(target.arch)-%(version).%(suffix)"
   }
 
   static call(b, args) {

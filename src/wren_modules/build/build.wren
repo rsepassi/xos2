@@ -106,7 +106,10 @@ class Build {
   }
   dep(label) { dep(label, []) }
   dep(label, label_args) { dep(label, label_args, argsCopy_) }
-  dep(label, label_args, build_args) {
+  dep(label, label_args, build_args_override) {
+    var build_args = argsCopy_
+    for (el in build_args_override) build_args[el.key] = el.value
+
     label = Build.Label.parse(label, this.label.srcdir)
     Log.debug("%(_label) depends on %(label)")
     var b = subbuild_({

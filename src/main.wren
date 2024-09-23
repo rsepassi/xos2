@@ -243,7 +243,7 @@ var new = Fn.new { |args|
 #include \"%(target).h\"
 
 int main(int argc, char** argv) {
-  LOG(\"hello world!\\n\");
+  LOG(\"hello world!\");
   return 0;
 }
 "

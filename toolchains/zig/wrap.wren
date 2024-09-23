@@ -384,6 +384,7 @@ var GetCArgs_ = Fn.new { |b, opts|
 
     // determinism
     args.addAll([
+      "-funsigned-char",
       "-Wno-builtin-macro-redefined",
       "-D__DATE__=",
       "-D__TIME__=",

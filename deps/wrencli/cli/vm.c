@@ -158,10 +158,12 @@ static void findModulesDirectory(const char* module_name)
 static const char* resolveModule(WrenVM* vm, const char* importer,
                                  const char* module)
 {
-  xosCtxCaptureImportsAdd(vm, module);
 
   // Logical import strings are used as-is and need no resolution.
-  if (pathType(module) == PATH_TYPE_SIMPLE) return module;
+  if (pathType(module) == PATH_TYPE_SIMPLE) {
+    xosCtxCaptureImportsAdd(vm, module);
+    return module;
+  }
 
   bool isxos = strncmp(importer, "xos//", 5) == 0;
   if (isxos) importer += 5;
@@ -185,6 +187,7 @@ static const char* resolveModule(WrenVM* vm, const char* importer,
   }
 
   pathFree(path);
+  xosCtxCaptureImportsAdd(vm, resolved);
   return resolved;
 }
 

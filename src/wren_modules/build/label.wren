@@ -9,6 +9,7 @@ import "io" for Directory, File
 
 import "build/config" for Config
 import "build/install_dir" for InstallDir
+import "build/repo" for RepoManager
 
 var Log = Logger.get("xos")
 
@@ -19,12 +20,12 @@ class Label {
 
   toString { "@%(repo)//%(_path):%(_target)" }
 
-  srcdir { _path.isEmpty ? repoPath : Path.join([repoPath, _path]) }
-  repoPath { Label.repoPath(repo) }
+  srcdir { _path.isEmpty ? repoPath_ : Path.join([repoPath_, _path]) }
   modulePath { Path.join([srcdir, "build.wren"]) }
-  moduleName { _path.isEmpty ? "xos//build" : "xos//%(_path)/build" }
 
-  static parse(label, label_src_dir) {
+  static parse(label, label_src_dir, cache) {
+    if (__repos == null) __repos = RepoManager.new(cache)
+
     // Valid forms:
     //   @repo//path
     //   @repo//path:target
@@ -35,7 +36,7 @@ class Label {
     //   :target
 
     var parts = Label.parseLabel_(label)
-    var repo = parts[0] || "local"
+    var repo = parts[0] || __repos.translateLocal(label_src_dir)
     var path = parts[1]
     var target = parts[2] || Path.basename(path).replace("-", "_")
 
@@ -43,16 +44,9 @@ class Label {
       path = path[2..-1]
     } else {
       // Make the path relative to the repo root
-      var root = Label.repoPath(repo)
-      if (!label_src_dir.startsWith(root)) Fiber.abort("The label %(label) is referenced from %(label_src_dir) which doesn't seem to be within the repository rooted at %(root)")
-      if (label_src_dir != root) {
-        label_src_dir = label_src_dir[root.count + 1..-1]
-        if (path == null || path.isEmpty) {
-          path = label_src_dir
-        } else {
-          path = Path.join([label_src_dir, path])
-        }
-      }
+      var repo = __repos.get(repo)
+      if (!label_src_dir.startsWith(repo.dir)) Fiber.abort("The label %(label) is referenced from %(label_src_dir) which doesn't seem to be within the repository rooted at %(repo.dir)")
+      path = repo.relativePath(label_src_dir, path)
     }
 
     return Label.new_(repo, path, target)
@@ -60,27 +54,26 @@ class Label {
 
   getBuilder() {
     if (_builder == null) {
-      if (_repo != "local") Fiber.abort("repo unimplemented, specified in %(this)")
+      var repo = __repos.get(_repo)
 
       var capture = Meta.captureImports {
-        Meta.eval("import \"%(moduleName)\"")
+        Meta.eval("import \"%(moduleName_)\"")
       }
       capture.call()
 
       var f = Fiber.new {
-        return Meta.getModuleVariable(moduleName, _target)
+        return Meta.getModuleVariable(moduleName_, _target)
       }
       var fn = f.try()
       if (f.error != null) Fiber.abort("unable to load variable '%(_target)' from %(modulePath)")
-      _builder = Builder.new(fn, capture.imports)
+      _builder = Builder_.new(this, fn, capture.imports)
     }
     return _builder
   }
 
-  static repoPath(repo) {
-    if (repo != "local") Fiber.abort("repo unimplemented")
-    return Config.get("repo_root")
-  }
+  static repoPath_(repo) { __repos.get(repo).dir }
+  repoPath_ { Label.repoPath_(repo) }
+  moduleName_ { __repos.get(_repo).modulePath(_path, "build") }
 
   static parseLabel_(s) {
     var repo = null
@@ -116,8 +109,9 @@ class Label {
   }
 }
 
-class Builder {
-  construct new(fn, imports) {
+class Builder_ {
+  construct new(label, fn, imports) {
+    _label = label
     _fn = fn
     _imports = imports
   }
@@ -142,7 +136,7 @@ class Builder {
       if (f.error.endsWith("does not implement 'wrap(_)'.")) {
         return dir
       } else {
-        Fiber.abort("error: wrapping the output of %(this) failed: %(f.error)")
+        Fiber.abort("error: wrapping the output of %(_label) failed: %(f.error)")
       }
     }
     return wrap

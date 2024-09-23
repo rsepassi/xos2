@@ -35,6 +35,7 @@ var BuiltinModules_ = {
   "build/config": 1,
   "build/target": 1,
   "build/install_dir": 1,
+  "build/repo": 1,
 }
 
 class Build {
@@ -73,22 +74,7 @@ class Build {
   fetch(url, hash) {
     var path = _cache.getContent(hash)
     if (path == null) {
-      StopwatchTree.time(url) {
-        var tmp_dst = _cache_entry.mktmp()
-        Log.debug("%(_label) fetching %(url) to %(tmp_dst)")
-        var stdio = NormalizeStdio_.call(null)
-        if (Config.get("bootstrap")) {
-          spawn(["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst], null, stdio)
-        } else {
-          var args = [Target.host.exeName("curl"), "-s", "-L", url, "-o", tmp_dst]
-          Log.debug("%(args)")
-          spawn(args, null, stdio)
-        }
-        var computed_hash = _cache.setContent(tmp_dst)
-        if (hash != computed_hash) {
-          Fiber.abort("unexpected hash for %(url).\nexpected %(hash)\nfetched  %(computed_hash)")
-        }
-      }
+      StopwatchTree.time(url) { _cache.fetch(url, hash) }
     } else {
       Log.debug("%(_label) fetching %(url), cached")
     }
@@ -110,7 +96,7 @@ class Build {
     var build_args = argsCopy_
     for (el in build_args_override) build_args[el.key] = el.value
 
-    label = Build.Label.parse(label, this.label.srcdir)
+    label = Label.parse(label, this.label.srcdir, _cache)
     Log.debug("%(_label) depends on %(label)")
     var b = subbuild_({
       "label": label,
@@ -301,7 +287,7 @@ class Build {
       var module_path = Path.join([Config.get("repo_root"), module[5..-1]])
       _deps["imports"][module] = _cache.fileHasher.hash("%(module_path).wren")
     } else {
-      b.src("%(module).wren")
+      src("%(module).wren")
     }
   }
 
@@ -459,7 +445,7 @@ class Build {
             "target": Target.parse(f["build_args"]["target"]),
             "opt": f["build_args"]["opt"],
           },
-          "label": Label.parse(sub_label, label.srcdir),
+          "label": Label.parse(sub_label, label.srcdir, _cache),
           "label_args": f["label_args"],
         })
 

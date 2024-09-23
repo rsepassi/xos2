@@ -1,10 +1,11 @@
 import "io" for Directory, File
-import "os" for Path
+import "os" for Path, Process
 import "hash" for Sha256
 import "json" for JSON
 import "log" for Logger
 
 import "build/config" for Config
+import "build/target" for Target
 
 var Log = Logger.get("xos")
 
@@ -13,6 +14,7 @@ class BuildCache {
     var dir = Directory.ensure(Path.join(["%(Config.get("repo_root"))", ".xos-cache"]))
     Directory.ensure(Path.join([dir, "content"]))
     Directory.ensure(Path.join([dir, "label"]))
+    Directory.ensure(Path.join([dir, "repos"]))
     _dir = dir
     if (_cache == null) _cache = {
       "label": {},
@@ -22,6 +24,8 @@ class BuildCache {
   }
 
   dir { _dir }
+  repoDir { Path.join([dir, "repos"]) }
+  repoDir(hash) { Path.join([repoDir, hash]) }
 
   entry(key) {
     if (!_cache["label"].containsKey(key)) {
@@ -55,7 +59,33 @@ class BuildCache {
     return Path.join([d, hash])
   }
 
+  tmpPathForHash_(hash) {
+    return contentPathForHash_(hash) + ".tmp"
+  }
+
   fileHasher { _file_cache }
+
+  fetch(url, hash) {
+    var path = getContent(hash)
+    if (path != null) return path
+
+    var tmp_dst = tmpPathForHash_(hash)
+    Log.debug("Fetching %(url) to %(tmp_dst)")
+    var args
+    if (Config.get("bootstrap")) {
+      args = ["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst]
+    } else {
+      args = [Target.host.exeName("curl"), "-s", "-L", url, "-o", tmp_dst]
+    }
+
+    Process.spawn(args, null, [null, 1, 2])
+
+    var computed_hash = setContent(tmp_dst)
+    if (hash != computed_hash) {
+      Fiber.abort("unexpected hash for %(url).\nexpected %(hash)\nfetched  %(computed_hash)")
+    }
+    return contentPathForHash_(hash)
+  }
 }
 
 class BuildCacheEntry_ {

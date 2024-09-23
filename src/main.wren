@@ -57,7 +57,8 @@ xos build [<build-flags>...] <label> [-- <label-arg>...]
   }
 
   // Parse label argument
-  var label = Build.Label.parse(args[argi], Config.get("cwd"))
+  var cache = BuildCache.new()
+  var label = Build.Label.parse(args[argi], Config.get("cwd"), cache)
   argi = argi + 1
   if (!File.exists(label.modulePath)) {
     System.print("error: no build script exists at %(label.modulePath)")
@@ -86,6 +87,7 @@ xos build [<build-flags>...] <label> [-- <label-arg>...]
     "build_args": build_flags,
     "label": label,
     "label_args": label_args,
+    "cache": cache,
   })
   Log.debug("%(b)")
   var out = b.build_()

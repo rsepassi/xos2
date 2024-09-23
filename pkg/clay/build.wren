@@ -1,18 +1,37 @@
+import "flagparse" for FlagParser
 import "io" for File
+import "json" for JSON
+
+var F = FlagParser.Flag
 
 var clay = Fn.new { |b, args|
-  var h = b.fetch(
-    "https://raw.githubusercontent.com/nicbarker/clay/807fd62/clay.h",
-    "c9f57a20c88a04dfc29d977b074bc5948f0da3271bb5f785506ce195c5e623e0")
-  // h = File.copy(h, "clay.h")
-  h = File.copy(b.src("clay.h"), "clay.h")
+  var flags = FlagParser.new("clay", [
+    F.opt("txt", {"default": ""}),
+    F.opt("defines", {"default": {}, "parser": JSON}),
+  ]).parse(args)
 
-  b.installHeader(h)
+  File.copy(b.src("clay.h"), "clay.h")
+
+  var defines = []
+  for (def in flags["defines"]) {
+    defines.add("#define %(def.key) %(def.value)")
+  }
+  defines = defines.join("\n")
+
+  var contents = "
+#define CLAY_IMPLEMENTATION
+%(flags["txt"])
+%(defines)
+#include \"clay.h\"
+  "
+  File.write("clay.c", contents)
+
   var zig = b.deptool("//toolchains/zig")
-  b.installLibConfig(zig.libConfig(b, "clay", {
-    "nostdopts": true,
-    "cflags": ["-I{{root}}/include"],
-  }))
+  zig.ez.cLib(b, {
+    "srcs": ["clay.c"],
+    "include": ["clay.h"],
+    "deps": [b.dep("//pkg/cbase")],
+  })
 }
 
 var demo = Fn.new { |b, args|

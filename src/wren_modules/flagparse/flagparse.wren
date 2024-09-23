@@ -2,6 +2,8 @@
 // configuration.
 
 class FlagParserFlag {
+  static opt(name) { optional(name) }
+  static opt(name, config) { optional(name, config) }
   static optional(name) { optional(name, {}) }
   static optional(name, config) { FlagParserFlag.new_(name, config) }
 

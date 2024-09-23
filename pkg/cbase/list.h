@@ -7,9 +7,9 @@
 #include "base/allocator.h"
 
 typedef struct {
+  size_t len;
   uint8_t* base;
   size_t cap;
-  size_t len;
   size_t elsz;
   allocator_t alloc;
 } list_t;

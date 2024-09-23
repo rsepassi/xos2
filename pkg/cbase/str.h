@@ -8,12 +8,12 @@
 
 typedef struct {
   size_t len;
-  const char* bytes;
+  uint8_t* bytes;
 } str_t;
 
 
 #define str_init(s, l) ((str_t){.bytes = s, .len = l})
-#define cstr(x) ((str_t){.bytes = x, .len = strlen(x)})
+#define cstr(x) ((str_t){.bytes = (uint8_t*)x, .len = strlen(x)})
 
 void *malloc( size_t size );
 static inline str_t str_copy(str_t s) {
@@ -24,14 +24,12 @@ static inline str_t str_copy(str_t s) {
   return out;
 }
 
-static inline str_t str_from_list(list_t l) {
-  return (str_t){.bytes = (char*)l.base, .len = l.len};
-}
+#define str_from_list(lst) (*(str_t*)(&lst))
 
 static inline str_t str_add(list_t* l, str_t s) {
   uint8_t* ptr = list_addn(uint8_t, l, s.len);
   memcpy(ptr, s.bytes, s.len);
-  return str_init((char*)ptr, s.len);
+  return str_init(ptr, s.len);
 }
 
 static inline uint32_t str_hash(str_t str) {

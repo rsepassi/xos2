@@ -8,7 +8,7 @@ fn fromcstr(x: c.str_t) []const u8 {
 
 fn tocstr(x: []const u8) c.str_t {
     return .{
-        .bytes = x.ptr,
+        .bytes = @constCast(x.ptr),
         .len = x.len,
     };
 }

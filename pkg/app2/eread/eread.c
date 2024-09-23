@@ -5,10 +5,9 @@
 #include "base/log.h"
 #include "base/file.h"
 
-typedef struct app_s app_t;
 #define CLAY_MAX_ELEMENT_COUNT 8192
-#define CLAY_EXTEND_CONFIG_TEXT \
-  app_t* app;
+typedef struct app_s app_t;
+#define CLAY_EXTEND_CONFIG_TEXT app_t* app;
 #include "clay.h"
 
 #include "text.h"
@@ -43,7 +42,7 @@ static inline Clay_Dimensions measure_text(
     Clay_TextElementConfig* config) {
   app_t* app = config->app;
   float width = text_measure(
-      (str_t){.bytes = text->chars, .len = text->length},
+      (str_t){.bytes = (u8*)text->chars, .len = text->length},
       app->txt.hb_font, app->txt.hb_buf);
   return (Clay_Dimensions){.width = width, .height = app->txt.lineh};
 }
@@ -73,7 +72,7 @@ static inline uint32_t convertColor(Clay_Color color) {
 }
 
 static Clay_String claystr(str_t s) {
-  return (Clay_String){.length = s.len, .chars = s.bytes};
+  return (Clay_String){.length = s.len, .chars = (char*)s.bytes};
 }
 
 static void build_view_tree(app_t* app) {
@@ -113,10 +112,11 @@ static void render(void* ctx) {
   u16 w = app->state->size.w;
   LOG("render (%d, %d)", w, h);
 
-  Clay_BeginLayout(w, h);
+  Clay_BeginLayout();
+  Clay_SetLayoutDimensions((Clay_Dimensions){.width = w, .height = h});
   build_view_tree(app);
   LOG("view tree done");
-  Clay_RenderCommandArray renderCommands = Clay_EndLayout(w, h);
+  Clay_RenderCommandArray renderCommands = Clay_EndLayout();
   LOG("layout done");
 
   framebuffer_t* fb = app->state->fb;
@@ -144,7 +144,7 @@ static void render(void* ctx) {
 
         // Shape
         text_glyph_info_t shaped = text_shape(
-            (str_t){.bytes = text->chars, .len = text->length},
+            (str_t){.bytes = (u8*)text->chars, .len = text->length},
             app->txt.hb_font, app->txt.hb_buf);
 
         // Render
@@ -232,10 +232,10 @@ static void on_event(void* userdata, app_event_t* ev) {
 
   switch (ev->type) {
     case AppEventMouseMotion:
-      Clay_SetPointerPosition((Clay_Vector2){
+      Clay_SetPointerState((Clay_Vector2){
           ev->data.pos.x,
           ev->data.pos.y,
-      });
+      }, false);
       break;
     case AppEventKey:
       key = ev->data.key.key;
@@ -290,12 +290,15 @@ void app_init(app_state_t* state, app_init_t* init) {
   app->state = state;
   text_init(&app->txt);
 
+  u16 w = 1024;
+  u16 h = 1024;
+
   uint64_t totalMemorySize = CLAY_MAX_ELEMENT_COUNT * 1 << 10;
   char* clay_buf = malloc(totalMemorySize);
   Clay_Arena arena = Clay_CreateArenaWithCapacityAndMemory(
       totalMemorySize, clay_buf);
   Clay_SetMeasureTextFunction(measure_text);
-  Clay_Initialize(arena);
+  Clay_Initialize(arena, (Clay_Dimensions){.width = w, .height = h});
 
   str_t epub_buf = fs_resource_read(cstr("communist-manifesto.epub"));
 
@@ -314,6 +317,6 @@ void app_init(app_state_t* state, app_init_t* init) {
   init->userdata = app;
   init->on_event = on_event;
   init->render = render;
-  init->initial_size = (app_size2d_t){ .w = 1024, .h = 1024 };
+  init->initial_size = (app_size2d_t){ .w = w, .h = h };
   init->window_title = "eReader";
 }

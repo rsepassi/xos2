@@ -48,7 +48,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .linkage = if (os == .linux) .static else null,
-        .strip = true,
+        .strip = !(optimize == .Debug or optimize == .ReleaseSafe),
     });
     exe.defineCMacro("HAVE_CONFIG_H", "1");
     exe.defineCMacro("BUILDING_CURL", null);

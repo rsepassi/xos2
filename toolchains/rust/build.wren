@@ -30,7 +30,7 @@ class rust {
   }
 
   static wrap(dir) {
-    import "xos//toolchains/rust/wrap" for Rust
+    import "./wrap" for Rust
     return Rust.new(dir)
   }
 }

@@ -159,8 +159,12 @@ static const char* resolveModule(WrenVM* vm, const char* importer,
                                  const char* module)
 {
   xosCtxCaptureImportsAdd(vm, module);
+
   // Logical import strings are used as-is and need no resolution.
   if (pathType(module) == PATH_TYPE_SIMPLE) return module;
+
+  bool isxos = strncmp(importer, "xos//", 5) == 0;
+  if (isxos) importer += 5;
 
   // Get the directory containing the importing module.
   Path* path = pathNew(importer);
@@ -170,7 +174,15 @@ static const char* resolveModule(WrenVM* vm, const char* importer,
   pathJoin(path, module);
 
   pathNormalize(path);
-  char* resolved = pathToString(path);
+  char* resolved;
+  if (!isxos) {
+    resolved = pathToString(path);
+  } else {
+    resolved = (char*)malloc(path->length + 6);
+    memcpy(resolved, "xos//", 5);
+    memcpy(resolved + 5, path->chars, path->length);
+    resolved[path->length + 5] = '\0';
+  }
 
   pathFree(path);
   return resolved;

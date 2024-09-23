@@ -5,7 +5,7 @@ import "log" for Logger
 import "record" for Record
 
 import "build/config" for Config
-import "xos//toolchains/zig/platform" for Platform
+import "./platform" for Platform
 
 var Log = Logger.get("zig")
 

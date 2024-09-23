@@ -1,8 +1,6 @@
 import "io" for Directory
 import "os" for Process
 
-import "xos//toolchains/zig/wrap" for Zig
-
 var busybox = Fn.new { |b, args|
   var src = b.untar(b.fetch(
     "https://github.com/rsepassi/busybox-bin/releases/download/v20240612/busybox.tar.gz",

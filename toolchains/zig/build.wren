@@ -42,7 +42,7 @@ class zig {
   }
 
   static wrap(dir) {
-    import "xos//toolchains/zig/wrap" for Zig
+    import "./wrap" for Zig
     return Zig.new(dir)
   }
 }

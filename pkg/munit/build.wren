@@ -9,10 +9,10 @@ var munit = Fn.new { |b, args|
 
   var addl = """
 #define MUNIT_ENABLE_ASSERT_ALIASES
-#define TEST(name, blk) \
+#define TEST(name, ...) \
   static MunitResult test_ ## name ( \
       const MunitParameter params[], void* data) { \
-    blk \
+    __VA_ARGS__ \
     return MUNIT_OK; \
   }
 #define TESTMAIN(name, suite_tests) \

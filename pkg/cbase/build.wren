@@ -67,3 +67,14 @@ var cbase = Fn.new { |b, args|
   }))
   b.install("include", "base")
 }
+
+var test = Fn.new { |b, args|
+  var zig = b.deptool("//toolchains/zig")
+  b.installExe(zig.buildExe(b, "test", {
+    "c_srcs": [b.src("test/test.c")],
+    "c_deps": [
+      b.dep(":cbase"),
+      b.dep("//pkg/munit"),
+    ],
+  }))
+}

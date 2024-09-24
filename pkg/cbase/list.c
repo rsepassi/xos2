@@ -9,7 +9,7 @@ static inline void Realloc(list_t* ctx, size_t newsz) {
 list_t list_init2(size_t elsz, int cap) {
   cap = cap < 0 ? 64 : cap;
   allocator_t alloc = allocator_default();
-  void* base = allocator_realloc(&alloc, NULL, 0, cap * elsz);
+  void* base = cap == 0 ? 0 : allocator_realloc(&alloc, NULL, 0, cap * elsz);
   return (list_t){
     .base = base,
     .cap = cap,
@@ -20,7 +20,7 @@ list_t list_init2(size_t elsz, int cap) {
 }
 
 void list_deinit(list_t* ctx) {
-  Realloc(ctx, 0);
+  if (ctx->cap > 0) Realloc(ctx, 0);
 }
 
 uint8_t* list_get2(list_t* ctx, int i) {
@@ -41,11 +41,7 @@ void list_clear(list_t* ctx) {
 }
 
 uint8_t* list_addn2(list_t* ctx, size_t n) {
-  if ((ctx->len + n) > ctx->cap) {
-    ctx->cap = (ctx->len + n) * 2;
-    Realloc(ctx, ctx->cap * ctx->elsz);
-  }
-
+  if ((ctx->len + n) > ctx->cap) list_reserve(ctx, (ctx->len + n) * 2);
   uint8_t* cur = &ctx->base[ctx->elsz * ctx->len];
   ctx->len += n;
   return cur;

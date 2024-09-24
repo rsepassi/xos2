@@ -8,6 +8,7 @@ var munit = Fn.new { |b, args|
 
 
   var addl = """
+#define MUNIT_ENABLE_ASSERT_ALIASES
 #define TEST(name, blk) \
   static MunitResult test_ ## name ( \
       const MunitParameter params[], void* data) { \

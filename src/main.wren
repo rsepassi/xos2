@@ -108,6 +108,13 @@ var build = Fn.new { |args|
   return true
 }
 
+var test = Fn.new { |args|
+  buildInner.call(args, true)
+  var host = Config.get("host_target")
+  Process.spawn([Path.join(["xos-out", "bin", host.exeName("test")])], null, [null, 1, 2])
+  return true
+}
+
 
 var run = Fn.new { |args|
   var usage = "
@@ -289,6 +296,7 @@ var %(target)_exe = Fn.new { |b, args|
 CMDS = {
   "help": help,
   "build": build,
+  "test": test,
   "run": run,
   "env": env_cmd,
   "cache": cache,

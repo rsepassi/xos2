@@ -15,10 +15,18 @@ var munit = Fn.new { |b, args|
     __VA_ARGS__ \
     return MUNIT_OK; \
   }
-#define TESTMAIN(name, suite_tests) \
+#define TESTMAIN(munitname, suite_tests) \
   int main(int argc, char** argv) { \
-    MunitSuite test_suite = {name "_", suite_tests}; \
-    return munit_suite_main(&test_suite, name, argc, argv); \
+    if (argc == 2 && argv[1][0] != '-') { \
+      MunitTest* test = &suite_tests[0]; \
+      while (test->name != 0 && strcmp(test->name, argv[1])) ++test; \
+      if (test->name == 0) munit_log(MUNIT_LOG_ERROR, "no test found"); \
+      int ok = test->test(NULL, NULL) == MUNIT_OK; \
+      munit_log(MUNIT_LOG_INFO, ok ? "ok" : "fail"); \
+      return !ok; \
+    } \
+    MunitSuite test_suite = {munitname "_", suite_tests}; \
+    return munit_suite_main(&test_suite, munitname, argc, argv); \
   }
   """
 

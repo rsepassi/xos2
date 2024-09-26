@@ -5,61 +5,94 @@
 typedef struct Reactive_s Reactive;
 typedef struct ReactiveWatcher_s ReactiveWatcher;
 typedef struct Reactive__advance_s Reactive__advance;
-
-// TODO: enable consistent reads during a tick.
 // Internal helpers.
 struct Reactive__advance_s {
   Reactive* r;
-  void (*cb)(Reactive* r);
+  void (*tick)(Reactive* r);
+  u64 tid;
   Reactive__advance* next;
 };
+void reactive__mark_get(Reactive* r);
+void reactive__mark_set(Reactive* r);
+#ifdef DEBUG
+#include "base/log.h"
+#define REACTIVE_DEBUG_DATA \
+  char* name;
+#define REACTIVE_SETNAME(r, rname) do { (r)->name = rname; } while(0)
+#define REACTIVE_LOGF(tag, r, fmt, ...) do { \
+    if (r->name) { \
+      LOG("%s: %s" fmt, tag, r->name, ##__VA_ARGS__); \
+    } else { \
+      LOG("%s: %p" fmt, tag, r, ##__VA_ARGS__); \
+    } \
+  } while (0)
+#define REACTIVE_LOG(tag, r) REACTIVE_LOGF(tag, r, "")
+#else
+#define REACTIVE_DEBUG_DATA
+#define REACTIVE_SETNAME(r, name)
+#define REACTIVE_LOG(tag, r)
+#define REACTIVE_LOGF(tag, r, fmt, ...)
+#endif
 
 // All reactive objects have as a struct prefix a Reactive, which
 // maintains a linked list of active watchers.
 struct Reactive_s {
+  REACTIVE_DEBUG_DATA
   ReactiveWatcher* watchers;
   Reactive__advance _advance;
 };
-typedef void (*ReactiveCb)(void* userdata, Reactive*);
+
+// A watcher is a user-provided function that will be called when a reactive
+// value changes.
+typedef void (*ReactiveWatchFn)(void* userdata, Reactive*);
 struct ReactiveWatcher_s {
-  ReactiveCb cb;
+  ReactiveWatchFn cb;
   void* userdata;
   ReactiveWatcher* _next;
+  u64 _tid;  // called at most once per tx
 };
 
-// Register interest in a reactive value.
+// Start/stop watching a reactive value.
 void reactive_watch(Reactive* r, ReactiveWatcher* watcher);
-// Stop watching a reactive value.
 void reactive_leave(Reactive* r, ReactiveWatcher* watcher);
 
-// Within a scope, all accessed reactive values will have the scope's watcher
-// registered.
-typedef struct ReactiveScope_s ReactiveScope;
-struct ReactiveScope_s {
+// Within a watch scope, all accessed reactive values will have the scope's
+// watcher registered.
+typedef struct ReactiveWatchScope_s ReactiveWatchScope;
+struct ReactiveWatchScope_s {
   ReactiveWatcher watcher;
-  ReactiveScope* _next;
+  ReactiveWatchScope* _next;
 };
-void reactive_scope_push(ReactiveScope* scope);
-void reactive_scope_pop();
-// Call the fn under the given scope.
-static inline void reactive_scope(ReactiveScope* scope, void* userdata, void (*fn)(void*)) {
-  reactive_scope_push(scope);
+void reactive_watch_scope_push(ReactiveWatchScope* scope);
+void reactive_watch_scope_pop();
+// Call the fn under the given watch scope.
+static inline void reactive_watch_scope(
+    ReactiveWatchScope* scope, void* userdata, void (*fn)(void*)) {
+  reactive_watch_scope_push(scope);
   fn(userdata);
-  reactive_scope_pop();
+  reactive_watch_scope_pop();
 }
 
-// Manually trigger a reactive value as read/updated.
-// Called as part of type-specific reactive_T_{get,set}.
-// Typically does not need to be called directly.
-void reactive_mark_get(Reactive* r);
-void reactive_mark_set(Reactive* r);
+// Batch changes together in a single transaction.
+// The tx fn will see a consistent view of all reactive values.
+// All reactive values will advance to their new values atomically.
+//
+// Note however that derived values may take a few ticks to settle to their
+// new values depending on the dependency graph and watcher order.
+void reactive_tx_start();
+void reactive_tx_commit();
+static inline void reactive_tx(void* userdata, void (*fn)(void*)) {
+  reactive_tx_start();
+  fn(userdata);
+  reactive_tx_commit();
+}
 
 // Helpers for equality checks
 //
 // == equality for plain old data types
 #define reactive_eq_pod(a, b) a == b
 // Ignore equality, always trigger on set
-#define reactive_eq_alwaysupdate(a, b) false
+#define reactive_eq_alwaystrigger(a, b) false
 
 // Declare typed reactive values
 //
@@ -75,12 +108,12 @@ void reactive_mark_set(Reactive* r);
   } Reactive_ ## name; \
  \
   static inline T reactive_ ## name ## _get(Reactive_ ## name* r) { \
-    reactive_mark_get(&r->base); \
+    reactive__mark_get(&r->base); \
     return r->value; \
   } \
  \
   static inline T* reactive_ ## name ## _getp(Reactive_ ## name* r) { \
-    reactive_mark_get(&r->base); \
+    reactive__mark_get(&r->base); \
     return &r->value; \
   } \
  \
@@ -91,18 +124,12 @@ void reactive_mark_set(Reactive* r);
  \
   static inline void reactive_ ## name ## _set(Reactive_ ## name* r, T v) { \
     if (eqfn(r->value, v)) return; \
-    r->base._advance.cb = reactive__ ## name ## _tick; \
-    r->value = v; \
-    reactive_mark_set(&r->base); \
+    r->base._advance.tick = reactive__ ## name ## _tick; \
+    r->_value_next = v; \
+    reactive__mark_set(&r->base); \
   }
 #define REACTIVE2(T, eqfn) REACTIVE3(T, T, eqfn)
 #define REACTIVE(T) REACTIVE2(T, reactive_eq_pod)
-
-REACTIVE(bool);
-REACTIVE(u64);
-REACTIVE(i64);
-REACTIVE(f32);
-REACTIVE3(ptr, void*, reactive_eq_pod);
 
 // Declare typed derived reactive values
 //
@@ -113,7 +140,7 @@ REACTIVE3(ptr, void*, reactive_eq_pod);
     T (*fn)(void* userdata); \
     void* userdata; \
     Reactive_ ## name reactive; \
-    ReactiveScope _scope; \
+    ReactiveWatchScope _scope; \
   } ReactiveDerived_ ## name; \
  \
   static inline void reactive__derived_ ## name ## _recompute(void* userdata) { \
@@ -130,22 +157,18 @@ REACTIVE3(ptr, void*, reactive_eq_pod);
     derived->_scope.watcher.userdata = derived; \
     derived->_scope.watcher.cb = reactive__derived_ ## name ## _watch; \
     derived->reactive = (Reactive_ ## name){0}; \
-    reactive_scope(&derived->_scope, derived, reactive__derived_ ## name ## _recompute); \
+    reactive_watch_scope(&derived->_scope, derived, reactive__derived_ ## name ## _recompute); \
   }
 #define REACTIVE_DERIVED(T) REACTIVE_DERIVED2(T, T)
 
+// Declare Reactive_X and ReactiveDerived_X for basic types.
+REACTIVE(bool);
+REACTIVE(u64);
+REACTIVE(i64);
+REACTIVE(f32);
+REACTIVE3(ptr, void*, reactive_eq_pod);
 REACTIVE_DERIVED(bool);
 REACTIVE_DERIVED(u64);
 REACTIVE_DERIVED(i64);
 REACTIVE_DERIVED(f32);
 REACTIVE_DERIVED2(ptr, void*);
-
-// // Reactive computation that will be rerun on data changes
-// S(fn)
-// // Scope for consistent reads (no-op within a computation, time is already
-// // frozen)
-// S.freeze(fn)
-// 
-// // Temporal consistency
-// // Functions only run once per update
-// //   Which means there's a cached value

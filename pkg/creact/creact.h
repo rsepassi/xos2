@@ -5,15 +5,17 @@
 typedef struct Reactive_s Reactive;
 typedef struct ReactiveWatcher_s ReactiveWatcher;
 typedef struct Reactive__advance_s Reactive__advance;
+
 // Internal helpers.
 struct Reactive__advance_s {
   Reactive* r;
   void (*tick)(Reactive* r);
-  u64 tid;
   Reactive__advance* next;
 };
 void reactive__mark_get(Reactive* r);
 void reactive__mark_set(Reactive* r);
+
+// Debug logging helpers
 #ifdef DEBUG
 #include "base/log.h"
 #define REACTIVE_DEBUG_DATA \
@@ -34,12 +36,11 @@ void reactive__mark_set(Reactive* r);
 #define REACTIVE_LOGF(tag, r, fmt, ...)
 #endif
 
-// All reactive objects have as a struct prefix a Reactive, which
-// maintains a linked list of active watchers.
+// A reactive object has as its base a linked list of active _watchers.
 struct Reactive_s {
-  REACTIVE_DEBUG_DATA
-  ReactiveWatcher* watchers;
+  ReactiveWatcher* _watchers;
   Reactive__advance _advance;
+  REACTIVE_DEBUG_DATA
 };
 
 // A watcher is a user-provided function that will be called when a reactive
@@ -48,21 +49,25 @@ typedef void (*ReactiveWatchFn)(void* userdata, Reactive*);
 struct ReactiveWatcher_s {
   ReactiveWatchFn cb;
   void* userdata;
+
   ReactiveWatcher* _next;
-  u64 _tid;  // called at most once per tx
+  u64 _txid;  // called at most once per tx
+  bool _derived;  // whether the watcher produces a ReactiveDerived value
 };
 
 // Start/stop watching a reactive value.
-void reactive_watch(Reactive* r, ReactiveWatcher* watcher);
-void reactive_leave(Reactive* r, ReactiveWatcher* watcher);
+void reactive_watch_start(Reactive* r, ReactiveWatcher* watcher);
+void reactive_watch_stop(Reactive* r, ReactiveWatcher* watcher);
 
 // Within a watch scope, all accessed reactive values will have the scope's
 // watcher registered.
 typedef struct ReactiveWatchScope_s ReactiveWatchScope;
 struct ReactiveWatchScope_s {
   ReactiveWatcher watcher;
+
   ReactiveWatchScope* _next;
 };
+
 void reactive_watch_scope_push(ReactiveWatchScope* scope);
 void reactive_watch_scope_pop();
 // Call the fn under the given watch scope.
@@ -76,11 +81,9 @@ static inline void reactive_watch_scope(
 // Batch changes together in a single transaction.
 // The tx fn will see a consistent view of all reactive values.
 // All reactive values will advance to their new values atomically.
-//
-// Note however that derived values may take a few ticks to settle to their
-// new values depending on the dependency graph and watcher order.
 void reactive_tx_start();
 void reactive_tx_commit();
+// Call the fn under a tx.
 static inline void reactive_tx(void* userdata, void (*fn)(void*)) {
   reactive_tx_start();
   fn(userdata);
@@ -104,6 +107,7 @@ static inline void reactive_tx(void* userdata, void (*fn)(void*)) {
   typedef struct { \
     Reactive base; \
     T value; \
+    \
     T _value_next; \
   } Reactive_ ## name; \
  \
@@ -127,6 +131,12 @@ static inline void reactive_tx(void* userdata, void (*fn)(void*)) {
     r->base._advance.tick = reactive__ ## name ## _tick; \
     r->_value_next = v; \
     reactive__mark_set(&r->base); \
+  } \
+ \
+  static inline void reactive__ ## name ## _derive_set(Reactive_ ## name* r, T v) { \
+    if (eqfn(r->value, v)) return; \
+    r->value = v; \
+    reactive__mark_set(&r->base); \
   }
 #define REACTIVE2(T, eqfn) REACTIVE3(T, T, eqfn)
 #define REACTIVE(T) REACTIVE2(T, reactive_eq_pod)
@@ -140,13 +150,14 @@ static inline void reactive_tx(void* userdata, void (*fn)(void*)) {
     T (*fn)(void* userdata); \
     void* userdata; \
     Reactive_ ## name reactive; \
+    \
     ReactiveWatchScope _scope; \
   } ReactiveDerived_ ## name; \
  \
   static inline void reactive__derived_ ## name ## _recompute(void* userdata) { \
     ReactiveDerived_ ## name * derived = (ReactiveDerived_ ## name *)userdata; \
     T new_value = derived->fn(derived->userdata); \
-    reactive_ ## name ## _set(&derived->reactive, new_value); \
+    reactive__ ## name ## _derive_set(&derived->reactive, new_value); \
   } \
  \
   static inline void reactive__derived_ ## name ## _watch(void* userdata, Reactive* r) { \
@@ -156,6 +167,7 @@ static inline void reactive_tx(void* userdata, void (*fn)(void*)) {
   static inline void reactive_derived_ ## name ## _init(ReactiveDerived_ ## name * derived) { \
     derived->_scope.watcher.userdata = derived; \
     derived->_scope.watcher.cb = reactive__derived_ ## name ## _watch; \
+    derived->_scope.watcher._derived = true; \
     derived->reactive = (Reactive_ ## name){0}; \
     reactive_watch_scope(&derived->_scope, derived, reactive__derived_ ## name ## _recompute); \
   }

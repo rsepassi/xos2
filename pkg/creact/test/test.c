@@ -12,8 +12,9 @@ TEST(basic, {
   u64 count = 0;
 
   Reactive_u64 a = {.value = 22};
+  REACTIVE_SETNAME(&a.base, "a");
   ReactiveWatcher watcher = {increment, &count};
-  reactive_watch(&a.base, &watcher);
+  reactive_watch_start(&a.base, &watcher);
 
   reactive_u64_set(&a, 16);
   assert_int(count, ==, 1);
@@ -22,7 +23,10 @@ TEST(basic, {
   reactive_u64_set(&a, 42);
   assert_int(count, ==, 2);
 
-  reactive_leave(&a.base, &watcher);
+  reactive_u64_set(&a, 42);
+  assert_int(count, ==, 2);
+
+  reactive_watch_stop(&a.base, &watcher);
   reactive_u64_set(&a, 43);
   assert_int(count, ==, 2);
 });
@@ -38,17 +42,19 @@ u64 derivation(void* userdata) {
 TEST(derive, {
   State state = {0};
   state.a.value = 22;
+  REACTIVE_SETNAME(&state.a.base, "a");
 
   ReactiveDerived_u64 derived = {0};
   derived.fn = derivation;
   derived.userdata = &state;
   reactive_derived_u64_init(&derived);
+  REACTIVE_SETNAME(&derived.reactive.base, "b");
   assert_int(state.a.value, ==, 22);
   assert_int(derived.reactive.value, ==, 28);
 
   u64 count = 0;
   ReactiveWatcher watcher = {increment, &count};
-  reactive_watch(&derived.reactive.base, &watcher);
+  reactive_watch_start(&derived.reactive.base, &watcher);
 
   reactive_u64_set(&state.a, 30);
   assert_int(state.a.value, ==, 30);
@@ -79,7 +85,7 @@ TEST(scope, {
   assert_int(v2, ==, 53);
 
   assert_int(count, ==, 3);
-  reactive_leave(&a.base, &scope.watcher);
+  reactive_watch_stop(&a.base, &scope.watcher);
   reactive_u64_set(&a, 55);
   assert_int(count, ==, 3);
 
@@ -160,7 +166,7 @@ TEST(tx, {
   assert_int(state.derive_count, ==, 1);
 
   ReactiveWatcher watcher = {watch_var, &state};
-  reactive_watch(&state.c.reactive.base, &watcher);
+  reactive_watch_start(&state.c.reactive.base, &watcher);
   assert_int(state.watch_count, ==, 0);
 
   {
@@ -186,6 +192,10 @@ TEST(tx, {
     assert_int(b, ==, 11);
     assert_int(c, ==, 77);
   }
+
+  reactive_tx(&state, txfn);
+  assert_int(state.derive_count, ==, 2);
+  assert_int(state.watch_count, ==, 1);
 });
 
 // Has TxState as a prefix
@@ -218,30 +228,6 @@ TEST(tx_complex, {
   // a  b
   // | / \
   // c -> d
-  //
-  // Let's say a+b are updated
-  // Propagation order matters
-  // Let's say d is the first watcher
-  // It will read a stale value of c because c has not been updated yet
-  // Then c will update
-  // Then d will update again
-  // From the outside, things will look consistent.
-  // But internally, there was inconsistent state.
-  // That's fine if everything is pure, but not if there are side effects.
-  //
-  // Initialization order also matters. If we flip the initialization of c and
-  // d, then d will see the uninitialized value of c and no watcher will be
-  // registered because init zeroes out the underlying reactive!
-  //
-  // So...
-  // Some thoughts.
-  // Embedding a functional dataflow language in an imperative stateful
-  // language is always a bit weird.
-  // Could have better errors (e.g. on getting an uninitialized value).
-  // Could be smarter about evaluation order by paying attention to
-  // dependencies. But churning through the fn pointers is simple and fast.
-  //
-  // Is there a better way?
 
   Tx2State state = {0};
   state.a.value = 3;
@@ -249,29 +235,33 @@ TEST(tx_complex, {
   REACTIVE_SETNAME(&state.a.base, "a");
   REACTIVE_SETNAME(&state.b.base, "b");
 
+  // c = a*b
   state.c.userdata = &state;
   state.c.fn = tx_derivation;
   reactive_derived_u64_init(&state.c);
   REACTIVE_SETNAME(&state.c.reactive.base, "c");
   assert_int(state.derive_count, ==, 1);
 
+  // d = b*c
   state.d.userdata = &state;
   state.d.fn = derive_d;
   reactive_derived_u64_init(&state.d);
   REACTIVE_SETNAME(&state.d.reactive.base, "d");
+  assert_int(state.derive_d_count, ==, 1);
 
   // Watch d
   ReactiveWatcher watcher = {watch_var, &state};
-  reactive_watch(&state.d.reactive.base, &watcher);
+  reactive_watch_start(&state.d.reactive.base, &watcher);
   assert_int(state.watch_count, ==, 0);
 
+  // Set a,b
   reactive_tx(&state, tx2fn);
+  // c recomputed once
   assert_int(state.derive_count, ==, 2);
-
-  // Because of the intermediate update of c, the derivation function for d
-  // gets called twice, and an observer on d sees both values.
-  assert_int(state.derive_d_count, ==, 3);
-  assert_int(state.watch_count, ==, 2);
+  // d recomputed once
+  assert_int(state.derive_d_count, ==, 2);
+  // effect on d run once
+  assert_int(state.watch_count, ==, 1);
 
   u64 a = reactive_u64_get(&state.a);
   u64 b = reactive_u64_get(&state.b);

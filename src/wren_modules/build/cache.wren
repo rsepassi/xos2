@@ -71,14 +71,16 @@ class BuildCache {
 
     var tmp_dst = tmpPathForHash_(hash)
     Log.debug("Fetching %(url) to %(tmp_dst)")
-    var args
-    if (Config.get("bootstrap")) {
-      args = ["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst]
-    } else {
-      args = [Target.host.exeName("curl"), "-s", "-L", url, "-o", tmp_dst]
-    }
 
-    Process.spawn(args, null, [null, 1, 2])
+    if (url.startsWith("file://")) {
+      File.copy(url["file://".count..-1], tmp_dst)
+    } else if (Config.get("bootstrap")) {
+      var args = ["wget", "-q", "--no-check-certificate", url, "-O", tmp_dst]
+      Process.spawn(args, null, [null, 1, 2])
+    } else {
+      var args = [Target.host.exeName("curl"), "-s", "-L", url, "-o", tmp_dst]
+      Process.spawn(args, null, [null, 1, 2])
+    }
 
     var computed_hash = setContent(tmp_dst)
     if (hash != computed_hash) {

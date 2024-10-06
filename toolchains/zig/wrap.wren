@@ -110,7 +110,7 @@ class Zig {
   // zig build (using build.zig)
   build(b, opts) {
     var args = [
-      _exe, "build",
+      "build",
     ]
     var defaults = [
       "-Dtarget=%(b.target)",
@@ -123,31 +123,31 @@ class Zig {
       args.add("-Dsysroot=%(platform.sysroot)")
     }
 
-    exec_(b, args)
+    exec(b, args)
     return "%(Process.cwd)/zig-out"
   }
 
   // zig build-lib
   buildLib(b, name, opts) {
-    var args = [_exe, "build-lib", "--name", name]
+    var args = ["build-lib", "--name", name]
     args.addAll(buildArgs(b, opts).allLib)
-    exec_(b, args)
+    exec(b, args)
     return "%(Process.cwd)/%(b.target.libName(name))"
   }
 
   // zig build-lib -dynamic
   buildDylib(b, name, opts) {
-    var args = [_exe, "build-lib", "-dynamic", "--name", name]
+    var args = ["build-lib", "-dynamic", "--name", name]
     args.addAll(buildArgs(b, opts).allExe)
-    exec_(b, args)
+    exec(b, args)
     return "%(Process.cwd)/%(b.target.dylibName(name))"
   }
 
   // zig build-exe
   buildExe(b, name, opts) {
-    var args = [_exe, "build-exe", "--name", name]
+    var args = ["build-exe", "--name", name]
     args.addAll(buildArgs(b, opts).allExe)
-    exec_(b, args)
+    exec(b, args)
     return "%(Process.cwd)/%(b.target.exeName(name))"
   }
 
@@ -221,7 +221,8 @@ class Zig {
   // Internal
   // ==========================================================================
   getOpt_(b, opts) { getOpt(opts["opt"] || b.opt_mode) }
-  exec_(b, args) {
+  exec(b, args) {
+    args.insert(0, _exe)
     var env = Process.env()
     env["HOME"] = b.workDir
     env["LOCALAPPDATA"] = b.workDir

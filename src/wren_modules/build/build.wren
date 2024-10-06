@@ -197,8 +197,9 @@ class Build {
   system(args) { system(args, null, null) }
   system(args, env) { system(args, env, null) }
   system(args, env, stdio) {
-    if (!Path.isAbs(args[0])) {
-      args[0] = WhichExe_.call(args[0], Config.get("system_path"))
+    var exe = args[0]
+    if (!Path.isAbs(exe) && !(exe.startsWith("./") || exe.startsWith("../"))) {
+      args[0] = WhichExe_.call(exe, Config.get("system_path"))
     }
     spawn(args, env, stdio)
   }
